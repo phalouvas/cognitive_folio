@@ -1,6 +1,7 @@
 import frappe
 from frappe.model.document import Document
 from frappe.utils import flt
+from erpnext.setup.utils import get_exchange_rate
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -93,15 +94,32 @@ def fetch_all_prices(portfolio_name):
 				if 'industry' in ticker_info:
 					security.industry = ticker_info['industry']
 					updated_fields.append("industry")
-					
-				# Update current price
-				if 'regularMarketPrice' in ticker_info:
-					security.current_price = flt(ticker_info['regularMarketPrice'])
-					updated_fields.append("current price")
 
 				if 'currency' in ticker_info:
 					security.currency = ticker_info['currency']
 					updated_fields.append("currency")
+
+				# Update current price
+				if 'regularMarketPrice' in ticker_info:
+					price_in_security_currency = flt(ticker_info['regularMarketPrice'])
+					# Set current_price based on currency conversion if needed
+					if security.currency == portfolio.currency:
+						# No conversion needed if currencies match
+						security.current_price = price_in_security_currency
+					else:
+						# Convert price to portfolio currency
+						try:
+							conversion_rate = get_exchange_rate(security.currency, portfolio.currency)
+							if conversion_rate:
+								security.current_price = flt(price_in_security_currency * conversion_rate)
+						except Exception as e:
+							frappe.log_error(
+								f"Currency conversion failed for {symbol}: {str(e)}",
+								"Portfolio Currency Conversion Error"
+							)
+							# Use unconverted price if conversion fails
+							security.current_price = price_in_security_currency
+					updated_fields.append("current price")
 				
 				# Save ticker info
 				if ticker_info:
