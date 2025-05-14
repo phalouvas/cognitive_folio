@@ -43,6 +43,7 @@ class CFSecurity(Document):
                 self.ticker_info = frappe.as_json(ticker_info)
                 self.currency = ticker_info['currency']
                 self.country = ticker_info.get('country', '')
+                self.region, self.subregion = get_country_region_from_api(self.country)
                 self.save()
         except Exception as e:
             frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
@@ -99,3 +100,21 @@ def search_stock_symbols(search_term):
             return {"error": "No matches found"}
     except Exception as e:
         return {"error": str(e)}
+
+def get_country_region_from_api(country):
+    """Get country region from REST Countries API"""
+
+    # get country code from country
+    country_code = None
+    country_code = frappe.get_value("Country", {"country_name": country}, "code")
+
+    try:
+        response = requests.get(f"https://restcountries.com/v3.1/alpha/{country_code}")
+        if response.status_code == 200:
+            data = response.json()
+            if data and len(data) > 0:
+                return data[0].get('region', 'Unknown'), data[0].get('subregion', 'Unknown')
+        return 'Unknown'
+    except Exception as e:
+        frappe.log_error(f"Error fetching country region: {str(e)}")
+        return 'Unknown'

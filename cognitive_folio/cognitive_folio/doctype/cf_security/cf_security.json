@@ -14,9 +14,12 @@
   "stock_exchange",
   "currency",
   "section_break_8",
+  "country",
+  "region",
+  "subregion",
+  "column_break_bpmj",
   "sector",
   "industry",
-  "country",
   "section_break_11",
   "ticker_info"
  ],
@@ -104,6 +107,22 @@
    "label": "Country",
    "options": "Country",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_bpmj",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region",
+   "read_only": 1
+  },
+  {
+   "fieldname": "subregion",
+   "fieldtype": "Data",
+   "label": "Subregion",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -121,7 +140,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 17:36:15.987749",
+ "modified": "2025-05-14 17:40:23.498263",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

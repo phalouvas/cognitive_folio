@@ -7,20 +7,25 @@
  "field_order": [
   "portfolio",
   "security",
+  "currency",
   "column_break_5",
   "quantity",
   "average_purchase_price",
   "base_average_purchase_price",
-  "currency",
   "section_break_hwcf",
   "current_price",
   "current_value",
+  "column_break_ovgu",
   "profit_loss",
   "profit_loss_percentage",
-  "column_break_ovgu",
+  "allocation_section",
   "allocation_percentage",
   "sector",
   "industry",
+  "column_break_jhug",
+  "country",
+  "region",
+  "subregion",
   "section_break_9",
   "notes"
  ],
@@ -122,7 +127,8 @@
   },
   {
    "fieldname": "section_break_hwcf",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Valuation"
   },
   {
    "fieldname": "column_break_ovgu",
@@ -139,11 +145,41 @@
    "fieldtype": "Percent",
    "label": "Profit/Loss %",
    "read_only": 1
+  },
+  {
+   "fieldname": "allocation_section",
+   "fieldtype": "Section Break",
+   "label": "Allocation"
+  },
+  {
+   "fieldname": "column_break_jhug",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "security.country",
+   "fieldname": "country",
+   "fieldtype": "Data",
+   "label": "Country",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.region",
+   "fieldname": "region",
+   "fieldtype": "Data",
+   "label": "Region",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.subregion",
+   "fieldname": "subregion",
+   "fieldtype": "Data",
+   "label": "Subregion",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 17:01:01.468560",
+ "modified": "2025-05-14 17:47:15.927914",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
