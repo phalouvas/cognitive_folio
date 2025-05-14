@@ -7,13 +7,17 @@
  "field_order": [
   "portfolio",
   "security",
+  "column_break_5",
   "quantity",
   "average_purchase_price",
-  "column_break_5",
+  "section_break_hwcf",
   "current_price",
   "current_value",
   "profit_loss",
+  "column_break_ovgu",
   "allocation_percentage",
+  "sector",
+  "industry",
   "section_break_9",
   "notes",
   "currency"
@@ -99,11 +103,33 @@
    "fieldtype": "Currency",
    "label": "Current Price",
    "read_only": 1
+  },
+  {
+   "fetch_from": "security.sector",
+   "fieldname": "sector",
+   "fieldtype": "Data",
+   "label": "Sector",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.industry",
+   "fieldname": "industry",
+   "fieldtype": "Data",
+   "label": "Industry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_hwcf",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "column_break_ovgu",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 10:58:25.794708",
+ "modified": "2025-05-14 11:05:09.940870",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
