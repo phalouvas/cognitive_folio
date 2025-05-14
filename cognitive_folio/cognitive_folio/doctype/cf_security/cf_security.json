@@ -32,6 +32,7 @@
    "fieldtype": "Data",
    "in_list_view": 1,
    "label": "Symbol/Ticker",
+   "read_only": 1,
    "reqd": 1,
    "unique": 1
   },
@@ -56,7 +57,8 @@
   {
    "fieldname": "stock_exchange",
    "fieldtype": "Data",
-   "label": "Stock Exchange"
+   "label": "Stock Exchange",
+   "read_only": 1
   },
   {
    "fieldname": "currency",
@@ -64,7 +66,7 @@
    "in_list_view": 1,
    "label": "Currency",
    "options": "Currency",
-   "reqd": 1
+   "read_only": 1
   },
   {
    "fieldname": "section_break_8",
@@ -74,12 +76,14 @@
   {
    "fieldname": "sector",
    "fieldtype": "Data",
-   "label": "Sector"
+   "label": "Sector",
+   "read_only": 1
   },
   {
    "fieldname": "industry",
    "fieldtype": "Data",
-   "label": "Industry"
+   "label": "Industry",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_11",
@@ -109,7 +113,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 15:28:18.876725",
+ "modified": "2025-05-14 16:24:20.658686",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

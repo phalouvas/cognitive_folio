@@ -10,9 +10,10 @@ from erpnext.setup.utils import get_exchange_rate
 class CFPortfolioHolding(Document):
     def validate(self):
         self.convert_average_purchase_price()
-        self.calculate_current_value()
-        self.calculate_profit_loss()
-        self.calculate_allocation_percentage()
+        if self.current_price:
+            self.calculate_current_value()
+            self.calculate_profit_loss()
+            self.calculate_allocation_percentage()
         
     def convert_average_purchase_price(self):
         """Convert average purchase price to portfolio currency if changed"""

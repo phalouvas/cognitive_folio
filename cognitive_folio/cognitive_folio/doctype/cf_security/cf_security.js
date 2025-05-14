@@ -1,12 +1,6 @@
 frappe.ui.form.on('CF Security', {
     refresh: function(frm) {
-        // Add "Fetch Market Data" button
-        frm.add_custom_button(__('Fetch Market Data'), function() {
-            frm.call('fetch_market_data')
-                .then(r => {
-                    frm.refresh();
-                });
-        }, __('Actions'));
+        //
     },
 
     // Add an event handler for security_name field

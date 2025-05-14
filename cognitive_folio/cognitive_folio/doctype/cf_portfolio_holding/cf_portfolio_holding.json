@@ -130,12 +130,13 @@
   {
    "fieldname": "base_average_purchase_price",
    "fieldtype": "Currency",
-   "label": "Average Purchase Price (Portfolio Currency)"
+   "label": "Average Purchase Price (Portfolio Currency)",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 15:48:45.104660",
+ "modified": "2025-05-14 16:08:48.304930",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

@@ -46,58 +46,6 @@ class CFSecurity(Document):
                     # Trigger value recalculation in each holding
                     holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
                     holding_doc.save()
-    
-    @frappe.whitelist()
-    def fetch_market_data(self):
-        """Fetch latest market data for this security"""
-        if not self.symbol:
-            frappe.msgprint("Symbol/Ticker is required to fetch market data")
-            return
-            
-        if not YFINANCE_INSTALLED:
-            frappe.msgprint("YFinance package is not installed. Please run 'bench pip install yfinance'")
-            return
-            
-        try:
-            # Try to fetch data from Yahoo Finance
-            ticker = yf.Ticker(self.symbol)
-            ticker_info = ticker.info
-            
-            updated_fields = []
-            
-            # Update basic information if missing
-            if not self.security_name and 'longName' in ticker_info:
-                self.security_name = ticker_info['longName']
-                updated_fields.append("security name")
-            
-            if not self.sector and 'sector' in ticker_info:
-                self.sector = ticker_info['sector']
-                updated_fields.append("sector")
-                
-            if not self.industry and 'industry' in ticker_info:
-                self.industry = ticker_info['industry']
-                updated_fields.append("industry")
-                
-            # Update current price
-            if 'regularMarketPrice' in ticker_info:
-                self.current_price = flt(ticker_info['regularMarketPrice'])
-                updated_fields.append("current price")
-                
-            # Update stock exchange 
-            if not self.stock_exchange and 'exchange' in ticker_info:
-                self.stock_exchange = ticker_info['exchange']
-                updated_fields.append("stock exchange")
-                
-            if updated_fields:
-                self.save()
-                frappe.msgprint(f"Updated {', '.join(updated_fields)} for {self.symbol}")
-            else:
-                frappe.msgprint(f"No new data found for {self.symbol}")
-                
-        except Exception as e:
-            frappe.log_error(f"Failed to fetch market data for {self.symbol}: {str(e)}", 
-                           "CF Security Data Fetch")
-            frappe.msgprint(f"Error fetching data for {self.symbol}: {str(e)}")
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):
