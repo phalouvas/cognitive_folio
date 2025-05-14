@@ -1,0 +1,171 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:CFTX-{####}",
+ "creation": "2025-05-14 12:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "portfolio",
+  "security",
+  "transaction_type",
+  "transaction_date",
+  "column_break_5",
+  "quantity",
+  "price_per_unit",
+  "column_break_8",
+  "total_amount",
+  "currency",
+  "fees_section",
+  "fees",
+  "commission",
+  "total_fees",
+  "section_break_15",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "portfolio",
+   "fieldtype": "Link",
+   "label": "Portfolio",
+   "options": "CF Portfolio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "security",
+   "fieldtype": "Link",
+   "label": "Security",
+   "options": "CF Security",
+   "reqd": 1
+  },
+  {
+   "fieldname": "transaction_type",
+   "fieldtype": "Select",
+   "label": "Transaction Type",
+   "options": "Buy\nSell\nDividend\nSplit\nMerger\nRights\nBonus\nOther",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "transaction_date",
+   "fieldtype": "Date",
+   "label": "Transaction Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "quantity",
+   "fieldtype": "Float",
+   "label": "Quantity",
+   "precision": "4",
+   "reqd": 1
+  },
+  {
+   "fieldname": "price_per_unit",
+   "fieldtype": "Currency",
+   "label": "Price per Unit",
+   "options": "currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_8",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "portfolio.currency",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "fees_section",
+   "fieldtype": "Section Break",
+   "label": "Fees & Commission"
+  },
+  {
+   "fieldname": "fees",
+   "fieldtype": "Currency",
+   "label": "Fees",
+   "options": "currency"
+  },
+  {
+   "fieldname": "commission",
+   "fieldtype": "Currency",
+   "label": "Commission",
+   "options": "currency"
+  },
+  {
+   "fieldname": "total_fees",
+   "fieldtype": "Currency",
+   "label": "Total Fees",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_15",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-14 12:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Transaction",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Customer"
+  }
+ ],
+ "search_fields": "portfolio,security,transaction_type,transaction_date",
+ "sort_field": "transaction_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

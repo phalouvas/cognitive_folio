@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Security\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio Holding\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Security\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio Holding\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Transaction\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -45,6 +45,13 @@
    "doc_view": "List",
    "label": "Cf Portfolio Holding",
    "link_to": "CF Portfolio Holding",
+   "type": "DocType"
+  },
+  {
+   "color": "Orange",
+   "doc_view": "List",
+   "label": "Cf Transaction",
+   "link_to": "CF Transaction",
    "type": "DocType"
   }
  ],

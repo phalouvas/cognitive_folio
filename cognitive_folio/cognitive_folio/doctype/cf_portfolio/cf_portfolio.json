@@ -78,13 +78,13 @@
   }
  ],
  "index_web_pages_for_search": 1,
- "links": [
+  "links": [
   {
-   "link_doctype": "Portfolio Holding",
+   "link_doctype": "CF Portfolio Holding",
    "link_fieldname": "portfolio"
   },
   {
-   "link_doctype": "Transaction",
+   "link_doctype": "CF Transaction",
    "link_fieldname": "portfolio"
   }
  ],
