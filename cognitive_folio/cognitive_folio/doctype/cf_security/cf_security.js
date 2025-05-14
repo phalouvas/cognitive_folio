@@ -17,6 +17,22 @@ frappe.ui.form.on('CF Security', {
                 search_stocks(frm, frm.doc.security_name);
             }, 800); // Wait 800ms after user stops typing
         }
+    },
+    
+    // Add an event handler for isin field
+    isin: function(frm) {
+        // Only search if isin has at least 3 characters
+        if(frm.doc.isin && frm.doc.isin.length >= 3) {
+            // Don't search if we already have a symbol
+            if(frm.doc.stock_exchange) return;
+            
+            // Debounce the search to avoid too many API calls
+            if(frm.isin_timeout) clearTimeout(frm.isin_timeout);
+            
+            frm.isin_timeout = setTimeout(() => {
+                search_stocks(frm, frm.doc.isin);
+            }, 800); // Wait 800ms after user stops typing
+        }
     }
 });
 
