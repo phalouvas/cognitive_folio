@@ -1,0 +1,206 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:CFPR-{####}",
+ "creation": "2025-05-14 16:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "portfolio",
+  "report_name",
+  "report_period",
+  "column_break_4",
+  "start_date",
+  "end_date",
+  "section_break_7",
+  "starting_value",
+  "ending_value",
+  "deposits",
+  "withdrawals",
+  "column_break_12",
+  "return_value",
+  "return_percentage",
+  "annualized_return",
+  "section_break_16",
+  "benchmark",
+  "benchmark_return_percentage",
+  "section_break_19",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "portfolio",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Portfolio",
+   "options": "CF Portfolio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "report_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Report Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "report_period",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Report Period",
+   "options": "Monthly\nQuarterly\nHalf-Yearly\nYearly\nCustom",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "end_date",
+   "fieldtype": "Date",
+   "label": "End Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_7",
+   "fieldtype": "Section Break",
+   "label": "Performance Metrics"
+  },
+  {
+   "fieldname": "starting_value",
+   "fieldtype": "Currency",
+   "label": "Starting Value",
+   "options": "currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ending_value",
+   "fieldtype": "Currency",
+   "label": "Ending Value",
+   "options": "currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "deposits",
+   "fieldtype": "Currency",
+   "label": "Deposits",
+   "options": "currency"
+  },
+  {
+   "fieldname": "withdrawals",
+   "fieldtype": "Currency",
+   "label": "Withdrawals",
+   "options": "currency"
+  },
+  {
+   "fieldname": "column_break_12",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_value",
+   "fieldtype": "Currency",
+   "label": "Return Value",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "return_percentage",
+   "fieldtype": "Percent",
+   "label": "Return Percentage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_return",
+   "fieldtype": "Percent",
+   "label": "Annualized Return",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_16",
+   "fieldtype": "Section Break",
+   "label": "Benchmark Comparison"
+  },
+  {
+   "fieldname": "benchmark",
+   "fieldtype": "Data",
+   "label": "Benchmark",
+   "description": "Enter the benchmark name (e.g., S&P 500, FTSE 100)"
+  },
+  {
+   "fieldname": "benchmark_return_percentage",
+   "fieldtype": "Percent",
+   "label": "Benchmark Return",
+   "description": "Enter the benchmark return for the same period"
+  },
+  {
+   "fieldname": "section_break_19",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  },
+  {
+   "fetch_from": "portfolio.currency",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "hidden": 1,
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-14 16:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Performance Report",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Customer"
+  }
+ ],
+ "search_fields": "portfolio,report_name,report_period,start_date,end_date",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

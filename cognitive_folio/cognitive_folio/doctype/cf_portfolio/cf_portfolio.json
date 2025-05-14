@@ -94,6 +94,10 @@
   {
    "link_doctype": "CF Dividend",
    "link_fieldname": "portfolio"
+  },
+  {
+   "link_doctype": "CF Performance Report",
+   "link_fieldname": "portfolio"
   }
  ],
  "modified": "2025-05-14 00:00:00.000000",
