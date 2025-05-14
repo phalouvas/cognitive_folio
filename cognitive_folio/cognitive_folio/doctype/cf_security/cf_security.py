@@ -126,7 +126,9 @@ def search_stock_symbols(search_term):
                         "symbol": quote.get("symbol"),
                         "name": quote.get("longname") or quote.get("shortname"),
                         "exchange": quote.get("exchange"),
-                        "type": quote.get("quoteType")
+                        "type": quote.get("quoteType"),
+                        "sector": quote.get("sector"),
+                        "industry": quote.get("industry")
                     })
             return {"results": results}
         else:
