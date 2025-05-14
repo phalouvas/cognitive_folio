@@ -1,0 +1,38 @@
+{
+ "charts": [],
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}}]",
+ "creation": "2025-05-14 08:12:52.289798",
+ "custom_blocks": [],
+ "docstatus": 0,
+ "doctype": "Workspace",
+ "for_user": "",
+ "hide_custom": 0,
+ "icon": "equity",
+ "idx": 0,
+ "indicator_color": "green",
+ "is_hidden": 0,
+ "label": "Cognitive Folio",
+ "links": [],
+ "modified": "2025-05-14 08:14:10.663931",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "Cognitive Folio",
+ "number_cards": [],
+ "owner": "Administrator",
+ "parent_page": "",
+ "public": 1,
+ "quick_lists": [],
+ "roles": [],
+ "sequence_id": 39.0,
+ "shortcuts": [
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Cf Portfolio",
+   "link_to": "CF Portfolio",
+   "stats_filter": "[[\"CF Portfolio\",\"disabled\",\"=\",0,false]]",
+   "type": "DocType"
+  }
+ ],
+ "title": "Cognitive Folio"
+}
