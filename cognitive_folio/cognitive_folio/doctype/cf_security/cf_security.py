@@ -15,7 +15,6 @@ except ImportError:
 class CFSecurity(Document):
     def validate(self):
         self.validate_isin()
-        self.set_last_updated()
     
     def validate_isin(self):
         """Validate ISIN format if provided"""
@@ -27,11 +26,6 @@ class CFSecurity(Document):
             # Basic format validation: 2 letters country code + 9 alphanumeric + 1 check digit
             if not (self.isin[:2].isalpha() and self.isin[2:11].isalnum() and self.isin[11].isalnum()):
                 frappe.throw("ISIN format is invalid. It should be 2 letters country code followed by 9 alphanumeric characters and 1 check digit")
-    
-    def set_last_updated(self):
-        """Update the last_updated timestamp when price changes"""
-        if self.is_new() or self.has_value_changed("current_price"):
-            self.last_updated = now_datetime()
             
     def on_update(self):
         """Update related documents when a security is updated"""

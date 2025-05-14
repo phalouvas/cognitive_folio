@@ -62,14 +62,12 @@
    "fieldname": "current_value",
    "fieldtype": "Currency",
    "label": "Current Value",
-   "options": "currency",
    "read_only": 1
   },
   {
    "fieldname": "profit_loss",
    "fieldtype": "Currency",
    "label": "Profit/Loss",
-   "options": "currency",
    "read_only": 1
   },
   {
@@ -97,7 +95,6 @@
    "read_only": 1
   },
   {
-   "fetch_from": "security.current_price",
    "fieldname": "current_price",
    "fieldtype": "Currency",
    "label": "Current Price",
@@ -128,7 +125,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 14:52:42.415451",
+ "modified": "2025-05-14 15:29:34.964311",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

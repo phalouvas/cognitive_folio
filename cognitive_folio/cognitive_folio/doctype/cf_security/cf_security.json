@@ -17,8 +17,6 @@
   "sector",
   "industry",
   "section_break_11",
-  "current_price",
-  "last_updated",
   "ticker_info"
  ],
  "fields": [
@@ -89,19 +87,6 @@
    "label": "Market Data"
   },
   {
-   "fieldname": "current_price",
-   "fieldtype": "Currency",
-   "label": "Current Price",
-   "options": "currency",
-   "read_only": 1
-  },
-  {
-   "fieldname": "last_updated",
-   "fieldtype": "Datetime",
-   "label": "Last Updated",
-   "read_only": 1
-  },
-  {
    "description": "Stores raw ticker.info data as JSON",
    "fieldname": "ticker_info",
    "fieldtype": "Text",
@@ -124,7 +109,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 14:55:00.464409",
+ "modified": "2025-05-14 15:28:18.876725",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
