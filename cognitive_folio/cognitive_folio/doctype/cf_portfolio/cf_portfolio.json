@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "field:portfolio_name",
- "creation": "2025-05-14 00:00:00.000000",
+ "creation": "2025-05-14 00:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -21,13 +21,15 @@
   {
    "fieldname": "portfolio_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Portfolio Name",
-   "unique": 1,
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
    "fieldname": "customer",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Customer",
    "options": "Customer",
    "reqd": 1
@@ -50,11 +52,12 @@
   {
    "fieldname": "start_date",
    "fieldtype": "Date",
+   "in_list_view": 1,
    "label": "Start Date",
    "reqd": 1
   },
   {
-   "default": 0,
+   "default": "0",
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disabled"
@@ -78,7 +81,7 @@
   }
  ],
  "index_web_pages_for_search": 1,
-  "links": [
+ "links": [
   {
    "link_doctype": "CF Portfolio Holding",
    "link_fieldname": "portfolio"
@@ -100,7 +103,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-14 00:00:00.000000",
+ "modified": "2025-05-14 11:17:59.966386",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
@@ -137,6 +140,7 @@
    "role": "Customer"
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "portfolio_name,customer,currency,disabled",
  "sort_field": "modified",
  "sort_order": "DESC",
