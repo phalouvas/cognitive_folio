@@ -7,11 +7,14 @@
  "field_order": [
   "portfolio",
   "security",
-  "currency",
+  "security_name",
+  "isin",
+  "security_type",
   "column_break_5",
   "quantity",
   "average_purchase_price",
   "base_average_purchase_price",
+  "currency",
   "section_break_hwcf",
   "current_price",
   "current_value",
@@ -175,11 +178,35 @@
    "fieldtype": "Data",
    "label": "Subregion",
    "read_only": 1
+  },
+  {
+   "fetch_from": "security.security_name",
+   "fieldname": "security_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Security Name",
+   "read_only": 1
+  },
+  {
+   "description": "International Securities Identification Number",
+   "fetch_from": "security.isin",
+   "fieldname": "isin",
+   "fieldtype": "Data",
+   "label": "ISIN",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.security_type",
+   "fieldname": "security_type",
+   "fieldtype": "Data",
+   "label": "Security Type",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 17:47:15.927914",
+ "modified": "2025-05-14 17:58:47.649062",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
