@@ -1,0 +1,134 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:portfolio_name",
+ "creation": "2025-05-14 00:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "portfolio_name",
+  "customer",
+  "description",
+  "column_break_4",
+  "currency",
+  "start_date",
+  "status",
+  "section_break_8",
+  "risk_profile",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "portfolio_name",
+   "fieldtype": "Data",
+   "label": "Portfolio Name",
+   "unique": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "customer",
+   "fieldtype": "Link",
+   "label": "Customer",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "description",
+   "fieldtype": "Small Text",
+   "label": "Description"
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency"
+  },
+  {
+   "fieldname": "start_date",
+   "fieldtype": "Date",
+   "label": "Start Date",
+   "reqd": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Active\nInactive"
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "default": "Medium",
+   "fieldname": "risk_profile",
+   "fieldtype": "Select",
+   "label": "Risk Profile",
+   "options": "Low\nMedium\nHigh"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Text Editor",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "Portfolio Holding",
+   "link_fieldname": "portfolio"
+  },
+  {
+   "link_doctype": "Transaction",
+   "link_fieldname": "portfolio"
+  }
+ ],
+ "modified": "2025-05-14 00:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Portfolio",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Customer"
+  }
+ ],
+ "search_fields": "portfolio_name,customer,currency,status",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
