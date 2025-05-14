@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Cognitive Folio",
  "links": [],
- "modified": "2025-05-14 08:34:11.703133",
+ "modified": "2025-05-14 16:32:45.121519",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
@@ -28,21 +28,21 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Security",
-   "link_to": "CF Security",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
    "label": "Cf Portfolio",
    "link_to": "CF Portfolio",
    "stats_filter": "[[\"CF Portfolio\",\"disabled\",\"=\",0,false]]",
    "type": "DocType"
   },
   {
-   "color": "Green",
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Cf Security",
+   "link_to": "CF Security",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
    "doc_view": "List",
    "label": "Cf Portfolio Holding",
    "link_to": "CF Portfolio Holding",
@@ -50,7 +50,7 @@
    "type": "DocType"
   },
   {
-   "color": "Orange",
+   "color": "Blue",
    "doc_view": "List",
    "label": "Cf Transaction",
    "link_to": "CF Transaction",
@@ -58,7 +58,7 @@
    "type": "DocType"
   },
   {
-   "color": "Purple",
+   "color": "Blue",
    "doc_view": "List",
    "label": "Cf Asset Allocation",
    "link_to": "CF Asset Allocation",
@@ -66,7 +66,7 @@
    "type": "DocType"
   },
   {
-   "color": "Red",
+   "color": "Blue",
    "doc_view": "List",
    "label": "Cf Dividend",
    "link_to": "CF Dividend",
@@ -74,7 +74,7 @@
    "type": "DocType"
   },
   {
-   "color": "Yellow",
+   "color": "Blue",
    "doc_view": "List",
    "label": "Cf Performance Report",
    "link_to": "CF Performance Report",
