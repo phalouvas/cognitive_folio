@@ -16,6 +16,7 @@
   "current_price",
   "current_value",
   "profit_loss",
+  "profit_loss_percentage",
   "column_break_ovgu",
   "allocation_percentage",
   "sector",
@@ -132,11 +133,17 @@
    "fieldtype": "Currency",
    "label": "Average Purchase Price (Portfolio Currency)",
    "read_only": 1
+  },
+  {
+   "fieldname": "profit_loss_percentage",
+   "fieldtype": "Percent",
+   "label": "Profit/Loss %",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 16:08:48.304930",
+ "modified": "2025-05-14 17:01:01.468560",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

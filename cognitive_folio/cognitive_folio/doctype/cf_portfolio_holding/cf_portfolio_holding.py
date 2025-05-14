@@ -69,6 +69,7 @@ class CFPortfolioHolding(Document):
         """Calculate profit/loss based on purchase price and current value"""
         total_cost = flt(self.base_average_purchase_price * self.quantity)
         self.profit_loss = flt(self.current_value - total_cost)
+        self.profit_loss_percentage = flt((self.profit_loss / total_cost) * 100, 2)
             
     def calculate_allocation_percentage(self):
         """Calculate allocation percentage based on total portfolio value"""
