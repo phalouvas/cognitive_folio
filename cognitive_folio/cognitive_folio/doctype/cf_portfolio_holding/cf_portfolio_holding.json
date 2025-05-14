@@ -28,6 +28,7 @@
    "fieldname": "portfolio",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Portfolio",
    "options": "CF Portfolio",
    "reqd": 1
@@ -36,6 +37,7 @@
    "fieldname": "security",
    "fieldtype": "Link",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Security",
    "options": "CF Security",
    "reqd": 1
@@ -43,14 +45,12 @@
   {
    "fieldname": "quantity",
    "fieldtype": "Float",
-   "in_list_view": 1,
    "label": "Quantity",
    "reqd": 1
   },
   {
    "fieldname": "average_purchase_price",
    "fieldtype": "Currency",
-   "in_list_view": 1,
    "label": "Average Purchase Price",
    "options": "currency",
    "reqd": 1
@@ -62,6 +62,7 @@
   {
    "fieldname": "current_value",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Current Value",
    "read_only": 1
   },
@@ -74,6 +75,7 @@
   {
    "fieldname": "allocation_percentage",
    "fieldtype": "Percent",
+   "in_list_view": 1,
    "label": "Allocation Percentage",
    "read_only": 1
   },
@@ -105,6 +107,7 @@
    "fetch_from": "security.sector",
    "fieldname": "sector",
    "fieldtype": "Data",
+   "in_standard_filter": 1,
    "label": "Sector",
    "read_only": 1
   },
@@ -112,6 +115,7 @@
    "fetch_from": "security.industry",
    "fieldname": "industry",
    "fieldtype": "Data",
+   "in_standard_filter": 1,
    "label": "Industry",
    "read_only": 1
   },
@@ -131,7 +135,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 15:40:11.336496",
+ "modified": "2025-05-14 15:48:45.104660",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
