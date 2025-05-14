@@ -121,24 +121,8 @@ function search_stocks(frm, search_term) {
                 if (industry) frm.set_value('industry', industry);
                 
                 result_dialog.hide();
+                frappe.dom.unfreeze();
                 
-                // Call fetch_market_data to get complete information
-                frm.call('fetch_market_data')
-                    .then(r => {
-                        frm.refresh();
-                        frappe.dom.unfreeze();
-                        frappe.show_alert({
-                            message: __(`Selected ${symbol} and updated security details`),
-                            indicator: 'green'
-                        }, 5);
-                    })
-                    .catch(err => {
-                        frappe.dom.unfreeze();
-                        frappe.show_alert({
-                            message: __(`Selected ${symbol} but couldn't fetch all details`),
-                            indicator: 'orange'
-                        }, 5);
-                    });
             });
             
             result_dialog.show();
