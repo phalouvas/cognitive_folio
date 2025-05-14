@@ -41,7 +41,8 @@ class CFSecurity(Document):
             ticker_info = ticker.info
             if 'regularMarketPrice' in ticker_info:
                 self.ticker_info = frappe.as_json(ticker_info)
-                self.currency = ticker_info['currency']   
+                self.currency = ticker_info['currency']
+                self.country = ticker_info.get('country', '')
                 self.save()
         except Exception as e:
             frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")

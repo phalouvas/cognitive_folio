@@ -70,7 +70,8 @@ class CFPortfolioHolding(Document):
         total_cost = flt(self.base_average_purchase_price * self.quantity)
         self.profit_loss = flt(self.current_value - total_cost)
         self.profit_loss_percentage = flt((self.profit_loss / total_cost) * 100, 2)
-            
+
+    @frappe.whitelist()    
     def calculate_allocation_percentage(self):
         """Calculate allocation percentage based on total portfolio value"""
         if not self.current_value or not self.portfolio:
@@ -93,7 +94,20 @@ class CFPortfolioHolding(Document):
             self.allocation_percentage = flt((self.current_value / total_value) * 100, 2)
         else:
             self.allocation_percentage = 0
+
+        return self.allocation_percentage
             
     def on_update(self):
         """Update parent portfolio when holdings change"""
-        pass  # Add portfolio update logic when needed
+        # get all holdings for this portfolio except this one
+        holdings = frappe.get_all(
+            "CF Portfolio Holding",
+            filters={"portfolio": self.portfolio, "name": ["!=", self.name]},
+            fields=["name"]
+        )
+        # for each holding, calculate_allocation_percentage
+        for holding in holdings:
+            holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
+            allocation_percentage = holding_doc.calculate_allocation_percentage()
+            # update the holding directly
+            holding_doc.db_set("allocation_percentage", allocation_percentage)

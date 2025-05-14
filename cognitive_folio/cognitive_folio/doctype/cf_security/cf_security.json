@@ -16,6 +16,7 @@
   "section_break_8",
   "sector",
   "industry",
+  "country",
   "section_break_11",
   "ticker_info"
  ],
@@ -96,6 +97,13 @@
    "fieldtype": "Text",
    "label": "Ticker Info",
    "read_only": 1
+  },
+  {
+   "fieldname": "country",
+   "fieldtype": "Link",
+   "label": "Country",
+   "options": "Country",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -113,7 +121,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 16:24:20.658686",
+ "modified": "2025-05-14 17:36:15.987749",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
