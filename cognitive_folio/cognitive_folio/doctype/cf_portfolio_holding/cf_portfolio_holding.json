@@ -1,8 +1,7 @@
 {
  "actions": [],
- "allow_rename": 0,
  "autoname": "format:CFPH-{####}",
- "creation": "2025-05-14 11:00:00.000000",
+ "creation": "2025-05-14 11:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -11,16 +10,19 @@
   "quantity",
   "average_purchase_price",
   "column_break_5",
+  "current_price",
   "current_value",
   "profit_loss",
   "allocation_percentage",
   "section_break_9",
-  "notes"
+  "notes",
+  "currency"
  ],
  "fields": [
   {
    "fieldname": "portfolio",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Portfolio",
    "options": "CF Portfolio",
    "reqd": 1
@@ -28,6 +30,7 @@
   {
    "fieldname": "security",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Security",
    "options": "CF Security",
    "reqd": 1
@@ -35,12 +38,14 @@
   {
    "fieldname": "quantity",
    "fieldtype": "Float",
+   "in_list_view": 1,
    "label": "Quantity",
    "reqd": 1
   },
   {
    "fieldname": "average_purchase_price",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Average Purchase Price",
    "options": "currency",
    "reqd": 1
@@ -87,11 +92,18 @@
    "label": "Currency",
    "options": "Currency",
    "read_only": 1
+  },
+  {
+   "fetch_from": "security.current_price",
+   "fieldname": "current_price",
+   "fieldtype": "Currency",
+   "label": "Current Price",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 11:00:00.000000",
+ "modified": "2025-05-14 10:58:25.794708",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
@@ -128,6 +140,7 @@
    "role": "Customer"
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "portfolio,security",
  "sort_field": "modified",
  "sort_order": "DESC",
