@@ -123,9 +123,6 @@ def fetch_all_prices(portfolio_name):
                             total_cost = holding.average_purchase_price * holding.quantity
                             holding.profit_loss = holding.current_value - total_cost
                         
-                        # Calculate allocation percentage
-                        holding.calculate_allocation_percentage()
-                        
                         # Save the holding
                         holding.save()
                         updated_count += 1

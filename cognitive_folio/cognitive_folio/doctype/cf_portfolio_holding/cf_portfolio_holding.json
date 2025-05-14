@@ -10,6 +10,7 @@
   "column_break_5",
   "quantity",
   "average_purchase_price",
+  "base_average_purchase_price",
   "currency",
   "section_break_hwcf",
   "current_price",
@@ -121,11 +122,16 @@
   {
    "fieldname": "column_break_ovgu",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "base_average_purchase_price",
+   "fieldtype": "Currency",
+   "label": "Average Purchase Price (Portfolio Currency)"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 15:29:34.964311",
+ "modified": "2025-05-14 15:40:11.336496",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
