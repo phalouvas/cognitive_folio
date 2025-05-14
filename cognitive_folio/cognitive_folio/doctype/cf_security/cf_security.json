@@ -104,6 +104,10 @@
   {
    "link_doctype": "CF Transaction",
    "link_fieldname": "security"
+  },
+  {
+   "link_doctype": "CF Dividend",
+   "link_fieldname": "security"
   }
  ],
  "modified": "2025-05-14 10:00:00.000000",

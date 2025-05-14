@@ -1,0 +1,175 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:CFDIV-{####}",
+ "creation": "2025-05-14 15:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "portfolio",
+  "security",
+  "ex_dividend_date",
+  "payment_date",
+  "column_break_5",
+  "amount_per_share",
+  "shares_owned",
+  "section_break_8",
+  "total_amount",
+  "tax_withheld",
+  "net_amount",
+  "section_break_12",
+  "currency",
+  "status",
+  "section_break_15",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "portfolio",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Portfolio",
+   "options": "CF Portfolio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "security",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Security",
+   "options": "CF Security",
+   "reqd": 1
+  },
+  {
+   "fieldname": "ex_dividend_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "label": "Ex-Dividend Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "payment_date",
+   "fieldtype": "Date",
+   "label": "Payment Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "amount_per_share",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount per Share",
+   "options": "currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "shares_owned",
+   "fieldtype": "Float",
+   "label": "Shares Owned",
+   "precision": "4",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break",
+   "label": "Amount Details"
+  },
+  {
+   "fieldname": "total_amount",
+   "fieldtype": "Currency",
+   "label": "Total Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tax_withheld",
+   "fieldtype": "Currency",
+   "label": "Tax Withheld",
+   "options": "currency"
+  },
+  {
+   "fieldname": "net_amount",
+   "fieldtype": "Currency",
+   "label": "Net Amount",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_12",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "portfolio.currency",
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1
+  },
+  {
+   "default": "Announced",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "label": "Status",
+   "options": "Announced\nPaid\nCancelled",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_15",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-14 15:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Dividend",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Customer"
+  }
+ ],
+ "search_fields": "portfolio,security,ex_dividend_date,payment_date",
+ "sort_field": "payment_date",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
