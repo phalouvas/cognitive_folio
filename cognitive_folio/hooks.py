@@ -83,7 +83,7 @@ app_license = "mit"
 # ------------
 
 # before_install = "cognitive_folio.install.before_install"
-# after_install = "cognitive_folio.install.after_install"
+after_install = "cognitive_folio.install.after_install"
 
 # Uninstallation
 # ------------
