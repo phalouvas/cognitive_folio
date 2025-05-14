@@ -28,19 +28,33 @@ frappe.ui.form.on('CF Security', {
 
 // Function to search for stocks based on search term
 function search_stocks(frm, search_term) {
+    // Show loading indicator
+    frappe.dom.freeze(__('Searching for securities...'));
+    
     frappe.call({
         method: 'cognitive_folio.cognitive_folio.doctype.cf_security.cf_security.search_stock_symbols',
         args: {
             search_term: search_term
         },
         callback: function(r) {
+            // Hide loading indicator
+            frappe.dom.unfreeze();
+            
             if (r.message.error) {
-                console.log("Stock search error:", r.message.error);
+                frappe.msgprint({
+                    title: __('Search Error'),
+                    indicator: 'red',
+                    message: r.message.error
+                });
                 return;
             }
             
             if (!r.message.results || r.message.results.length === 0) {
-                console.log("No stocks found for:", search_term);
+                frappe.msgprint({
+                    title: __('No Results'),
+                    indicator: 'yellow',
+                    message: __(`No securities found matching "${search_term}"`)
+                });
                 return;
             }
             
@@ -52,7 +66,7 @@ function search_stocks(frm, search_term) {
                         fieldname: 'search_message',
                         fieldtype: 'HTML',
                         options: `<div class="alert alert-info">
-                            We found potential matches for <strong>${search_term}</strong>.
+                            We found ${r.message.results.length} potential matches for <strong>${search_term}</strong>.
                             Select one to populate your security details.
                         </div>`
                     },
@@ -70,19 +84,17 @@ function search_stocks(frm, search_term) {
             
             r.message.results.forEach(stock => {
                 results_html += `<tr>
-                    <td>${stock.symbol}</td>
+                    <td>${stock.symbol || ''}</td>
                     <td>${stock.name || ''}</td>
                     <td>${stock.exchange || ''}</td>
                     <td>${stock.sector || ''}</td>
                     <td>${stock.industry || ''}</td>
                     <td><button class="btn btn-xs btn-primary select-stock" 
-                        data-symbol="${stock.symbol}" 
+                        data-symbol="${stock.symbol || ''}" 
                         data-name="${stock.name || ''}"
+                        data-exchange="${stock.exchange || ''}"
                         data-sector="${stock.sector || ''}"
-                        data-industry="${stock.industry || ''}"
-                        data-price="${stock.current_price || ''}"
-                        data-currency="${stock.currency || ''}"
-                        data-exchange="${stock.exchange || ''}">Select</button></td>
+                        data-industry="${stock.industry || ''}">Select</button></td>
                 </tr>`;
             });
             
@@ -90,37 +102,43 @@ function search_stocks(frm, search_term) {
             
             result_dialog.fields_dict.results_html.$wrapper.html(results_html);
             
-            // Handle stock selection - Now with more data!
+            // Handle stock selection
             result_dialog.$wrapper.on('click', '.select-stock', function() {
+                // Show loading indicator while fetching data
+                frappe.dom.freeze(__('Fetching security data...'));
+                
                 let symbol = $(this).attr('data-symbol');
                 let company = $(this).attr('data-name');
+                let exchange = $(this).attr('data-exchange');
                 let sector = $(this).attr('data-sector');
                 let industry = $(this).attr('data-industry');
-                let price = $(this).attr('data-price');
-                let currency = $(this).attr('data-currency');
-                let exchange = $(this).attr('data-exchange');
                 
-                // Set values directly from search results
+                // Set all available fields immediately
                 frm.set_value('symbol', symbol);
                 if (company) frm.set_value('security_name', company);
+                if (exchange) frm.set_value('stock_exchange', exchange);
                 if (sector) frm.set_value('sector', sector);
                 if (industry) frm.set_value('industry', industry);
-                if (price) frm.set_value('current_price', parseFloat(price));
-                if (exchange) frm.set_value('stock_exchange', exchange);
-                
-                // Set currency if it exists
-                if (currency && frappe.meta.has_field(frm.doctype, 'currency')) {
-                    frm.set_value('currency', currency);
-                }
                 
                 result_dialog.hide();
                 
-                // Save the form with the updated values
-                if (!frm.doc.__islocal) {
-                    frm.save();
-                }
-                
-                frappe.show_alert(__(`Selected ${symbol} with all available data`));
+                // Call fetch_market_data to get complete information
+                frm.call('fetch_market_data')
+                    .then(r => {
+                        frm.refresh();
+                        frappe.dom.unfreeze();
+                        frappe.show_alert({
+                            message: __(`Selected ${symbol} and updated security details`),
+                            indicator: 'green'
+                        }, 5);
+                    })
+                    .catch(err => {
+                        frappe.dom.unfreeze();
+                        frappe.show_alert({
+                            message: __(`Selected ${symbol} but couldn't fetch all details`),
+                            indicator: 'orange'
+                        }, 5);
+                    });
             });
             
             result_dialog.show();
