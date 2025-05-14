@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Security\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio Holding\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Transaction\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Security\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio Holding\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Transaction\",\"col\":3}},{\"id\":\"aMac4ITbaC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Asset Allocation\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Cognitive Folio",
  "links": [],
- "modified": "2025-05-14 08:14:10.663931",
+ "modified": "2025-05-14 08:34:11.703133",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
@@ -26,6 +26,14 @@
  "sequence_id": 39.0,
  "shortcuts": [
   {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Cf Security",
+   "link_to": "CF Security",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
    "color": "Grey",
    "doc_view": "List",
    "label": "Cf Portfolio",
@@ -34,17 +42,11 @@
    "type": "DocType"
   },
   {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Cf Security",
-   "link_to": "CF Security",
-   "type": "DocType"
-  },
-  {
    "color": "Green",
    "doc_view": "List",
    "label": "Cf Portfolio Holding",
    "link_to": "CF Portfolio Holding",
+   "stats_filter": "[]",
    "type": "DocType"
   },
   {
@@ -52,6 +54,15 @@
    "doc_view": "List",
    "label": "Cf Transaction",
    "link_to": "CF Transaction",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Purple",
+   "doc_view": "List",
+   "label": "Cf Asset Allocation",
+   "link_to": "CF Asset Allocation",
+   "stats_filter": "[]",
    "type": "DocType"
   }
  ],

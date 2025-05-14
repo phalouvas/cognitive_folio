@@ -1,0 +1,122 @@
+{
+ "actions": [],
+ "allow_rename": 0,
+ "autoname": "format:CFAA-{####}",
+ "creation": "2025-05-14 14:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "portfolio",
+  "allocation_type",
+  "asset_class",
+  "column_break_4",
+  "target_percentage",
+  "current_percentage",
+  "difference",
+  "section_break_8",
+  "notes"
+ ],
+ "fields": [
+  {
+   "fieldname": "portfolio",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Portfolio",
+   "options": "CF Portfolio",
+   "reqd": 1
+  },
+  {
+   "fieldname": "allocation_type",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Allocation Type",
+   "options": "Asset Class\nSector\nGeography\nIndustry\nRisk Level",
+   "reqd": 1
+  },
+  {
+   "fieldname": "asset_class",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Asset Class/Category",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_4",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "target_percentage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Target Allocation",
+   "reqd": 1
+  },
+  {
+   "fieldname": "current_percentage",
+   "fieldtype": "Percent",
+   "in_list_view": 1,
+   "label": "Current Allocation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "difference",
+   "fieldtype": "Percent",
+   "label": "Difference",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break",
+   "label": "Additional Information"
+  },
+  {
+   "fieldname": "notes",
+   "fieldtype": "Small Text",
+   "label": "Notes"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-14 14:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Asset Allocation",
+ "naming_rule": "Expression",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Customer"
+  }
+ ],
+ "search_fields": "portfolio,allocation_type,asset_class",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
