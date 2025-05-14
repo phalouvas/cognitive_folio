@@ -7,8 +7,6 @@ frappe.ui.form.on('CF Security', {
     security_name: function(frm) {
         // Only search if security_name has at least 3 characters
         if(frm.doc.security_name && frm.doc.security_name.length >= 3) {
-            // Don't search if we already have a symbol
-            if(frm.doc.symbol) return;
             
             // Debounce the search to avoid too many API calls
             if(frm.security_name_timeout) clearTimeout(frm.security_name_timeout);
