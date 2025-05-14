@@ -26,6 +26,27 @@ class CFSecurity(Document):
             # Basic format validation: 2 letters country code + 9 alphanumeric + 1 check digit
             if not (self.isin[:2].isalpha() and self.isin[2:11].isalnum() and self.isin[11].isalnum()):
                 frappe.throw("ISIN format is invalid. It should be 2 letters country code followed by 9 alphanumeric characters and 1 check digit")
+
+    def after_insert(self):
+        """Fetch and set the current price after inserting the document"""
+        if YFINANCE_INSTALLED:
+            self.fetch_current_price()
+        else:
+            frappe.throw("YFinance package is not installed. Cannot fetch current price.")
+
+    def fetch_current_price(self):
+        """Fetch the current price from Yahoo Finance"""
+        try:
+            ticker = yf.Ticker(self.symbol)
+            ticker_info = ticker.info
+            if 'regularMarketPrice' in ticker_info:
+                self.ticker_info = frappe.as_json(ticker_info)
+                self.currency = ticker_info['currency']   
+                self.save()
+        except Exception as e:
+            frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
+            frappe.throw("Error fetching current price. Please check the symbol.")
+            
             
     def on_update(self):
         """Update related documents when a security is updated"""

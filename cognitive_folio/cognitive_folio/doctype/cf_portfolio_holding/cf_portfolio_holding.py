@@ -5,15 +5,14 @@ import frappe
 from frappe.model.document import Document
 from frappe.utils import flt
 from erpnext.setup.utils import get_exchange_rate
-
+import json
 
 class CFPortfolioHolding(Document):
     def validate(self):
         self.convert_average_purchase_price()
-        if self.current_price:
-            self.calculate_current_value()
-            self.calculate_profit_loss()
-            self.calculate_allocation_percentage()
+        self.calculate_current_value()
+        self.calculate_profit_loss()
+        self.calculate_allocation_percentage()
         
     def convert_average_purchase_price(self):
         """Convert average purchase price to portfolio currency if changed"""
@@ -50,6 +49,19 @@ class CFPortfolioHolding(Document):
     
     def calculate_current_value(self):
         """Calculate current value based on quantity and current price"""
+
+        if not self.current_price:
+            # Fetch current price if not set
+            if self.security:
+                security = frappe.get_doc("CF Security", self.security)
+                ticker_info = json.loads(security.ticker_info)
+                portfolio = frappe.get_doc("CF Portfolio", self.portfolio)
+                conversion_rate = get_exchange_rate(ticker_info['currency'], portfolio.currency)
+                price_in_security_currency = flt(ticker_info['regularMarketPrice'])
+                self.current_price = flt(price_in_security_currency * conversion_rate)
+            else:
+                return
+
         if self.quantity and self.current_price:
             self.current_value = flt(self.quantity * self.current_price)
             
