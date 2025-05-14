@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Security\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio Holding\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -31,6 +31,20 @@
    "label": "Cf Portfolio",
    "link_to": "CF Portfolio",
    "stats_filter": "[[\"CF Portfolio\",\"disabled\",\"=\",0,false]]",
+   "type": "DocType"
+  },
+  {
+   "color": "Blue",
+   "doc_view": "List",
+   "label": "Cf Security",
+   "link_to": "CF Security",
+   "type": "DocType"
+  },
+  {
+   "color": "Green",
+   "doc_view": "List",
+   "label": "Cf Portfolio Holding",
+   "link_to": "CF Portfolio Holding",
    "type": "DocType"
   }
  ],

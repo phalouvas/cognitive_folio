@@ -1,0 +1,142 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "autoname": "field:symbol",
+ "creation": "2025-05-14 10:00:00.000000",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "security_name",
+  "symbol",
+  "isin",
+  "security_type",
+  "column_break_5",
+  "stock_exchange",
+  "currency",
+  "section_break_8",
+  "sector",
+  "industry",
+  "section_break_11",
+  "current_price",
+  "last_updated"
+ ],
+ "fields": [
+  {
+   "fieldname": "security_name",
+   "fieldtype": "Data",
+   "label": "Security Name",
+   "reqd": 1
+  },
+  {
+   "fieldname": "symbol",
+   "fieldtype": "Data",
+   "label": "Symbol/Ticker",
+   "unique": 1,
+   "reqd": 1
+  },
+  {
+   "fieldname": "isin",
+   "fieldtype": "Data",
+   "label": "ISIN",
+   "description": "International Securities Identification Number"
+  },
+  {
+   "fieldname": "security_type",
+   "fieldtype": "Select",
+   "label": "Security Type",
+   "options": "Stock\nETF\nBond\nMutual Fund\nIndex\nCommodity\nCryptocurrency\nOther",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_5",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "stock_exchange",
+   "fieldtype": "Data",
+   "label": "Stock Exchange"
+  },
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "reqd": 1
+  },
+  {
+   "fieldname": "section_break_8",
+   "fieldtype": "Section Break",
+   "label": "Classification"
+  },
+  {
+   "fieldname": "sector",
+   "fieldtype": "Data",
+   "label": "Sector"
+  },
+  {
+   "fieldname": "industry",
+   "fieldtype": "Data",
+   "label": "Industry"
+  },
+  {
+   "fieldname": "section_break_11",
+   "fieldtype": "Section Break",
+   "label": "Market Data"
+  },
+  {
+   "fieldname": "current_price",
+   "fieldtype": "Currency",
+   "label": "Current Price",
+   "options": "currency"
+  },
+  {
+   "fieldname": "last_updated",
+   "fieldtype": "Datetime",
+   "label": "Last Updated"
+  }
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-14 10:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Security",
+ "naming_rule": "By fieldname",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Customer"
+  }
+ ],
+ "search_fields": "security_name,symbol,isin,security_type,sector",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
