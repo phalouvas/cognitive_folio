@@ -2,7 +2,7 @@
  "actions": [],
  "allow_rename": 1,
  "autoname": "field:symbol",
- "creation": "2025-05-14 10:00:00.000000",
+ "creation": "2025-05-14 10:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -18,31 +18,35 @@
   "industry",
   "section_break_11",
   "current_price",
-  "last_updated"
+  "last_updated",
+  "ticker_info"
  ],
  "fields": [
   {
    "fieldname": "security_name",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Security Name",
    "reqd": 1
   },
   {
    "fieldname": "symbol",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Symbol/Ticker",
-   "unique": 1,
-   "reqd": 1
+   "reqd": 1,
+   "unique": 1
   },
   {
+   "description": "International Securities Identification Number",
    "fieldname": "isin",
    "fieldtype": "Data",
-   "label": "ISIN",
-   "description": "International Securities Identification Number"
+   "label": "ISIN"
   },
   {
    "fieldname": "security_type",
    "fieldtype": "Select",
+   "in_list_view": 1,
    "label": "Security Type",
    "options": "Stock\nETF\nBond\nMutual Fund\nIndex\nCommodity\nCryptocurrency\nOther",
    "reqd": 1
@@ -59,6 +63,7 @@
   {
    "fieldname": "currency",
    "fieldtype": "Link",
+   "in_list_view": 1,
    "label": "Currency",
    "options": "Currency",
    "reqd": 1
@@ -87,12 +92,21 @@
    "fieldname": "current_price",
    "fieldtype": "Currency",
    "label": "Current Price",
-   "options": "currency"
+   "options": "currency",
+   "read_only": 1
   },
   {
    "fieldname": "last_updated",
    "fieldtype": "Datetime",
-   "label": "Last Updated"
+   "label": "Last Updated",
+   "read_only": 1
+  },
+  {
+   "description": "Stores raw ticker.info data as JSON",
+   "fieldname": "ticker_info",
+   "fieldtype": "Text",
+   "label": "Ticker Info",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -110,7 +124,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 10:00:00.000000",
+ "modified": "2025-05-14 14:55:00.464409",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
@@ -147,6 +161,7 @@
    "role": "Customer"
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "security_name,symbol,isin,security_type,sector",
  "sort_field": "modified",
  "sort_order": "DESC",

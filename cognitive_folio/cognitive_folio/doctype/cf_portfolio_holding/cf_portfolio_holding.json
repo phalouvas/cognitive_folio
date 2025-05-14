@@ -10,6 +10,7 @@
   "column_break_5",
   "quantity",
   "average_purchase_price",
+  "currency",
   "section_break_hwcf",
   "current_price",
   "current_value",
@@ -19,8 +20,7 @@
   "sector",
   "industry",
   "section_break_9",
-  "notes",
-  "currency"
+  "notes"
  ],
  "fields": [
   {
@@ -89,10 +89,9 @@
    "label": "Notes"
   },
   {
-   "fetch_from": "portfolio.currency",
+   "fetch_from": "security.currency",
    "fieldname": "currency",
    "fieldtype": "Link",
-   "hidden": 1,
    "label": "Currency",
    "options": "Currency",
    "read_only": 1
@@ -129,7 +128,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 11:05:09.940870",
+ "modified": "2025-05-14 14:52:42.415451",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

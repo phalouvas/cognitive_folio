@@ -98,6 +98,15 @@ def fetch_all_prices(portfolio_name):
 				if 'regularMarketPrice' in ticker_info:
 					security.current_price = flt(ticker_info['regularMarketPrice'])
 					updated_fields.append("current price")
+
+				if 'currency' in ticker_info:
+					security.currency = ticker_info['currency']
+					updated_fields.append("currency")
+				
+				# Save ticker info
+				if ticker_info:
+					security.ticker_info = frappe.as_json(ticker_info)
+					updated_fields.append("ticker info")
 				
 				# Save changes
 				if updated_fields:
