@@ -12,7 +12,7 @@
   "column_break_4",
   "currency",
   "start_date",
-  "status",
+  "disabled",
   "section_break_8",
   "risk_profile",
   "notes"
@@ -54,11 +54,10 @@
    "reqd": 1
   },
   {
-   "default": "Active",
-   "fieldname": "status",
-   "fieldtype": "Select",
-   "label": "Status",
-   "options": "Active\nInactive"
+   "default": 0,
+   "fieldname": "disabled",
+   "fieldtype": "Check",
+   "label": "Disabled"
   },
   {
    "fieldname": "section_break_8",
@@ -126,7 +125,7 @@
    "role": "Customer"
   }
  ],
- "search_fields": "portfolio_name,customer,currency,status",
+ "search_fields": "portfolio_name,customer,currency,disabled",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
