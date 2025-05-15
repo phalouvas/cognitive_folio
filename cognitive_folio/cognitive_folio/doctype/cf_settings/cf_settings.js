@@ -7,7 +7,15 @@ frappe.ui.form.on("CF Settings", {
         frm.add_custom_button(__('Refresh AI Models'), function() {
             check_openwebui_connection(frm);
         });
+        
+        // Populate default_ai_model select field
+        populate_default_ai_model_options(frm);
     },
+    
+    // Update default_ai_model options when AI models are updated
+    after_save(frm) {
+        populate_default_ai_model_options(frm);
+    }
 });
 
 function check_openwebui_connection(frm) {
@@ -31,7 +39,7 @@ function check_openwebui_connection(frm) {
                     message: __('Connection to Open WebUI API successful!'),
                     indicator: 'green'
                 });
-                frm.refresh();
+                frm.reload_doc();
             } else {
                 frappe.msgprint({
                     title: __('Connection Failed'),
@@ -43,7 +51,7 @@ function check_openwebui_connection(frm) {
         },
         error: function(err) {
             // Also unfreeze in case of error
-            frappe.dom.freeze();
+            frappe.dom.unfreeze();
             
             frappe.msgprint({
                 title: __('Error'),
@@ -53,4 +61,32 @@ function check_openwebui_connection(frm) {
             });
         }
     });
+}
+
+function populate_default_ai_model_options(frm) {
+    // Clear existing options
+    frm.set_df_property('default_ai_model', 'options', []);
+    
+    const options = [];
+    
+    // Add an empty option at the beginning
+    options.push({ value: '', label: __('-- Select Model --') });
+    
+    // Get models from the table
+    if (frm.doc.ai_models && frm.doc.ai_models.length > 0) {
+        frm.doc.ai_models.forEach(model => {
+            if (model.model_id) {
+                options.push({
+                    value: model.model_id,
+                    label: `${model.model_name || model.model_id} (${model.owned_by || ''})`
+                });
+            }
+        });
+    }
+    
+    // Set options to the select field
+    frm.set_df_property('default_ai_model', 'options', options);
+    
+    // Refresh the field to show updated options
+    frm.refresh_field('default_ai_model');
 }

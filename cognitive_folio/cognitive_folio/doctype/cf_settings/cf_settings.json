@@ -8,6 +8,7 @@
   "open_ai_url",
   "open_ai_api_key",
   "section_break_models",
+  "default_ai_model",
   "ai_models"
  ],
  "fields": [
@@ -26,6 +27,12 @@
    "fieldname": "section_break_models",
    "fieldtype": "Section Break",
    "label": "AI Models"
+  },
+  {
+   "fieldname": "default_ai_model",
+   "fieldtype": "Select",
+   "label": "Default AI Model",
+   "description": "Select the default AI model to use for operations"
   },
   {
    "fieldname": "ai_models",
