@@ -34,6 +34,7 @@ class CFSecurity(Document):
         else:
             frappe.throw("YFinance package is not installed. Cannot fetch current price.")
 
+    @frappe.whitelist()
     def fetch_current_price(self):
         """Fetch the current price from Yahoo Finance"""
         try:
@@ -44,11 +45,12 @@ class CFSecurity(Document):
                 self.currency = ticker_info['currency']
                 self.country = ticker_info.get('country', '')
                 self.region, self.subregion = get_country_region_from_api(self.country)
+                self.isin = ticker.isin
+                self.news = frappe.as_json(ticker.news)
                 self.save()
         except Exception as e:
             frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
             frappe.throw("Error fetching current price. Please check the symbol.")
-            
             
     def on_update(self):
         """Update related documents when a security is updated"""

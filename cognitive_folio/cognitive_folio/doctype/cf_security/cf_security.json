@@ -21,7 +21,8 @@
   "sector",
   "industry",
   "section_break_11",
-  "ticker_info"
+  "ticker_info",
+  "news"
  ],
  "fields": [
   {
@@ -92,6 +93,7 @@
   {
    "fieldname": "section_break_11",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Market Data"
   },
   {
@@ -123,6 +125,12 @@
    "fieldtype": "Data",
    "label": "Subregion",
    "read_only": 1
+  },
+  {
+   "fieldname": "news",
+   "fieldtype": "JSON",
+   "label": "News",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -140,7 +148,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 18:22:13.187454",
+ "modified": "2025-05-15 07:33:46.241843",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

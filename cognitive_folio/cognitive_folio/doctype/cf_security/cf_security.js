@@ -1,6 +1,29 @@
 frappe.ui.form.on('CF Security', {
     refresh: function(frm) {
-        //
+        if (!frm.is_new()) {
+            frm.add_custom_button(__('Fetch Ticker Info'), function() {
+                frappe.dom.freeze(__('Fetching security data...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'fetch_current_price',
+                    callback: function(r) {
+                        // Unfreeze the GUI when operation completes
+                        frappe.dom.unfreeze();
+                        
+                        frappe.show_alert({
+                            message: __('Security data refreshed'),
+                            indicator: 'green'
+                        });
+                        frm.refresh();
+                    },
+                    error: function(r) {
+                        // Make sure to unfreeze even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+        }
     },
 
     // Add an event handler for security_name field
