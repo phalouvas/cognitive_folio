@@ -49,6 +49,8 @@ class CFSecurity(Document):
             self.current_price = ticker_info['regularMarketPrice']
             self.news = frappe.as_json(ticker.get_news())
             self.country = ticker_info.get('country', '')
+            if self.country == "South Korea":
+                self.country = "Korea, Republic of"
             if not self.region:
                 self.region, self.subregion = get_country_region_from_api(self.country)
             self.save()
@@ -272,8 +274,6 @@ def search_stock_symbols(search_term):
 
 def get_country_region_from_api(country):
     """Get country region from REST Countries API"""
-
-    # get country code from country
     country_code = None
     country_code = frappe.get_value("Country", {"country_name": country}, "code")
 
