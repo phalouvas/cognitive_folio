@@ -6,6 +6,7 @@
  "engine": "InnoDB",
  "field_order": [
   "open_ai_url",
+  "open_ai_api_key",
   "openai_jwt_token"
  ],
  "fields": [
@@ -21,13 +22,18 @@
    "in_list_view": 1,
    "label": "OpenAI JWT Token",
    "reqd": 1
+  },
+  {
+   "fieldname": "open_ai_api_key",
+   "fieldtype": "Password",
+   "label": "Open AI API key"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-05-15 08:49:39.568490",
+ "modified": "2025-05-15 08:57:11.232364",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",
