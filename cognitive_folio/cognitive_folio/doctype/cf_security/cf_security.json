@@ -20,6 +20,8 @@
   "column_break_bpmj",
   "sector",
   "industry",
+  "analysis_section",
+  "ai_suggestion",
   "section_break_11",
   "ticker_info",
   "news"
@@ -28,6 +30,7 @@
   {
    "fieldname": "security_name",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
    "label": "Security Name",
    "reqd": 1
@@ -35,6 +38,7 @@
   {
    "fieldname": "symbol",
    "fieldtype": "Data",
+   "in_filter": 1,
    "in_list_view": 1,
    "label": "Symbol/Ticker",
    "read_only": 1,
@@ -45,11 +49,13 @@
    "description": "International Securities Identification Number",
    "fieldname": "isin",
    "fieldtype": "Data",
+   "in_filter": 1,
    "label": "ISIN"
   },
   {
    "fieldname": "security_type",
    "fieldtype": "Select",
+   "in_filter": 1,
    "in_list_view": 1,
    "label": "Security Type",
    "options": "Stock\nETF\nBond\nMutual Fund\nIndex\nCommodity\nCryptocurrency\nOther",
@@ -62,12 +68,14 @@
   {
    "fieldname": "stock_exchange",
    "fieldtype": "Data",
+   "in_filter": 1,
    "label": "Stock Exchange",
    "read_only": 1
   },
   {
    "fieldname": "currency",
    "fieldtype": "Link",
+   "in_filter": 1,
    "in_list_view": 1,
    "label": "Currency",
    "options": "Currency",
@@ -131,6 +139,16 @@
    "fieldtype": "JSON",
    "label": "News",
    "read_only": 1
+  },
+  {
+   "fieldname": "analysis_section",
+   "fieldtype": "Section Break",
+   "label": "Analysis"
+  },
+  {
+   "fieldname": "ai_suggestion",
+   "fieldtype": "Markdown Editor",
+   "label": "AI Suggestion"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -148,7 +166,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-15 07:33:46.241843",
+ "modified": "2025-05-15 10:08:47.395470",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

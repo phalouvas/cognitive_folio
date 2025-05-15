@@ -1,10 +1,12 @@
 # Copyright (c) 2025, YourCompany and contributors
 # For license information, please see license.txt
 
-import frappe
-from frappe.model.document import Document
-from frappe.utils import now_datetime, flt
+import json
 import requests
+from urllib.parse import urljoin
+import frappe
+from frappe import _
+from frappe.model.document import Document
 
 try:
     import yfinance as yf
@@ -71,6 +73,113 @@ class CFSecurity(Document):
                     # Trigger value recalculation in each holding
                     holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
                     holding_doc.save()
+
+    @frappe.whitelist()
+    def generate_ai_suggestion(self):
+        try:
+            # Get OpenWebUI settings
+            settings = frappe.get_single("CF Settings")
+            url = settings.open_ai_url
+            api_key = settings.get_password('open_ai_api_key')
+            
+            # Validate required settings
+            if not url or not api_key:
+                return {'success': False, 'error': _('OpenWebUI API URL or API Key not configured in CF Settings')}
+            
+            # Ensure URL ends with slash
+            if not url.endswith('/'):
+                url = url + '/'
+                
+            # Prepare data for the prompt
+            ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
+            news = json.loads(self.news) if self.news else []
+            
+            # Create prompt with security data
+            prompt = f"""
+            Please analyze this security and provide investment insights:
+            
+            Security: {self.security_name} ({self.symbol})
+            Exchange: {self.stock_exchange}
+            Sector: {self.sector}
+            Industry: {self.industry}
+            
+            Ticker Information:
+            {json.dumps(ticker_info, indent=2)}
+            
+            Recent News:
+            {json.dumps(news, indent=2)}
+            
+            Please provide:
+            1. A summary of the company
+            2. Key financial metrics analysis
+            3. Recent news impact
+            4. Potential investment outlook
+            5. Risk factors
+            """
+            
+            # Get the AI model to use
+            model = settings.default_ai_model
+            if not model:
+                frappe.throw(_('Default AI model is not configured in CF Settings'))
+            
+            # Prepare the API request according to OpenWebUI API docs
+            api_url = urljoin(url, 'api/chat/completions')
+            
+            payload = {
+                "model": model,
+                "messages": [
+                    {"role": "user", "content": prompt}
+                ]
+                # OpenWebUI handles temperature and max_tokens differently
+                # or they might be optional, so removing them for now
+            }
+            
+            headers = {
+                'Authorization': f'Bearer {api_key}',
+                'Content-Type': 'application/json'
+            }
+            
+            # Make the API call
+            response = requests.post(api_url, headers=headers, json=payload, timeout=120)
+            
+            if response.status_code == 200:
+                response_data = response.json()
+                
+                # Extract the AI response - adjust based on actual response format
+                if response_data.get('choices') and len(response_data['choices']) > 0:
+                    message = response_data['choices'][0].get('message', {})
+                    ai_response = message.get('content', '')
+                    
+                    if ai_response:
+                        # Save the response to the ai_suggestion field
+                        self.ai_suggestion = ai_response
+                        self.save()
+                        
+                        return {'success': True}
+                    else:
+                        return {'success': False, 'error': _('Empty response from AI')}
+                else:
+                    return {'success': False, 'error': _('Unexpected response format from OpenWebUI')}
+            else:
+                error_message = f"HTTP Error: {response.status_code}"
+                try:
+                    error_data = response.json()
+                    if isinstance(error_data, dict):
+                        error_message += f" - {json.dumps(error_data)}"
+                    else:
+                        error_message += f" - {response.text}"
+                except:
+                    error_message += f" - {response.text}"
+                
+                frappe.log_error(error_message, "OpenWebUI API Error")
+                return {'success': False, 'error': error_message}
+                
+        except requests.exceptions.RequestException as e:
+            frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
+            return {'success': False, 'error': str(e)}
+        except Exception as e:
+            frappe.log_error(f"Error generating AI suggestion: {str(e)}", "AI Suggestion Error")
+            return {'success': False, 'error': str(e)}
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):

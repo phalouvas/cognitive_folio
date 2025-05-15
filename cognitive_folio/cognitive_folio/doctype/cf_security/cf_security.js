@@ -23,6 +23,52 @@ frappe.ui.form.on('CF Security', {
                     }
                 });
             }, __('Actions'));
+            
+            // Add a new button for generating AI suggestion
+            frm.add_custom_button(__('Generate AI Suggestion'), function() {
+                // Only proceed if ticker info is available
+                if (!frm.doc.ticker_info) {
+                    frappe.msgprint({
+                        title: __('Missing Data'),
+                        indicator: 'yellow',
+                        message: __('Please fetch ticker info first to generate AI suggestions')
+                    });
+                    return;
+                }
+                
+                frappe.dom.freeze(__('Generating AI suggestion...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'generate_ai_suggestion',
+                    callback: function(r) {
+                        frappe.dom.unfreeze();
+                        
+                        if (r.message && r.message.success) {
+                            frappe.show_alert({
+                                message: __('AI suggestion generated successfully'),
+                                indicator: 'green'
+                            });
+                            frm.refresh();
+                        } else {
+                            frappe.msgprint({
+                                title: __('Error'),
+                                indicator: 'red',
+                                message: r.message && r.message.error ? 
+                                    r.message.error : __('Failed to generate AI suggestion')
+                            });
+                        }
+                    },
+                    error: function() {
+                        frappe.dom.unfreeze();
+                        frappe.msgprint({
+                            title: __('Error'),
+                            indicator: 'red',
+                            message: __('An error occurred while generating AI suggestion')
+                        });
+                    }
+                });
+            }, __('Actions'));
         }
     },
 
