@@ -40,7 +40,8 @@
    "in_standard_filter": 1,
    "label": "Portfolio",
    "options": "CF Portfolio",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "security",
@@ -49,7 +50,8 @@
    "in_standard_filter": 1,
    "label": "Security",
    "options": "CF Security",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "quantity",
@@ -206,7 +208,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 17:58:47.649062",
+ "modified": "2025-05-15 17:47:50.621662",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
@@ -245,8 +247,10 @@
  ],
  "row_format": "Dynamic",
  "search_fields": "portfolio,security",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": [],
+ "title_field": "security",
  "track_changes": 1
 }
