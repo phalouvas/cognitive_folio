@@ -37,6 +37,8 @@ class CFPortfolioHolding(Document):
                 # Convert from security currency to portfolio currency
                 try:
                     conversion_rate = get_exchange_rate(security.currency, portfolio.currency)
+                    if security.currency.upper() == 'GBP':
+                        conversion_rate = conversion_rate / 100
                     if conversion_rate:
                         self.base_average_purchase_price = flt(self.average_purchase_price * conversion_rate)
                 except Exception as e:
@@ -50,17 +52,17 @@ class CFPortfolioHolding(Document):
     def calculate_current_value(self):
         """Calculate current value based on quantity and current price"""
 
-        if not self.current_price:
-            # Fetch current price if not set
-            if self.security:
-                security = frappe.get_doc("CF Security", self.security)
-                ticker_info = json.loads(security.ticker_info)
-                portfolio = frappe.get_doc("CF Portfolio", self.portfolio)
-                conversion_rate = get_exchange_rate(ticker_info['currency'], portfolio.currency)
-                price_in_security_currency = flt(ticker_info['regularMarketPrice'])
-                self.current_price = flt(price_in_security_currency * conversion_rate)
-            else:
-                return
+        if self.security:
+            security = frappe.get_doc("CF Security", self.security)
+            ticker_info = json.loads(security.ticker_info)
+            portfolio = frappe.get_doc("CF Portfolio", self.portfolio)
+            conversion_rate = get_exchange_rate(ticker_info['currency'], portfolio.currency)
+            if ticker_info['currency'].upper() == 'GBP':
+                conversion_rate = conversion_rate / 100
+            price_in_security_currency = flt(ticker_info['regularMarketPrice'])
+            self.current_price = flt(price_in_security_currency * conversion_rate)
+        else:
+            return
 
         if self.quantity and self.current_price:
             self.current_value = flt(self.quantity * self.current_price)

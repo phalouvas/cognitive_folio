@@ -43,14 +43,14 @@ class CFSecurity(Document):
         """Fetch the current price from Yahoo Finance"""
         try:
             ticker = yf.Ticker(self.symbol)
-            ticker_info = ticker.info
+            ticker_info = ticker.get_info()
             if 'regularMarketPrice' in ticker_info:
                 self.ticker_info = frappe.as_json(ticker_info)
                 self.currency = ticker_info['currency']
+                self.current_price = ticker_info['regularMarketPrice']
                 self.country = ticker_info.get('country', '')
                 self.region, self.subregion = get_country_region_from_api(self.country)
-                self.isin = ticker.isin
-                self.news = frappe.as_json(ticker.news)
+                self.news = frappe.as_json(ticker.get_news())
                 self.save()
         except Exception as e:
             frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")

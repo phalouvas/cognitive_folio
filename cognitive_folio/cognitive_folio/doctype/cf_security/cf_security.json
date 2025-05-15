@@ -23,6 +23,7 @@
   "analysis_section",
   "ai_suggestion",
   "section_break_11",
+  "current_price",
   "ticker_info",
   "news"
  ],
@@ -149,6 +150,14 @@
    "fieldname": "ai_suggestion",
    "fieldtype": "Markdown Editor",
    "label": "AI Suggestion"
+  },
+  {
+   "fieldname": "current_price",
+   "fieldtype": "Currency",
+   "hidden": 1,
+   "label": "Current Price",
+   "options": "currency",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -166,7 +175,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-15 10:46:21.567460",
+ "modified": "2025-05-15 18:22:34.878612",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
