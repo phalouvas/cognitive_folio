@@ -94,12 +94,17 @@ class CFSecurity(Document):
                 
             # Prepare data for the prompt
             ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
-            news = json.loads(self.news) if self.news else []
+            
+            news_json = json.loads(self.news) if self.news else []
+            # Extract URLs from news data and format with # prefix
+            news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
+                            for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
+            news = "\n".join(news_urls)
             
             # Create base prompt with security data
             prompt = f"""
             Act like you are Warren Buffet, the legendary investor.
-            Please analyze this security and provide investment insights:
+            Please analyze this security based on "Ticker Information" and "Recent News", and provide investment insights:
             
             Security: {self.security_name} ({self.symbol})
             Exchange: {self.stock_exchange}
