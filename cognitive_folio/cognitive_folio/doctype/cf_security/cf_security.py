@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import json
+import os
 import requests
 from urllib.parse import urljoin
 import frappe
@@ -94,7 +95,7 @@ class CFSecurity(Document):
             ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
             news = json.loads(self.news) if self.news else []
             
-            # Create prompt with security data
+            # Create base prompt with security data
             prompt = f"""
             Please analyze this security and provide investment insights:
             
@@ -108,6 +109,53 @@ class CFSecurity(Document):
             
             Recent News:
             {json.dumps(news, indent=2)}
+            """
+            
+            # Get the AI model to use
+            model = settings.default_ai_model
+            if not model:
+                frappe.throw(_('Default AI model is not configured in CF Settings'))
+            
+            # Check if there are any attached files to include
+            file_ids = []
+            attachments = frappe.get_all("File", 
+                filters={
+                    "attached_to_doctype": "CF Security",
+                    "attached_to_name": self.name
+                },
+                fields=["name", "file_name", "file_url"]
+            )
+            
+            # 1. Upload files if they exist
+            if attachments:
+                for attachment in attachments:
+                    file_path = frappe.get_site_path() + attachment.file_url
+                    if os.path.exists(file_path):
+                        try:
+                            # Upload file to OpenWebUI
+                            upload_url = urljoin(url, 'api/files')
+                            
+                            with open(file_path, 'rb') as file:
+                                files = {'file': (attachment.file_name, file)}
+                                upload_response = requests.post(
+                                    upload_url,
+                                    headers={'Authorization': f'Bearer {api_key}'},
+                                    files=files
+                                )
+                        
+                            if upload_response.status_code == 200:
+                                upload_data = upload_response.json()
+                                if 'id' in upload_data:
+                                    file_ids.append(upload_data['id'])
+                                    
+                                    # Add info about the file to the prompt
+                                    prompt += f"\n\nI've analyzed the attached file: {attachment.file_name}"
+                        except Exception as e:
+                            frappe.log_error(f"Error uploading file {attachment.file_name}: {str(e)}", 
+                                              "OpenWebUI API Error")
+        
+            # Add final instructions to the prompt
+            prompt += """
             
             Please provide:
             1. A summary of the company
@@ -117,12 +165,7 @@ class CFSecurity(Document):
             5. Risk factors
             """
             
-            # Get the AI model to use
-            model = settings.default_ai_model
-            if not model:
-                frappe.throw(_('Default AI model is not configured in CF Settings'))
-            
-            # Prepare the API request according to OpenWebUI API docs
+            # 2. Create a chat completion request
             api_url = urljoin(url, 'api/chat/completions')
             
             payload = {
@@ -130,17 +173,24 @@ class CFSecurity(Document):
                 "messages": [
                     {"role": "user", "content": prompt}
                 ]
-                # OpenWebUI handles temperature and max_tokens differently
-                # or they might be optional, so removing them for now
             }
+            
+            # Add file references if we have uploaded files
+            if file_ids:
+                payload["file_ids"] = file_ids
             
             headers = {
                 'Authorization': f'Bearer {api_key}',
                 'Content-Type': 'application/json'
             }
             
-            # Make the API call
-            response = requests.post(api_url, headers=headers, json=payload, timeout=120)
+            # 3. Make the API call
+            response = requests.post(
+                api_url, 
+                headers=headers,
+                json=payload,
+                timeout=120
+            )
             
             if response.status_code == 200:
                 response_data = response.json()
