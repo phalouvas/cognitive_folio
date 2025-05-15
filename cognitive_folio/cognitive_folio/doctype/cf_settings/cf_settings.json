@@ -6,7 +6,9 @@
  "engine": "InnoDB",
  "field_order": [
   "open_ai_url",
-  "open_ai_api_key"
+  "open_ai_api_key",
+  "section_break_models",
+  "ai_models"
  ],
  "fields": [
   {
@@ -19,13 +21,25 @@
    "fieldname": "open_ai_api_key",
    "fieldtype": "Password",
    "label": "Open AI API key"
+  },
+  {
+   "fieldname": "section_break_models",
+   "fieldtype": "Section Break",
+   "label": "AI Models"
+  },
+  {
+   "fieldname": "ai_models",
+   "fieldtype": "Table",
+   "label": "AI Models",
+   "options": "CF AI Model",
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-05-15 09:20:33.267407",
+ "modified": "2025-05-15 09:35:53.228646",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",
