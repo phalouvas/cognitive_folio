@@ -69,9 +69,9 @@ class CFPortfolioHolding(Document):
             
     def calculate_profit_loss(self):
         """Calculate profit/loss based on purchase price and current value"""
-        total_cost = flt(self.base_average_purchase_price * self.quantity)
-        self.profit_loss = flt(self.current_value - total_cost)
-        self.profit_loss_percentage = flt((self.profit_loss / total_cost) * 100, 2)
+        self.base_cost = flt(self.base_average_purchase_price * self.quantity)
+        self.profit_loss = flt(self.current_value - self.base_cost)
+        self.profit_loss_percentage = flt((self.profit_loss / self.base_cost) * 100, 2)
 
     @frappe.whitelist()    
     def calculate_allocation_percentage(self):
