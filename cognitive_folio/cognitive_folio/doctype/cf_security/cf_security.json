@@ -6,9 +6,9 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "isin",
   "security_name",
   "symbol",
-  "isin",
   "security_type",
   "column_break_5",
   "stock_exchange",
@@ -140,7 +140,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-14 17:40:23.498263",
+ "modified": "2025-05-14 18:22:13.187454",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
