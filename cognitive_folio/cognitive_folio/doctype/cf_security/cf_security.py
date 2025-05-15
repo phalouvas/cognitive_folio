@@ -8,6 +8,7 @@ from urllib.parse import urljoin
 import frappe
 from frappe import _
 from frappe.model.document import Document
+from frappe.utils import get_files_path
 
 try:
     import yfinance as yf
@@ -123,23 +124,27 @@ class CFSecurity(Document):
                     "attached_to_doctype": "CF Security",
                     "attached_to_name": self.name
                 },
-                fields=["name", "file_name", "file_url"]
+                fields=["name", "file_name", "file_url", "is_private"]
             )
             
             # 1. Upload files if they exist
             if attachments:
                 for attachment in attachments:
-                    file_path = frappe.get_site_path() + attachment.file_url
+                    file_path = get_files_path(attachment.file_name, is_private=attachment.is_private)
                     if os.path.exists(file_path):
                         try:
                             # Upload file to OpenWebUI
-                            upload_url = urljoin(url, 'api/files')
+                            upload_url = urljoin(url, 'api/v1/files')
+                            headers = {
+                                'Authorization': f'Bearer {api_key}',
+                                'Content-Type': 'application/json'
+                            }
                             
                             with open(file_path, 'rb') as file:
                                 files = {'file': (attachment.file_name, file)}
                                 upload_response = requests.post(
                                     upload_url,
-                                    headers={'Authorization': f'Bearer {api_key}'},
+                                    headers=headers,
                                     files=files
                                 )
                         
