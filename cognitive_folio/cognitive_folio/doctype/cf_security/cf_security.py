@@ -98,6 +98,7 @@ class CFSecurity(Document):
             
             # Create base prompt with security data
             prompt = f"""
+            Act like you are Warren Buffet, the legendary investor.
             Please analyze this security and provide investment insights:
             
             Security: {self.security_name} ({self.symbol})
@@ -162,12 +163,9 @@ class CFSecurity(Document):
             # Add final instructions to the prompt
             prompt += """
             
-            Please provide:
-            1. A summary of the company
-            2. Key financial metrics analysis
-            3. Recent news impact
-            4. Potential investment outlook
-            5. Risk factors
+            Please provide a detailed analysis and investment recommendation based on the above information and news.
+
+            Also provide sell and buy signals based on the analysis.
             """
             
             # 2. Create a chat completion request
