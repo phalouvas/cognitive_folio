@@ -1,0 +1,51 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-15 07:40:37.179515",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "open_ai_url",
+  "openai_jwt_token"
+ ],
+ "fields": [
+  {
+   "fieldname": "open_ai_url",
+   "fieldtype": "Data",
+   "label": "Open AI Url",
+   "options": "URL"
+  },
+  {
+   "fieldname": "openai_jwt_token",
+   "fieldtype": "Password",
+   "in_list_view": 1,
+   "label": "OpenAI JWT Token",
+   "reqd": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "issingle": 1,
+ "links": [],
+ "modified": "2025-05-15 08:49:39.568490",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Settings",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

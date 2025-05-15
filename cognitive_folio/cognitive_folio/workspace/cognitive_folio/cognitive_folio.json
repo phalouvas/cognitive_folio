@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Security\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Portfolio Holding\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Transaction\",\"col\":3}},{\"id\":\"aMac4ITbaC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Asset Allocation\",\"col\":3}},{\"id\":\"bMac4ITbdC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Dividend\",\"col\":3}},{\"id\":\"cMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Performance Report\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Portfolios\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Securities\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Holdings\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Transactions\",\"col\":3}},{\"id\":\"aMac4ITbaC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Asset Allocations\",\"col\":3}},{\"id\":\"bMac4ITbdC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dividends\",\"col\":3}},{\"id\":\"cMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Performance Report\",\"col\":3}},{\"id\":\"6byH4wpYHG\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Settings\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Cognitive Folio",
  "links": [],
- "modified": "2025-05-14 16:32:45.121519",
+ "modified": "2025-05-15 08:52:41.368350",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
@@ -28,7 +28,7 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Portfolio",
+   "label": "Portfolios",
    "link_to": "CF Portfolio",
    "stats_filter": "[[\"CF Portfolio\",\"disabled\",\"=\",0,false]]",
    "type": "DocType"
@@ -36,7 +36,7 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Security",
+   "label": "Securities",
    "link_to": "CF Security",
    "stats_filter": "[]",
    "type": "DocType"
@@ -44,7 +44,7 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Portfolio Holding",
+   "label": "Holdings",
    "link_to": "CF Portfolio Holding",
    "stats_filter": "[]",
    "type": "DocType"
@@ -52,7 +52,7 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Transaction",
+   "label": "Transactions",
    "link_to": "CF Transaction",
    "stats_filter": "[]",
    "type": "DocType"
@@ -60,7 +60,7 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Asset Allocation",
+   "label": "Asset Allocations",
    "link_to": "CF Asset Allocation",
    "stats_filter": "[]",
    "type": "DocType"
@@ -68,7 +68,7 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Dividend",
+   "label": "Dividends",
    "link_to": "CF Dividend",
    "stats_filter": "[]",
    "type": "DocType"
@@ -76,9 +76,16 @@
   {
    "color": "Blue",
    "doc_view": "List",
-   "label": "Cf Performance Report",
+   "label": "Performance Report",
    "link_to": "CF Performance Report",
    "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Settings",
+   "link_to": "CF Settings",
    "type": "DocType"
   }
  ],
