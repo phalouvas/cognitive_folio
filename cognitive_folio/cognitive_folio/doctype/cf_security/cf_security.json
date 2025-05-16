@@ -60,7 +60,7 @@
    "in_filter": 1,
    "in_list_view": 1,
    "label": "Security Type",
-   "options": "Stock\nETF\nBond\nMutual Fund\nIndex\nCommodity\nCryptocurrency\nOther",
+   "options": "Stock\nETF\nBond\nMutual Fund\nIndex\nCommodity\nCryptocurrency\nCash\nOther",
    "reqd": 1
   },
   {
@@ -81,7 +81,7 @@
    "in_list_view": 1,
    "label": "Currency",
    "options": "Currency",
-   "read_only": 1
+   "read_only_depends_on": "eval:doc.security_type !== 'Cash'"
   },
   {
    "fieldname": "section_break_8",
@@ -182,7 +182,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-16 08:58:23.066465",
+ "modified": "2025-05-16 09:39:17.547403",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

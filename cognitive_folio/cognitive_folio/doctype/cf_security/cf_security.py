@@ -18,6 +18,10 @@ except ImportError:
 
 class CFSecurity(Document):
     def validate(self):
+        if self.security_type == "Cash":
+            self.symbol = self.security_name
+            self.current_price = 1.0
+
         self.validate_isin()
     
     def validate_isin(self):
@@ -40,6 +44,10 @@ class CFSecurity(Document):
 
     @frappe.whitelist()
     def fetch_current_price(self):
+
+        if self.security_type == "Cash":
+            return {'success': False, 'error': _('Price is only for non-cash securities')}
+        
         """Fetch the current price from Yahoo Finance"""
         try:
             ticker = yf.Ticker(self.symbol)
@@ -80,6 +88,9 @@ class CFSecurity(Document):
 
     @frappe.whitelist()
     def generate_ai_suggestion(self):
+        if self.security_type == "Cash":
+            return {'success': False, 'error': _('AI suggestion is only for non-cash securities')}
+        
         try:
             # Get OpenWebUI settings
             settings = frappe.get_single("CF Settings")

@@ -6,6 +6,7 @@ from frappe.model.document import Document
 from frappe.utils import flt
 from erpnext.setup.utils import get_exchange_rate
 import json
+from frappe import _
 
 class CFPortfolioHolding(Document):
     def validate(self):
@@ -54,12 +55,11 @@ class CFPortfolioHolding(Document):
 
         if self.security:
             security = frappe.get_doc("CF Security", self.security)
-            ticker_info = json.loads(security.ticker_info)
             portfolio = frappe.get_doc("CF Portfolio", self.portfolio)
-            conversion_rate = get_exchange_rate(ticker_info['currency'], portfolio.currency)
-            if ticker_info['currency'].upper() == 'GBP':
+            conversion_rate = get_exchange_rate(security.currency, portfolio.currency)
+            if security.currency.upper() == 'GBP':
                 conversion_rate = conversion_rate / 100
-            price_in_security_currency = flt(ticker_info['regularMarketPrice'])
+            price_in_security_currency = flt(security.current_price)
             self.current_price = flt(price_in_security_currency * conversion_rate)
         else:
             return
@@ -73,7 +73,6 @@ class CFPortfolioHolding(Document):
         self.profit_loss = flt(self.current_value - self.base_cost)
         self.profit_loss_percentage = flt((self.profit_loss / self.base_cost) * 100, 2)
 
-    @frappe.whitelist()    
     def calculate_allocation_percentage(self):
         """Calculate allocation percentage based on total portfolio value"""
         if not self.current_value or not self.portfolio:
@@ -116,6 +115,10 @@ class CFPortfolioHolding(Document):
             
     @frappe.whitelist()
     def fetch_current_price(self):
+
+        if self.security_type == "Cash":
+            return {"success": True}
+        
         """Fetch the current price from the related security"""
         if not self.security:
             frappe.throw("Security must be specified to fetch current price.")
@@ -135,6 +138,10 @@ class CFPortfolioHolding(Document):
     @frappe.whitelist()
     def generate_ai_suggestion(self):
         """Generate AI suggestion for the holding via the security"""
+
+        if self.security_type == "Cash":
+            return {'success': True}
+
         if not self.security:
             return {'success': False, 'error': 'No security specified'}
             

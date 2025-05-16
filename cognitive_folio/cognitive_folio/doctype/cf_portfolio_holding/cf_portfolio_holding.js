@@ -9,6 +9,9 @@ frappe.ui.form.on("CF Portfolio Holding", {
                 let md_html = frappe.markdown(frm.doc.ai_suggestion);
                 frm.set_df_property('ai_suggestion_html', 'options', 
                     `<div class="markdown-preview">${md_html}</div>`);
+            } else {
+                frm.set_df_property('ai_suggestion_html', 'options',
+                    `<div class="markdown-preview">No AI suggestion available.</div>`);
             }
 
             frm.add_custom_button(__('Fetch Ticker Info'), function() {

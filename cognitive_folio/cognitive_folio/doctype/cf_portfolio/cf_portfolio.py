@@ -34,10 +34,13 @@ def fetch_all_prices(portfolio_name):
     
     portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
         
-    # Get all holdings for this portfolio
+    # Get all holdings for this portfolio (excluding Cash type securities)
     holdings = frappe.get_all(
         "CF Portfolio Holding",
-        filters={"portfolio": portfolio.name},
+        filters=[
+            ["portfolio", "=", portfolio.name],
+            ["security_type", "!=", "Cash"]
+        ],
         fields=["name", "security"]
     )
     

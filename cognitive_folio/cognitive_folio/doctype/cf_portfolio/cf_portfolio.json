@@ -43,12 +43,15 @@
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
   },
-  {
-   "fieldname": "currency",
-   "fieldtype": "Link",
-   "label": "Currency",
-   "options": "Currency"
-  },
+{
+ "fieldname": "currency",
+ "fieldtype": "Link",
+ "label": "Currency",
+ "options": "Currency",
+ "read_only": 1,
+ "read_only_depends_on": "eval:!doc.__islocal",
+ "reqd": 1
+},
   {
    "fieldname": "start_date",
    "fieldtype": "Date",
@@ -103,7 +106,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-14 11:17:59.966386",
+ "modified": "2025-05-16 09:26:18.820183",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",

@@ -1,4 +1,10 @@
 frappe.ui.form.on('CF Security', {
+    validate: function(frm) {
+        // If security type is Cash, set symbol equal to security_name
+        if(frm.doc.security_type === "Cash") {
+            frm.set_value('symbol', frm.doc.security_name);
+        }
+    },
     refresh: function(frm) {
         if (!frm.is_new()) {
 
@@ -6,8 +12,11 @@ frappe.ui.form.on('CF Security', {
                 let md_html = frappe.markdown(frm.doc.ai_suggestion);
                 frm.set_df_property('ai_suggestion_html', 'options', 
                     `<div class="markdown-preview">${md_html}</div>`);
+            } else {
+                frm.set_df_property('ai_suggestion_html', 'options',
+                    `<div class="markdown-preview">No AI suggestion available.</div>`);
             }
-            
+
             frm.add_custom_button(__('Fetch Ticker Info'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
@@ -109,11 +118,24 @@ frappe.ui.form.on('CF Security', {
                 search_stocks(frm, frm.doc.isin);
             }, 800); // Wait 800ms after user stops typing
         }
+    },
+    
+    // Add event handler for security_type field
+    security_type: function(frm) {
+        // If security type is changed to Cash, update symbol
+        if(frm.doc.security_type === "Cash" && frm.doc.security_name) {
+            frm.set_value('symbol', frm.doc.security_name);
+        }
     }
 });
 
 // Function to search for stocks based on search term
 function search_stocks(frm, search_term) {
+
+    if (frm.doc.security_type == 'Cash') {
+        return;
+    }
+
     // Show loading indicator
     frappe.dom.freeze(__('Searching for securities...'));
     
