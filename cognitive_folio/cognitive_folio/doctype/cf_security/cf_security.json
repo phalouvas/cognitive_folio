@@ -102,6 +102,7 @@
   {
    "fieldname": "section_break_11",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Market Data"
   },
   {
@@ -175,7 +176,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-16 08:01:29.434424",
+ "modified": "2025-05-16 08:30:05.342121",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
