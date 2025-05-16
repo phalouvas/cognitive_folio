@@ -102,13 +102,13 @@
   {
    "fieldname": "section_break_11",
    "fieldtype": "Section Break",
-   "hidden": 1,
    "label": "Market Data"
   },
   {
    "description": "Stores raw ticker.info data as JSON",
    "fieldname": "ticker_info",
    "fieldtype": "Text",
+   "hidden": 1,
    "label": "Ticker Info",
    "read_only": 1
   },
@@ -138,6 +138,7 @@
   {
    "fieldname": "news",
    "fieldtype": "JSON",
+   "hidden": 1,
    "label": "News",
    "read_only": 1
   },
@@ -154,7 +155,6 @@
   {
    "fieldname": "current_price",
    "fieldtype": "Currency",
-   "hidden": 1,
    "label": "Current Price",
    "options": "currency",
    "read_only": 1
@@ -175,7 +175,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-15 18:22:34.878612",
+ "modified": "2025-05-16 08:01:29.434424",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

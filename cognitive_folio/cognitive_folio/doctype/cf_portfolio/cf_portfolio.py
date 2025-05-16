@@ -131,6 +131,7 @@ def fetch_all_prices(portfolio_name):
                 if ticker_info and hasattr(data["doc"], "ticker_info"):
                     security_doc = data["doc"]
                     security_doc.ticker_info = frappe.as_json(ticker_info)
+                    security_doc.current_price = ticker_info['regularMarketPrice']
                     
                     # Update sector and industry if they exist in the security doctype
                     if hasattr(security_doc, "sector") and 'sector' in ticker_info:
