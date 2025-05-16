@@ -113,3 +113,40 @@ class CFPortfolioHolding(Document):
             allocation_percentage = holding_doc.calculate_allocation_percentage()
             # update the holding directly
             holding_doc.db_set("allocation_percentage", allocation_percentage)
+            
+    @frappe.whitelist()
+    def fetch_current_price(self):
+        """Fetch the current price from the related security"""
+        if not self.security:
+            frappe.throw("Security must be specified to fetch current price.")
+            
+        try:
+            # Get the security document
+            security = frappe.get_doc("CF Security", self.security)
+            
+            # Call the fetch_current_price method on the security
+            security.fetch_current_price()
+            
+            return {"success": True}
+        except Exception as e:
+            frappe.log_error(f"Error fetching current price: {str(e)}", "Portfolio Holding Error")
+            frappe.throw("Error fetching current price. Please check the security.")
+            
+    @frappe.whitelist()
+    def generate_ai_suggestion(self):
+        """Generate AI suggestion for the holding via the security"""
+        if not self.security:
+            return {'success': False, 'error': 'No security specified'}
+            
+        try:
+            # Get the security document
+            security = frappe.get_doc("CF Security", self.security)
+            
+            # Call the generate_ai_suggestion method on the security
+            result = security.generate_ai_suggestion()
+            
+            # Pass through the result
+            return result
+        except Exception as e:
+            frappe.log_error(f"Error generating AI suggestion: {str(e)}", "Portfolio Holding Error")
+            return {'success': False, 'error': str(e)}

@@ -21,6 +21,7 @@
   "sector",
   "industry",
   "analysis_section",
+  "ai_suggestion_html",
   "ai_suggestion",
   "section_break_11",
   "current_price",
@@ -145,12 +146,12 @@
   },
   {
    "fieldname": "analysis_section",
-   "fieldtype": "Section Break",
-   "label": "Analysis"
+   "fieldtype": "Section Break"
   },
   {
    "fieldname": "ai_suggestion",
    "fieldtype": "Markdown Editor",
+   "hidden": 1,
    "label": "AI Suggestion"
   },
   {
@@ -159,6 +160,11 @@
    "label": "Current Price",
    "options": "currency",
    "read_only": 1
+  },
+  {
+   "fieldname": "ai_suggestion_html",
+   "fieldtype": "HTML",
+   "label": "AI Suggestion HTML"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -176,7 +182,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-16 08:30:05.342121",
+ "modified": "2025-05-16 08:58:23.066465",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

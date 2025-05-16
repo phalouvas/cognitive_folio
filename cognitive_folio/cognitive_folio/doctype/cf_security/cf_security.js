@@ -1,6 +1,13 @@
 frappe.ui.form.on('CF Security', {
     refresh: function(frm) {
         if (!frm.is_new()) {
+
+            if(frm.doc.ai_suggestion) {
+                let md_html = frappe.markdown(frm.doc.ai_suggestion);
+                frm.set_df_property('ai_suggestion_html', 'options', 
+                    `<div class="markdown-preview">${md_html}</div>`);
+            }
+            
             frm.add_custom_button(__('Fetch Ticker Info'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 

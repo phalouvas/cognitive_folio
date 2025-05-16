@@ -30,6 +30,9 @@
   "country",
   "region",
   "subregion",
+  "analysis_section",
+  "ai_suggestion_html",
+  "ai_suggestion",
   "section_break_9",
   "notes"
  ],
@@ -211,11 +214,28 @@
    "fieldtype": "Currency",
    "label": "Cost (Portfolio Currency)",
    "read_only": 1
+  },
+  {
+   "fieldname": "analysis_section",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "ai_suggestion_html",
+   "fieldtype": "HTML",
+   "label": "AI Suggestion HTML"
+  },
+  {
+   "fetch_from": "security.ai_suggestion",
+   "fieldname": "ai_suggestion",
+   "fieldtype": "Markdown Editor",
+   "hidden": 1,
+   "label": "AI Suggestion",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-15 18:44:17.560439",
+ "modified": "2025-05-16 08:58:15.510927",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
