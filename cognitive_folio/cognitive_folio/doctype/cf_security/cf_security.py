@@ -105,8 +105,8 @@ class CFSecurity(Document):
             
             # Create base prompt with security data
             prompt = f"""
-            Act like you are Warren Buffet, the legendary investor.
-            Please analyze this security based on "Ticker Information" and "Recent News", and provide investment insights:
+            Act like you are Warren Buffet, the legendary investor, and you own below security.
+            Please analyze this security based on "Ticker Information" and "Recent News".
             
             Security: {self.security_name} ({self.symbol})
             Exchange: {self.stock_exchange}
@@ -170,7 +170,34 @@ class CFSecurity(Document):
             # Add final instructions to the prompt
             prompt += """
             
-            Please provide a detailed analysis and investment recommendation based on the above information and news.
+            Provide the following without mentioning your name:
+            - A summary of the analysis.
+            - A detailed analysis of the security.
+            - A recommendation on whether to buy, hold, or sell this security.
+            - Provide a risk assessment based on the analysis.
+            - Provide a target price for the next 3 months.
+            - Provide a target price for the next 6 months.
+            - Provide a target price for the next 12 months.
+            - Provide a risk/reward ratio based on the analysis.
+            - Provide a volatility analysis based on the historical data.
+            - Provide a sentiment analysis based on the news articles.
+            - Provide a technical analysis based on the historical data.
+            - Provide a fundamental analysis based on the financial data.
+            - Provide a macroeconomic analysis based on the current economic conditions.
+            - Provide a geopolitical analysis based on the current geopolitical conditions.
+            - Provide a sector analysis based on the current sector conditions.
+            - Provide a market analysis based on the current market conditions.
+            - Provide a risk management strategy based on the analysis.
+            - Provide a portfolio allocation strategy based on the analysis.
+            - Provide a diversification strategy based on the analysis.
+            - Provide a rebalancing strategy based on the analysis.
+            - Provide a tax strategy based on the analysis.
+            - Provide a retirement strategy based on the analysis.
+            - Provide an estate planning strategy based on the analysis.
+            - Provide a wealth management strategy based on the analysis.
+            - Provide a financial planning strategy based on the analysis.
+            - Provide a risk tolerance assessment based on the analysis.
+            - Provide a financial goals assessment based on the analysis.
 
             Also provide sell and buy signals based on the analysis.
             """
