@@ -1,29 +1,21 @@
 {
  "actions": [],
  "allow_rename": 1,
- "creation": "2025-05-15 10:30:00.000000",
+ "creation": "2025-05-15 10:30:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
   "model_id",
-  "model_name",
   "object_type",
-  "owned_by",
-  "additional_details"
+  "owned_by"
  ],
  "fields": [
   {
    "fieldname": "model_id",
    "fieldtype": "Data",
-   "label": "Model ID",
    "in_list_view": 1,
-   "in_standard_filter": 1
-  },
-  {
-   "fieldname": "model_name",
-   "fieldtype": "Data",
-   "label": "Model Name",
-   "in_list_view": 1
+   "in_standard_filter": 1,
+   "label": "Model ID"
   },
   {
    "fieldname": "object_type",
@@ -33,23 +25,19 @@
   {
    "fieldname": "owned_by",
    "fieldtype": "Data",
-   "label": "Owned By",
-   "in_list_view": 1
-  },
-  {
-   "fieldname": "additional_details",
-   "fieldtype": "JSON",
-   "label": "Additional Details"
+   "in_list_view": 1,
+   "label": "Owned By"
   }
  ],
  "istable": 1,
  "links": [],
- "modified": "2025-05-15 10:30:00.000000",
+ "modified": "2025-05-17 15:15:29.474929",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF AI Model",
  "owner": "Administrator",
  "permissions": [],
+ "row_format": "Dynamic",
  "sort_field": "modified",
  "sort_order": "DESC",
  "states": []
