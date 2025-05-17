@@ -32,6 +32,15 @@
   "country",
   "region",
   "subregion",
+  "suggestion_section",
+  "suggestion_action",
+  "suggestion_rating",
+  "suggestion_risk_reward_ratio",
+  "column_break_ppwu",
+  "suggestion_buy_price",
+  "suggestion_sell_price",
+  "section_break_oyqu",
+  "suggestion_summary",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
@@ -219,7 +228,8 @@
   },
   {
    "fieldname": "analysis_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Analysis"
   },
   {
    "fieldname": "ai_suggestion_html",
@@ -241,11 +251,68 @@
    "label": "Current Price",
    "options": "currency",
    "read_only": 1
+  },
+  {
+   "fetch_from": "security.suggestion_summary",
+   "fieldname": "suggestion_summary",
+   "fieldtype": "Small Text",
+   "read_only": 1
+  },
+  {
+   "fieldname": "suggestion_section",
+   "fieldtype": "Section Break",
+   "label": "Suggestion"
+  },
+  {
+   "fetch_from": "security.suggestion_action",
+   "fieldname": "suggestion_action",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Action",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.suggestion_risk_reward_ratio",
+   "fieldname": "suggestion_risk_reward_ratio",
+   "fieldtype": "Data",
+   "label": "Risk/Reward Ration",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ppwu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "security.suggestion_buy_price",
+   "fieldname": "suggestion_buy_price",
+   "fieldtype": "Currency",
+   "label": "Buy Price",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.suggestion_sell_price",
+   "fieldname": "suggestion_sell_price",
+   "fieldtype": "Currency",
+   "label": "Sell Price",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_oyqu",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fetch_from": "security.suggestion_rating",
+   "fieldname": "suggestion_rating",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Rating",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-17 18:43:45.120543",
+ "modified": "2025-05-17 20:11:34.067492",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

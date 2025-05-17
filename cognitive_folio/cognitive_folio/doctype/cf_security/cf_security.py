@@ -2,13 +2,11 @@
 # For license information, please see license.txt
 
 import json
-import os
 import requests
-from urllib.parse import urljoin
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_files_path
+from frappe.utils import flt
 from openai import OpenAI
 
 try:
@@ -71,19 +69,17 @@ class CFSecurity(Document):
             
     def update_portfolio_holdings(self):
         """Update the value of portfolio holdings that contain this security"""
-        if self.has_value_changed("current_price"):
-            # Check if CF Portfolio Holding DocType exists before trying to access it
-            if frappe.db.table_exists("CF Portfolio Holding"):
-                holdings = frappe.get_all(
-                    "CF Portfolio Holding",
-                    filters={"security": self.name},
-                    fields=["name"]
-                )
-                
-                for holding in holdings:
-                    # Trigger value recalculation in each holding
-                    holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
-                    holding_doc.save()
+        if frappe.db.table_exists("CF Portfolio Holding"):
+            holdings = frappe.get_all(
+                "CF Portfolio Holding",
+                filters={"security": self.name},
+                fields=["name"]
+            )
+            
+            for holding in holdings:
+                # Trigger value recalculation in each holding
+                holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
+                holding_doc.save()
 
     @frappe.whitelist()
     def generate_ai_suggestion(self):
@@ -98,7 +94,7 @@ class CFSecurity(Document):
             if not model:
                 frappe.throw(_('Default AI model is not configured in CF Settings'))
 
-            # Prepare data for the prompt
+            # Prepare data for the prompt_1
             ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
             
             news_json = json.loads(self.news) if self.news else []
@@ -107,8 +103,8 @@ class CFSecurity(Document):
                             for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
             news = "\n".join(news_urls)
             
-            # Create base prompt with security data
-            prompt = f"""
+            # Create base prompt_1 with security data
+            prompt_1 = f"""
             You own below security.
             Please analyze this security based on "Ticker Information" and "Recent News".
             
@@ -124,8 +120,8 @@ class CFSecurity(Document):
             {json.dumps(news, indent=2)}
             """                        
             
-            # Add final instructions to the prompt
-            prompt += """
+            # Add final instructions to the prompt_1
+            prompt_1 += """
             
             Provide the following without mentioning your name:
             - A summary of the analysis.
@@ -159,20 +155,61 @@ class CFSecurity(Document):
             Also provide sell and buy signals based on the analysis.
             """
             
+            # Round 1
+            messages = [
+                    {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
+                    {"role": "user", "content": prompt_1},
+            ]
             response = client.chat.completions.create(
                 model=model,
-                messages=[
-                    {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
-                    {"role": "user", "content": prompt},
-            ],
+                messages=messages,
                 stream=False
             )
 
-            ai_response = response.choices[0].message.content
-            if ai_response:
-                self.ai_suggestion = ai_response
-                self.save()
-                return {'success': True}
+            content  = response.choices[0].message.content
+
+            # Round 2
+            prompt_2 = f"""
+            Provide the following:
+            - What is your recommendation? Buy or Sell or Hold?
+            - Buy/Sell price.
+            - A risk/reward ratio based on the analysis.
+            - A rating between 1 and 10 based on the analysis.
+            - A summary of the analysis.
+
+            Output in JSON format:
+            EXAMPLE JSON OUTPUT:
+            {{
+                "suggestion_action": "Hold (with caution)",
+                "suggestion_buy_price": "10.00",
+                "suggestion_sell_price": "20.00",
+                "suggestion_risk_reward_ratio": "1:2",
+                "suggestion_rating": "8",
+                "suggestion_summary": "The stock is undervalued and has strong growth potential."
+            }}
+            """
+            messages.append({'role': 'assistant', 'content': content})
+            messages.append({'role': 'user', 'content': prompt_2})
+            response = client.chat.completions.create(
+                model="deepseek-chat",
+                messages=messages,
+                stream=False,
+                response_format={
+                    'type': 'json_object'
+                }
+            )
+
+            suggestion = json.loads(response.choices[0].message.content)
+
+            self.ai_suggestion = content
+            self.suggestion_action = suggestion.get("suggestion_action")
+            self.suggestion_buy_price = flt(suggestion.get("suggestion_buy_price"))
+            self.suggestion_sell_price = flt(suggestion.get("suggestion_sell_price"))
+            self.suggestion_risk_reward_ratio = suggestion.get("suggestion_risk_reward_ratio")
+            self.suggestion_rating = suggestion.get("suggestion_rating")
+            self.suggestion_summary = suggestion.get("suggestion_summary")
+            self.save()
+            return {'success': True}
         except requests.exceptions.RequestException as e:
             frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
             return {'success': False, 'error': str(e)}
