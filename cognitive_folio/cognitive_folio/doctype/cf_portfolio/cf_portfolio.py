@@ -74,10 +74,17 @@ def fetch_all_prices(portfolio_name):
         
         # Update each holding with the batch data
         updated_count = 0
+        total_steps = len(securities_data)
         
         for security_name, data in securities_data.items():
             symbol = data["symbol"]
             security_currency = data["currency"]
+
+            frappe.publish_progress(
+                percent=(updated_count+1)/total_steps * 100,
+                title="Processing",
+                description=f"Processing item {updated_count+1} of {total_steps} ({symbol})"
+            )
             
             if not symbol or symbol not in tickers.tickers:
                 continue
