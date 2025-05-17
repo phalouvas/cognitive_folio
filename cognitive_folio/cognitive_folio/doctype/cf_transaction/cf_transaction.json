@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 0,
  "autoname": "format:CFTX-{####}",
  "creation": "2025-05-14 12:00:00.000000",

@@ -5,13 +5,7 @@ from erpnext.setup.utils import get_exchange_rate
 
 class CFPortfolio(Document):
 	def validate(self):
-		self.validate_start_date()
 		self.validate_disabled_state()
-	
-	def validate_start_date(self):
-		"""Ensure start date is not in future"""
-		if self.start_date and self.start_date > frappe.utils.today():
-			frappe.throw("Start Date cannot be in the future")
 	
 	def validate_disabled_state(self):
 		"""Handle validations when portfolio is disabled"""

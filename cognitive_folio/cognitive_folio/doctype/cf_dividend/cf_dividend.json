@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "allow_rename": 0,
  "autoname": "format:CFDIV-{####}",
  "creation": "2025-05-14 15:00:00.000000",
