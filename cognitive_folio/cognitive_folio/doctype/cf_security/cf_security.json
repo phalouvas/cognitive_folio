@@ -14,6 +14,7 @@
   "column_break_5",
   "stock_exchange",
   "currency",
+  "current_price",
   "section_break_8",
   "country",
   "region",
@@ -25,7 +26,6 @@
   "ai_suggestion_html",
   "ai_suggestion",
   "section_break_11",
-  "current_price",
   "ticker_info",
   "news"
  ],
@@ -183,7 +183,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-16 09:39:17.547403",
+ "modified": "2025-05-17 18:44:46.466061",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
