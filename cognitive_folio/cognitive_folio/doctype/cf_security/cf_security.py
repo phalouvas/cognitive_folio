@@ -9,6 +9,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import get_files_path
+from openai import OpenAI
 
 try:
     import yfinance as yf
@@ -92,17 +93,11 @@ class CFSecurity(Document):
         try:
             # Get OpenWebUI settings
             settings = frappe.get_single("CF Settings")
-            url = settings.open_ai_url
-            api_key = settings.get_password('open_ai_api_key')
-            
-            # Validate required settings
-            if not url or not api_key:
-                return {'success': False, 'error': _('OpenWebUI API URL or API Key not configured in CF Settings')}
-            
-            # Ensure URL ends with slash
-            if not url.endswith('/'):
-                url = url + '/'
-                
+            client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+            model = settings.default_ai_model
+            if not model:
+                frappe.throw(_('Default AI model is not configured in CF Settings'))
+
             # Prepare data for the prompt
             ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
             
@@ -114,7 +109,7 @@ class CFSecurity(Document):
             
             # Create base prompt with security data
             prompt = f"""
-            Act like you are Warren Buffet, the legendary investor, and you own below security.
+            You own below security.
             Please analyze this security based on "Ticker Information" and "Recent News".
             
             Security: {self.security_name} ({self.symbol})
@@ -127,55 +122,8 @@ class CFSecurity(Document):
             
             Recent News:
             {json.dumps(news, indent=2)}
-            """
+            """                        
             
-            # Get the AI model to use
-            model = settings.default_ai_model
-            if not model:
-                frappe.throw(_('Default AI model is not configured in CF Settings'))
-            
-            # Check if there are any attached files to include
-            file_ids = []
-            attachments = frappe.get_all("File", 
-                filters={
-                    "attached_to_doctype": "CF Security",
-                    "attached_to_name": self.name
-                },
-                fields=["name", "file_name", "file_url", "is_private"]
-            )
-            
-            # 1. Upload files if they exist
-            if attachments:
-                for attachment in attachments:
-                    file_path = get_files_path(attachment.file_name, is_private=attachment.is_private)
-                    if os.path.exists(file_path):
-                        try:
-                            # Upload file to OpenWebUI
-                            upload_url = urljoin(url, 'api/v1/files')
-                            headers = {
-                                'Authorization': f'Bearer {api_key}',
-                                'Content-Type': 'application/json'
-                            }
-                            
-                            with open(file_path, 'rb') as file:
-                                files = {'file': (attachment.file_name, file)}
-                                upload_response = requests.post(
-                                    upload_url,
-                                    headers=headers,
-                                    files=files
-                                )
-                        
-                            if upload_response.status_code == 200:
-                                upload_data = upload_response.json()
-                                if 'id' in upload_data:
-                                    file_ids.append(upload_data['id'])
-                                    
-                                    # Add info about the file to the prompt
-                                    prompt += f"\n\nI've analyzed the attached file: {attachment.file_name}"
-                        except Exception as e:
-                            frappe.log_error(f"Error uploading file {attachment.file_name}: {str(e)}", 
-                                              "OpenWebUI API Error")
-        
             # Add final instructions to the prompt
             prompt += """
             
@@ -211,65 +159,20 @@ class CFSecurity(Document):
             Also provide sell and buy signals based on the analysis.
             """
             
-            # 2. Create a chat completion request
-            api_url = urljoin(url, 'api/chat/completions')
-            
-            payload = {
-                "model": model,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ]
-            }
-            
-            # Add file references if we have uploaded files
-            if file_ids:
-                payload["file_ids"] = file_ids
-            
-            headers = {
-                'Authorization': f'Bearer {api_key}',
-                'Content-Type': 'application/json'
-            }
-            
-            # 3. Make the API call
-            response = requests.post(
-                api_url, 
-                headers=headers,
-                json=payload,
-                timeout=120
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
+                    {"role": "user", "content": prompt},
+            ],
+                stream=False
             )
-            
-            if response.status_code == 200:
-                response_data = response.json()
-                
-                # Extract the AI response - adjust based on actual response format
-                if response_data.get('choices') and len(response_data['choices']) > 0:
-                    message = response_data['choices'][0].get('message', {})
-                    ai_response = message.get('content', '')
-                    
-                    if ai_response:
-                        # Save the response to the ai_suggestion field
-                        self.ai_suggestion = ai_response
-                        self.save()
-                        
-                        return {'success': True}
-                    else:
-                        return {'success': False, 'error': _('Empty response from AI')}
-                else:
-                    return {'success': False, 'error': _('Unexpected response format from OpenWebUI')}
-            else:
-                error_message = f"HTTP Error: {response.status_code}"
-                try:
-                    error_data = response.json()
-                    if isinstance(error_data, dict):
-                        error_message += f" - {json.dumps(error_data)}"
-                    else:
-                        error_message += f" - {response.text}"
-                except:
-                    error_message += f" - {response.text}"
-                
-                frappe.log_error(error_message, "OpenWebUI API Error")
-                return {'success': False, 'error': error_message}
-                
+
+            ai_response = response.choices[0].message.content
+            if ai_response:
+                self.ai_suggestion = ai_response
+                self.save()
+                return {'success': True}
         except requests.exceptions.RequestException as e:
             frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
             return {'success': False, 'error': str(e)}

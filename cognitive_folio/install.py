@@ -13,6 +13,7 @@ def install_dependencies():
     # List of required Python dependencies with specific versions
     dependencies = [
         "yfinance",
+        "openai"
     ]
     
     print("Starting Cognitive Folio dependency installation", "Cognitive Folio Setup")

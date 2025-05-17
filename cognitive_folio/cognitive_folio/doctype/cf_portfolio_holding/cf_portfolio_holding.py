@@ -9,6 +9,12 @@ import json
 from frappe import _
 
 class CFPortfolioHolding(Document):
+
+    def onload(self):
+        if not self.ai_suggestion:
+            ai_suggestion = frappe.get_value("CF Security", self.security, "ai_suggestion")
+            self.ai_suggestion = ai_suggestion
+
     def validate(self):
         self.convert_average_purchase_price()
         self.calculate_current_value()
