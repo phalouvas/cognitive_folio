@@ -79,7 +79,12 @@ class CFAssetAllocation(Document):
                     asset_class_value += holding.current_value
                 elif self.allocation_type == "Industry" and hasattr(security, "industry") and security.industry == self.asset_class:
                     asset_class_value += holding.current_value
-                # Add more conditions for other allocation types as needed
+                elif self.allocation_type == "Region" and hasattr(security, "region") and security.region == self.asset_class:
+                    asset_class_value += holding.current_value
+                elif self.allocation_type == "Subregion" and hasattr(security, "subregion") and security.subregion == self.asset_class:
+                    asset_class_value += holding.current_value
+                elif self.allocation_type == "Country" and hasattr(security, "country") and security.country == self.asset_class:
+                    asset_class_value += holding.current_value
                 
         # Calculate percentage
         self.current_percentage = (asset_class_value / total_value) * 100 if total_value > 0 else 0
