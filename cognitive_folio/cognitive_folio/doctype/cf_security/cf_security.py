@@ -39,8 +39,6 @@ class CFSecurity(Document):
         """Fetch and set the current price after inserting the document"""
         if YFINANCE_INSTALLED:
             self.fetch_current_price()
-        else:
-            frappe.throw("YFinance package is not installed. Cannot fetch current price.")
 
     @frappe.whitelist()
     def fetch_current_price(self):
