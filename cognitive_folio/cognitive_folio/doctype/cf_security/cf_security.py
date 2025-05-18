@@ -208,7 +208,12 @@ class CFSecurity(Document):
                     content_string = content_string.split('```')[0]
             suggestion = json.loads(content_string)
 
-            self.summary = suggestion.get("Summary", "")
+            self.ai_response = content_string
+            self.suggestion_summary = suggestion.get("Summary", "")
+            self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
+            self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
+            self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
+            self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
             self.ai_suggestion = content_string
             self.save()
             return {'success': True}

@@ -204,7 +204,8 @@
    "fieldname": "suggestion_sell_price",
    "fieldtype": "Currency",
    "label": "Price Target Sell Above",
-   "options": "currency"
+   "options": "currency",
+   "read_only": 1
   },
   {
    "fieldname": "suggestion_summary",
@@ -244,7 +245,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-18 09:36:22.270109",
+ "modified": "2025-05-18 09:42:07.779078",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
