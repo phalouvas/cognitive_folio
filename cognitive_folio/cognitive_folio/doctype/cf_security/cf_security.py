@@ -212,7 +212,6 @@ class CFSecurity(Document):
             markdown_content = self.convert_json_to_markdown(suggestion)
             
             self.ai_response = content_string
-            self.suggestion_summary = suggestion.get("Summary", "")
             self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
             self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
             self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)

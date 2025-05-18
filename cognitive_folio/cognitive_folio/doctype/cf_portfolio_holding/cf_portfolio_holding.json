@@ -38,8 +38,6 @@
   "column_break_ppwu",
   "suggestion_buy_price",
   "suggestion_sell_price",
-  "section_break_oyqu",
-  "suggestion_summary",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
@@ -252,15 +250,9 @@
    "read_only": 1
   },
   {
-   "fetch_from": "security.suggestion_summary",
-   "fieldname": "suggestion_summary",
-   "fieldtype": "Small Text",
-   "read_only": 1
-  },
-  {
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
-   "label": "Suggestion"
+   "label": "Evaluation"
   },
   {
    "fetch_from": "security.suggestion_action",
@@ -287,11 +279,8 @@
    "fieldname": "suggestion_sell_price",
    "fieldtype": "Currency",
    "label": "Price Target Sell Above",
+   "options": "currency",
    "read_only": 1
-  },
-  {
-   "fieldname": "section_break_oyqu",
-   "fieldtype": "Section Break"
   },
   {
    "fetch_from": "security.suggestion_rating",
@@ -304,7 +293,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-18 09:29:02.808461",
+ "modified": "2025-05-18 09:49:19.609705",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
