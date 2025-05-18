@@ -33,13 +33,11 @@ frappe.ui.form.on("CF Portfolio", {
                 frappe.confirm(
                     __('This will generate AI suggestions for all holdings in this portfolio. This may take some time. Continue?'),
                     function() {
-                        frappe.dom.freeze(__('Generating AI suggestions for all holdings...'));
                         
                         frm.call({
                             doc: frm.doc,
                             method: 'generate_holdings_ai_suggestions',
                             callback: function(r) {
-                                frappe.dom.unfreeze();
                                 
                                 if (r.message && r.message.success) {
                                     frappe.show_alert({
@@ -57,7 +55,6 @@ frappe.ui.form.on("CF Portfolio", {
                                 }
                             },
                             error: function() {
-                                frappe.dom.unfreeze();
                                 frappe.msgprint({
                                     title: __('Error'),
                                     indicator: 'red',

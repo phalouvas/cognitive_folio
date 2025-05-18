@@ -36,14 +36,13 @@ class CFPortfolio(Document):
 				return {'success': False, 'error': _('No non-cash holdings found in this portfolio')}
 			
 			processed_count = 0
-			total_count = len(holdings)
+			total_count = len(holdings) + 1
 			
 			for i, holding in enumerate(holdings):
-				# Publish progress for user feedback
 				frappe.publish_progress(
-					percent=(i+1)/total_count * 100,
+					percent=(processed_count+1)/total_count * 100,
 					title=_("Generating AI Suggestions"),
-					description=_("Processing holding {0} of {1}").format(i+1, total_count)
+					description=_("Processing holding {0} of {1}").format(processed_count+1, total_count-1)
 				)
 				
 				if not holding.security:
@@ -66,6 +65,11 @@ class CFPortfolio(Document):
 					)
 					continue
 			
+			frappe.publish_progress(
+				percent=(processed_count+1)/total_count * 100,
+				title=_("Generating AI Suggestions"),
+				description=_("Processing holding {0} of {1}").format(processed_count+1, total_count-1)
+			)
 			return {'success': True, 'count': processed_count}
 			
 		except Exception as e:
