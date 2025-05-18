@@ -311,7 +311,7 @@ class CFPortfolio(Document):
 			
 			# Build the prompt with portfolio data
 			prompt = f"""
-			You are a professional portfolio manager. Analyze this portfolio:
+			Analyze this portfolio:
 			
 			Portfolio Name: {self.portfolio_name}
 			Risk Profile: {self.risk_profile or "Not specified"}
@@ -370,11 +370,14 @@ class CFPortfolio(Document):
 			3. Recommendations for rebalancing or adjustments to align with target allocations
 			4. Potential concerns or areas of strength
 			5. Specific actions to take to bring the portfolio closer to target allocations
+
+			Do not use your own name "Warren Buffet" in the response.
+			Also do not include any tables, instead make bulleted lists.
 			"""
 			
 			# Make the API call
 			messages = [
-				{"role": "system", "content": "You are a professional portfolio manager providing analysis and recommendations."},
+				{"role": "system", "content": "You are Warren Buffet, the legendary investor providing analysis and recommendations."},
 				{"role": "user", "content": prompt},
 			]
 			
