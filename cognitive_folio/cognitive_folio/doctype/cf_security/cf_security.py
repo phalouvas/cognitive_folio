@@ -124,60 +124,37 @@ class CFSecurity(Document):
             prompt_1 += """
             
             Provide the following without mentioning your name:
-            - A summary of the analysis.
-            - A detailed analysis of the security.
-            - A recommendation on whether to buy, hold, or sell this security.
-            - Provide a risk assessment based on the analysis.
-            - Provide a target price for the next 3 months.
-            - Provide a target price for the next 6 months.
-            - Provide a target price for the next 12 months.
-            - Provide a risk/reward ratio based on the analysis.
-            - Provide a volatility analysis based on the historical data.
-            - Provide a sentiment analysis based on the news articles.
-            - Provide a technical analysis based on the historical data.
-            - Provide a fundamental analysis based on the financial data.
-            - Provide a macroeconomic analysis based on the current economic conditions.
-            - Provide a geopolitical analysis based on the current geopolitical conditions.
-            - Provide a sector analysis based on the current sector conditions.
-            - Provide a market analysis based on the current market conditions.
-            - Provide a risk management strategy based on the analysis.
-            - Provide a portfolio allocation strategy based on the analysis.
-            - Provide a diversification strategy based on the analysis.
-            - Provide a rebalancing strategy based on the analysis.
-            - Provide a tax strategy based on the analysis.
-            - Provide a retirement strategy based on the analysis.
-            - Provide an estate planning strategy based on the analysis.
-            - Provide a wealth management strategy based on the analysis.
-            - Provide a financial planning strategy based on the analysis.
-            - Provide a risk tolerance assessment based on the analysis.
-            - Provide a financial goals assessment based on the analysis.
+            - summary of the analysis.
+            - detailed analysis of the security.
+            - recommendation on whether to buy, hold, or sell this security.
+            - risk assessment based on the analysis.
+            - target price for the next 3 months.
+            - target price for the next 6 months.
+            - target price for the next 12 months.
+            - risk/reward ratio based on the analysis.
+            - volatility analysis based on the historical data.
+            - sentiment analysis based on the news articles.
+            - technical analysis based on the historical data.
+            - fundamental analysis based on the financial data.
+            - macroeconomic analysis based on the current economic conditions.
+            - geopolitical analysis based on the current geopolitical conditions.
+            - sector analysis based on the current sector conditions.
+            - market analysis based on the current market conditions.
+            - risk management strategy based on the analysis.
+            - portfolio allocation strategy based on the analysis.
+            - diversification strategy based on the analysis.
+            - rebalancing strategy based on the analysis.
+            - tax strategy based on the analysis.
+            - retirement strategy based on the analysis.
+            - estate planning strategy based on the analysis.
+            - wealth management strategy based on the analysis.
+            - financial planning strategy based on the analysis.
+            - risk tolerance assessment based on the analysis.
+            - financial goals assessment based on the analysis.
+            - rating between 1 and 10 based on the analysis.
+            - sell and buy signals based on the analysis.
 
-            Also provide sell and buy signals based on the analysis.
-            """
-            
-            # Round 1
-            messages = [
-                    {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
-                    {"role": "user", "content": prompt_1},
-            ]
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=False
-            )
-
-            content  = response.choices[0].message.content
-
-            # Round 2
-            prompt_2 = f"""
-            Provide the following:
-            - What is your recommendation? Buy or Sell or Hold?
-            - Buy/Sell price.
-            - A risk/reward ratio based on the analysis.
-            - A rating between 1 and 10 based on the analysis.
-            - A summary of the analysis.
-
-            Output in JSON format:
+            Output in JSON format.
             EXAMPLE JSON OUTPUT:
             {{
                 "suggestion_action": "Hold (with caution)",
@@ -188,8 +165,12 @@ class CFSecurity(Document):
                 "suggestion_summary": "The stock is undervalued and has strong growth potential."
             }}
             """
-            messages.append({'role': 'assistant', 'content': content})
-            messages.append({'role': 'user', 'content': prompt_2})
+            
+            # Round 1
+            messages = [
+                    {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
+                    {"role": "user", "content": prompt_1},
+            ]
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -210,13 +191,7 @@ class CFSecurity(Document):
                     content_string = content_string.split('```')[0]
             suggestion = json.loads(content_string)
 
-            self.ai_suggestion = content
-            self.suggestion_action = suggestion.get("suggestion_action")
-            self.suggestion_buy_price = flt(suggestion.get("suggestion_buy_price"))
-            self.suggestion_sell_price = flt(suggestion.get("suggestion_sell_price"))
-            self.suggestion_risk_reward_ratio = suggestion.get("suggestion_risk_reward_ratio")
-            self.suggestion_rating = suggestion.get("suggestion_rating")
-            self.suggestion_summary = suggestion.get("suggestion_summary")
+            self.ai_suggestion = content_string
             self.save()
             return {'success': True}
         except requests.exceptions.RequestException as e:
