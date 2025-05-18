@@ -16,7 +16,7 @@ frappe.ui.form.on("CF Portfolio", {
             }
             
             // Add "Fetch All Prices" button
-            frm.add_custom_button(__('Fetch Holdings Prices'), function() {
+            frm.add_custom_button(__('Fetch Prices'), function() {
                 // Show loading indicator
                 
                 // Call server-side method to update prices
@@ -37,9 +37,9 @@ frappe.ui.form.on("CF Portfolio", {
                         frappe.msgprint(__('An error occurred while updating prices.'));
                     }
                 });
-            }, __('Actions'));
+            }, __('Holdings'));
 
-            frm.add_custom_button(__('Generate Holdings AI Suggestions'), function() {
+            frm.add_custom_button(__('Generate AI Suggestions'), function() {
                 frappe.confirm(
                     __('This will generate AI suggestions for all holdings in this portfolio. This may take some time. Continue?'),
                     function() {
@@ -69,6 +69,47 @@ frappe.ui.form.on("CF Portfolio", {
                                     title: __('Error'),
                                     indicator: 'red',
                                     message: __('An error occurred while generating AI suggestions')
+                                });
+                            }
+                        });
+                    }
+                );
+            }, __('Holdings'));
+            
+            // Add "Generate Portfolio AI Analysis" button
+            frm.add_custom_button(__('Generate AI Analysis'), function() {
+                frappe.confirm(
+                    __('This will generate an AI analysis for the entire portfolio. Continue?'),
+                    function() {
+                        frappe.dom.freeze(__('Generating portfolio analysis...'));
+                        
+                        frm.call({
+                            doc: frm.doc,
+                            method: 'generate_portfolio_ai_analysis',
+                            callback: function(r) {
+                                frappe.dom.unfreeze();
+                                
+                                if (r.message && r.message.success) {
+                                    frappe.show_alert({
+                                        message: __('Portfolio analysis generated successfully'),
+                                        indicator: 'green'
+                                    });
+                                    frm.refresh();
+                                } else {
+                                    frappe.msgprint({
+                                        title: __('Error'),
+                                        indicator: 'red',
+                                        message: r.message && r.message.error ? 
+                                            r.message.error : __('Failed to generate portfolio analysis')
+                                    });
+                                }
+                            },
+                            error: function() {
+                                frappe.dom.unfreeze();
+                                frappe.msgprint({
+                                    title: __('Error'),
+                                    indicator: 'red',
+                                    message: __('An error occurred while generating portfolio analysis')
                                 });
                             }
                         });

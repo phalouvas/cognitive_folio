@@ -4,6 +4,7 @@ from frappe.utils import flt
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
 from datetime import datetime, timedelta
+from openai import OpenAI
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -225,3 +226,174 @@ class CFPortfolio(Document):
 				"Portfolio Batch Update Error"
 			)
 			return 0
+	
+	@frappe.whitelist()
+	def generate_portfolio_ai_analysis(self):
+		"""Generate AI analysis for the entire portfolio"""
+		try:
+			# Get OpenWebUI settings
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			model = settings.default_ai_model
+			if not model:
+				frappe.throw(_('Default AI model is not configured in CF Settings'))
+	
+			# Get all holdings for this portfolio
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters=[
+					["portfolio", "=", self.name],
+				],
+				fields=["name", "security", "security_name", "quantity", "current_price", 
+						"current_value", "allocation_percentage", "security_type",
+						"sector", "industry", "country", "profit_loss", "profit_loss_percentage"]
+			)
+			
+			if not holdings:
+				return {'success': False, 'error': _('No holdings found in this portfolio')}
+			
+			# Calculate total portfolio value and other metrics
+			total_value = sum(holding.current_value for holding in holdings if holding.current_value)
+			total_profit_loss = sum(holding.profit_loss for holding in holdings if holding.profit_loss)
+			
+			# Group holdings by various categories for analysis
+			sector_allocation = {}
+			industry_allocation = {}
+			country_allocation = {}
+			security_type_allocation = {}
+			
+			for holding in holdings:
+				# Sector allocation
+				if holding.sector:
+					if holding.sector not in sector_allocation:
+						sector_allocation[holding.sector] = 0
+					sector_allocation[holding.sector] += holding.current_value or 0
+				
+				# Industry allocation
+				if holding.industry:
+					if holding.industry not in industry_allocation:
+						industry_allocation[holding.industry] = 0
+					industry_allocation[holding.industry] += holding.current_value or 0
+				
+				# Country allocation
+				if holding.country:
+					if holding.country not in country_allocation:
+						country_allocation[holding.country] = 0
+					country_allocation[holding.country] += holding.current_value or 0
+				
+				# Security type allocation
+				if holding.security_type:
+					if holding.security_type not in security_type_allocation:
+						security_type_allocation[holding.security_type] = 0
+					security_type_allocation[holding.security_type] += holding.current_value or 0
+			
+			# Convert raw values to percentages
+			if total_value > 0:
+				sector_allocation = {k: (v/total_value*100) for k, v in sector_allocation.items()}
+				industry_allocation = {k: (v/total_value*100) for k, v in industry_allocation.items()}
+				country_allocation = {k: (v/total_value*100) for k, v in country_allocation.items()}
+				security_type_allocation = {k: (v/total_value*100) for k, v in security_type_allocation.items()}
+			
+			# Get target allocations from CF Asset Allocation
+			target_allocations = frappe.get_all(
+				"CF Asset Allocation",
+				filters={"portfolio": self.name},
+				fields=["allocation_type", "asset_class", "target_percentage", "current_percentage", "difference"]
+			)
+			
+			# Group target allocations by type
+			grouped_targets = {}
+			for alloc in target_allocations:
+				alloc_type = alloc.allocation_type
+				if alloc_type not in grouped_targets:
+					grouped_targets[alloc_type] = []
+				grouped_targets[alloc_type].append(alloc)
+			
+			# Build the prompt with portfolio data
+			prompt = f"""
+			You are a professional portfolio manager. Analyze this portfolio:
+			
+			Portfolio Name: {self.portfolio_name}
+			Risk Profile: {self.risk_profile or "Not specified"}
+			Total Value: {total_value} {self.currency}
+			Total Profit/Loss: {total_profit_loss} {self.currency} ({(total_profit_loss/total_value*100) if total_value else 0:.2f}%)
+			
+			Holdings:
+			"""
+			
+			# Add holdings data
+			for holding in holdings:
+				prompt += f"""
+				- {holding.security_name or holding.security} ({holding.security_type or "Unknown type"})
+				  Quantity: {holding.quantity}
+				  Current Value: {holding.current_value} {self.currency} ({holding.allocation_percentage or 0:.2f}% of portfolio)
+				  Profit/Loss: {holding.profit_loss or 0} {self.currency} ({holding.profit_loss_percentage or 0:.2f}%)
+				  Sector: {holding.sector or "Unknown"}
+				  Industry: {holding.industry or "Unknown"}
+				  Country: {holding.country or "Unknown"}
+				"""
+			
+			# Add current allocation data
+			prompt += "\nSector Allocation:\n"
+			for sector, percentage in sorted(sector_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {sector}: {percentage:.2f}%\n"
+			
+			prompt += "\nIndustry Allocation:\n"
+			for industry, percentage in sorted(industry_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {industry}: {percentage:.2f}%\n"
+			
+			prompt += "\nCountry Allocation:\n"
+			for country, percentage in sorted(country_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {country}: {percentage:.2f}%\n"
+			
+			prompt += "\nSecurity Type Allocation:\n"
+			for security_type, percentage in sorted(security_type_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {security_type}: {percentage:.2f}%\n"
+			
+			# Add target allocation data
+			if grouped_targets:
+				prompt += "\nTarget Allocations:\n"
+				for alloc_type, allocations in grouped_targets.items():
+					prompt += f"\n{alloc_type} Targets:\n"
+					for alloc in sorted(allocations, key=lambda x: x.target_percentage, reverse=True):
+						current = alloc.current_percentage or 0
+						target = alloc.target_percentage or 0
+						diff = alloc.difference or 0
+						prompt += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
+			
+			# Add final instructions
+			prompt += """
+			Please provide a comprehensive analysis of this portfolio including:
+			
+			1. Overall assessment of portfolio composition and diversification
+			2. Risk analysis based on allocations and holdings
+			3. Recommendations for rebalancing or adjustments to align with target allocations
+			4. Potential concerns or areas of strength
+			5. Specific actions to take to bring the portfolio closer to target allocations
+			"""
+			
+			# Make the API call
+			messages = [
+				{"role": "system", "content": "You are a professional portfolio manager providing analysis and recommendations."},
+				{"role": "user", "content": prompt},
+			]
+			
+			response = client.chat.completions.create(
+				model=model,
+				messages=messages,
+				stream=False,
+				temperature=0.2
+			)
+			
+			# Get content from response
+			content = response.choices[0].message.content
+			
+			# Save to ai_suggestion field
+			self.ai_suggestion = content
+			self.save()
+			
+			return {'success': True}
+		
+		except Exception as e:
+			frappe.log_error(f"Error generating portfolio AI analysis: {str(e)}", "Portfolio AI Analysis Error")
+			return {'success': False, 'error': str(e)}

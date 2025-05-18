@@ -11,11 +11,11 @@
   "customer",
   "description",
   "column_break_4",
+  "risk_profile",
   "currency",
   "start_date",
   "disabled",
   "section_break_8",
-  "risk_profile",
   "ai_suggestion_html",
   "ai_suggestion"
  ],
@@ -74,15 +74,16 @@
   },
   {
    "default": "Medium",
+   "description": "Choose your appetite for risk",
    "fieldname": "risk_profile",
    "fieldtype": "Select",
    "label": "Risk Profile",
    "options": "Low\nMedium\nHigh",
-   "read_only": 1
+   "reqd": 1
   },
   {
    "fieldname": "ai_suggestion",
-   "fieldtype": "Text Editor",
+   "fieldtype": "Markdown Editor",
    "hidden": 1,
    "label": "AI Suggestion",
    "read_only": 1
@@ -116,7 +117,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-18 11:15:46.899602",
+ "modified": "2025-05-18 11:37:24.966288",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
