@@ -134,52 +134,51 @@ class CFSecurity(Document):
             
             EXAMPLE JSON OUTPUT:
             {
-                "Summary": "Bayer AG, a diversified healthcare and agriculture company, shows mixed signals under my criteria. While undervalued on traditional metrics (low P/B, P/S) and strong cash flows, significant debt, negative earnings, and management alignment concerns offset potential upside.",
+                "Summary": "Analysis summary of the security. Do not mention your name.",
                 "Evaluation": {
-                    "Rating": 2,
-                    "Recommendation": "Hold",
-                    "Price Target Buy Below": 18.38,
-                    "Price Target Sell Above": 27.0
+                    "Rating": 4,
+                    "Recommendation": "Buy",
+                    "Price Target Buy Below": 156.01,
+                    "Price Target Sell Above": 185.18
                 },
                 "Qualitative Analysis": {
                     "Durable Competitive Advantage": {
-                        "Assessment": "Moderate",
+                        "Assessment": "Strong",
                         "Supporting Data": {
-                            "Market Position": "Global leader in pharmaceuticals/crop science with 56.28% gross margins",
-                            "Return on Equity": "-9.49% (concerning)",
-                            "EBITDA Margins": "18.10% (adequate but pressured)"
+                            "Market Position": "Dominant player in China's e-commerce and cloud computing with 39.95% gross margins and 13.06% profit margins.",
+                            "Return on Equity": "11.44% (moderate but stable)",
+                            "EBITDA Margins": "18.33% (healthy operational efficiency)"
                         }
                     },
                     "Management Competence": {
-                        "Assessment": "Experienced but misaligned",
+                        "Assessment": "Experienced leadership with long-term alignment",
                         "Supporting Data": {
-                            "Executive Tenure": "Seasoned leadership (average age 55)",
-                            "Compensation Risk": "Low (score 1)",
-                            "Insider Ownership": "0% (no skin in the game)"
+                            "Executive Tenure": "Key officers like Joseph Tsai (Executive Chairman) and Yongming Wu (CEO) have extensive industry experience.",
+                            "Compensation Risk": "Low (score 10)",
+                            "Insider Ownership": "6.48% (moderate alignment with shareholders)"
                         }
                     },
                     "Valuation": {
-                        "Assessment": "Cheap but value trap risk",
+                        "Assessment": "Undervalued relative to fundamentals",
                         "Supporting Data": {
-                            "Price-to-Book": "0.69 (discount to 33.028 book value)",
-                            "Forward P/E": "4.3 (deceptively low due to debt burden)",
-                            "Price-to-Sales": "0.48 (sector: ~3.5)"
+                            "Price-to-Book": "0.28 (extremely low)",
+                            "Forward P/E": "13.07 (below sector average)",
+                            "Price-to-Sales": "2.36 (attractive for growth company)"
                         }
                     },
                     "Financial Health": {
-                        "Assessment": "Highly leveraged",
+                        "Assessment": "Robust balance sheet",
                         "Supporting Data": {
-                            "Current Ratio": "1.25 (adequate)",
-                            "Debt-to-Equity": "120.88% (dangerous)",
-                            "Operating Cash Flow": "€8.5B (positive but servicing €39.4B debt)"
+                            "Current Ratio": "1.55 (strong liquidity)",
+                            "Debt-to-Equity": "22.78 (conservative leverage)",
+                            "Operating Cash Flow": "HK$163.5B (substantial reinvestment capacity)"
                         }
                     }
                 },
                 "Risk Factors": {
-                    "Balance Sheet Risk": "€39.4B debt vs €4B cash",
-                    "Litigation/Regulatory": "Recent FDA challenges per news links",
-                    "Profitability Crisis": "-35.2% earnings growth, -6.98% net margins",
-                    "Dividend Sustainability": "163% payout ratio despite 0.48% yield"
+                    "Geopolitical Risks": "U.S.-China tensions and regulatory scrutiny",
+                    "Growth Sustainability": "Earnings growth rate of 296.4% may face normalization pressure",
+                    "Recent Performance": "52-week price decline of -15.42% from highs reflects market concerns"
                 }
             }
             """
@@ -192,7 +191,7 @@ class CFSecurity(Document):
                 model=model,
                 messages=messages,
                 stream=False,
-                temperature=0.6,
+                temperature=0.2
             )
 
              # Parse the JSON from the content string, removing any Markdown formatting
