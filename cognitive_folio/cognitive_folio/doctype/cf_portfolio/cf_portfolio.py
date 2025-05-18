@@ -120,7 +120,8 @@ class CFPortfolio(Document):
 				securities_data[security_name] = {
 					"symbol": security.symbol,
 					"currency": security.currency,
-					"doc": security
+					"doc": security,
+					"datetime": security.modified
 				}
 		
 		# Extract symbols for batch request
@@ -139,6 +140,7 @@ class CFPortfolio(Document):
 			total_steps = len(securities_data)
 			
 			for security_name, data in securities_data.items():
+
 				symbol = data["symbol"]
 				security_currency = data["currency"]
 
@@ -148,7 +150,8 @@ class CFPortfolio(Document):
 					description=f"Processing item {updated_count+1} of {total_steps} ({symbol})"
 				)
 				
-				if not symbol or symbol not in tickers.tickers:
+				if not symbol or symbol not in tickers.tickers or security.modified > cutoff_time:
+					updated_count += 1
 					continue
 					
 				ticker = tickers.tickers[symbol]
