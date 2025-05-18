@@ -185,6 +185,7 @@
    "fieldname": "suggestion_action",
    "fieldtype": "Data",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Recommendation",
    "read_only": 1
   },
@@ -212,6 +213,7 @@
    "fieldname": "suggestion_rating",
    "fieldtype": "Int",
    "in_list_view": 1,
+   "in_standard_filter": 1,
    "label": "Rating",
    "read_only": 1
   },
@@ -237,7 +239,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-18 09:53:35.981983",
+ "modified": "2025-05-18 10:01:01.452757",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

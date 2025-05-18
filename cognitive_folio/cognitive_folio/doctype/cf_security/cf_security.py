@@ -234,16 +234,16 @@ class CFSecurity(Document):
         if "Summary" in data:
             markdown.append(f"## Summary\n{data['Summary']}\n")
         
-        # Add Evaluation
+        # Add Evaluation as bullet points
         if "Evaluation" in data:
             eval_data = data["Evaluation"]
             markdown.append("## Evaluation")
             
             rating = "⭐" * int(eval_data.get("Rating", 0))
-            markdown.append(f"**Rating**: {eval_data.get('Rating', 0)} {rating}")
-            markdown.append(f"**Recommendation**: {eval_data.get('Recommendation', '-')}")
-            markdown.append(f"**Buy Below**: {self.currency} {eval_data.get('Price Target Buy Below', '-')}")
-            markdown.append(f"**Sell Above**: {self.currency} {eval_data.get('Price Target Sell Above', '-')}")
+            markdown.append(f"- Rating: {rating}")
+            markdown.append(f"- Recommendation: **{eval_data.get('Recommendation', '-')}**")
+            markdown.append(f"- Buy Below: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
+            markdown.append(f"- Sell Above: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
             markdown.append("")
         
         # Add Qualitative Analysis
