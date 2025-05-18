@@ -191,15 +191,24 @@ class CFSecurity(Document):
             messages.append({'role': 'assistant', 'content': content})
             messages.append({'role': 'user', 'content': prompt_2})
             response = client.chat.completions.create(
-                model="deepseek-chat",
+                model=model,
                 messages=messages,
-                stream=False,
-                response_format={
-                    'type': 'json_object'
-                }
+                stream=False
             )
 
-            suggestion = json.loads(response.choices[0].message.content)
+             # Parse the JSON from the content string, removing any Markdown formatting
+            content_string = response.choices[0].message.content
+            # Remove Markdown code blocks if present
+            if content_string.startswith('```') and '```' in content_string[3:]:
+                # Extract content between the first and last backtick markers
+                content_string = content_string.split('```', 2)[1]
+                # Remove the language identifier if present (e.g., 'json\n')
+                if '\n' in content_string:
+                    content_string = content_string.split('\n', 1)[1]
+                # Remove trailing backticks if any remain
+                if '```' in content_string:
+                    content_string = content_string.split('```')[0]
+            suggestion = json.loads(content_string)
 
             self.ai_suggestion = content
             self.suggestion_action = suggestion.get("suggestion_action")
