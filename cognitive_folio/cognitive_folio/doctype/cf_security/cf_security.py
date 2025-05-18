@@ -208,13 +208,16 @@ class CFSecurity(Document):
                     content_string = content_string.split('```')[0]
             suggestion = json.loads(content_string)
 
+            # Convert JSON to markdown for better display
+            markdown_content = self.convert_json_to_markdown(suggestion)
+            
             self.ai_response = content_string
             self.suggestion_summary = suggestion.get("Summary", "")
             self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
             self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
             self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
             self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
-            self.ai_suggestion = content_string
+            self.ai_suggestion = markdown_content
             self.save()
             return {'success': True}
         except requests.exceptions.RequestException as e:
@@ -223,6 +226,49 @@ class CFSecurity(Document):
         except Exception as e:
             frappe.log_error(f"Error generating AI suggestion: {str(e)}", "AI Suggestion Error")
             return {'success': False, 'error': str(e)}
+            
+    def convert_json_to_markdown(self, data):
+        """Convert JSON data to markdown format for better display"""
+        markdown = []
+        
+        # Add Summary
+        if "Summary" in data:
+            markdown.append(f"## Summary\n{data['Summary']}\n")
+        
+        # Add Evaluation
+        if "Evaluation" in data:
+            eval_data = data["Evaluation"]
+            markdown.append("## Evaluation")
+            
+            rating = "⭐" * int(eval_data.get("Rating", 0))
+            markdown.append(f"**Rating**: {eval_data.get('Rating', 0)} {rating}")
+            markdown.append(f"**Recommendation**: {eval_data.get('Recommendation', '-')}")
+            markdown.append(f"**Buy Below**: {eval_data.get('Price Target Buy Below', '-')}")
+            markdown.append(f"**Sell Above**: {eval_data.get('Price Target Sell Above', '-')}")
+            markdown.append("")
+        
+        # Add Qualitative Analysis
+        if "Qualitative Analysis" in data:
+            markdown.append("## Qualitative Analysis")
+            qual_data = data["Qualitative Analysis"]
+            
+            for category, details in qual_data.items():
+                markdown.append(f"### {category}")
+                markdown.append(f"**Assessment**: {details.get('Assessment', '-')}")
+                
+                if "Supporting Data" in details:
+                    markdown.append("\n**Supporting Data**:")
+                    for key, value in details["Supporting Data"].items():
+                        markdown.append(f"- **{key}**: {value}")
+                markdown.append("")
+        
+        # Add Risk Factors
+        if "Risk Factors" in data:
+            markdown.append("## Risk Factors")
+            for factor, description in data["Risk Factors"].items():
+                markdown.append(f"- **{factor}**: {description}")
+        
+        return "\n".join(markdown)
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):
