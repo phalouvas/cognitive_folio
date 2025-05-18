@@ -32,6 +32,12 @@
   "country",
   "region",
   "subregion",
+  "suggestion_section",
+  "suggestion_action",
+  "suggestion_rating",
+  "column_break_ppwu",
+  "suggestion_buy_price",
+  "suggestion_sell_price",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
@@ -124,6 +130,7 @@
    "fetch_from": "security.sector",
    "fieldname": "sector",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Sector",
    "read_only": 1
@@ -132,6 +139,7 @@
    "fetch_from": "security.industry",
    "fieldname": "industry",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Industry",
    "read_only": 1
@@ -154,6 +162,7 @@
   {
    "fieldname": "profit_loss_percentage",
    "fieldtype": "Percent",
+   "in_list_view": 1,
    "label": "Profit/Loss %",
    "read_only": 1
   },
@@ -170,6 +179,7 @@
    "fetch_from": "security.country",
    "fieldname": "country",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Country",
    "read_only": 1
   },
@@ -177,6 +187,7 @@
    "fetch_from": "security.region",
    "fieldname": "region",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Region",
    "read_only": 1
   },
@@ -184,6 +195,7 @@
    "fetch_from": "security.subregion",
    "fieldname": "subregion",
    "fieldtype": "Data",
+   "in_list_view": 1,
    "label": "Subregion",
    "read_only": 1
   },
@@ -219,7 +231,8 @@
   },
   {
    "fieldname": "analysis_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Analysis"
   },
   {
    "fieldname": "ai_suggestion_html",
@@ -241,11 +254,57 @@
    "label": "Current Price",
    "options": "currency",
    "read_only": 1
+  },
+  {
+   "fieldname": "suggestion_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Evaluation"
+  },
+  {
+   "fetch_from": "security.suggestion_action",
+   "fieldname": "suggestion_action",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Recommendation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_ppwu",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fetch_from": "security.suggestion_buy_price",
+   "fieldname": "suggestion_buy_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price Target Buy Below",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.suggestion_sell_price",
+   "fieldname": "suggestion_sell_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price Target Sell Above",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.suggestion_rating",
+   "fieldname": "suggestion_rating",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rating",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-17 18:43:45.120543",
+ "modified": "2025-05-18 10:00:40.791795",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

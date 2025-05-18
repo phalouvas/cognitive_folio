@@ -11,12 +11,13 @@
   "customer",
   "description",
   "column_break_4",
+  "risk_profile",
   "currency",
   "start_date",
   "disabled",
   "section_break_8",
-  "risk_profile",
-  "notes"
+  "ai_suggestion_html",
+  "ai_suggestion"
  ],
  "fields": [
   {
@@ -44,15 +45,15 @@
    "fieldname": "column_break_4",
    "fieldtype": "Column Break"
   },
-{
- "fieldname": "currency",
- "fieldtype": "Link",
- "label": "Currency",
- "options": "Currency",
- "read_only": 1,
- "read_only_depends_on": "eval:!doc.__islocal",
- "reqd": 1
-},
+  {
+   "fieldname": "currency",
+   "fieldtype": "Link",
+   "label": "Currency",
+   "options": "Currency",
+   "read_only": 1,
+   "read_only_depends_on": "eval:!doc.__islocal",
+   "reqd": 1
+  },
   {
    "fieldname": "start_date",
    "fieldtype": "Date",
@@ -69,19 +70,28 @@
   {
    "fieldname": "section_break_8",
    "fieldtype": "Section Break",
-   "label": "Additional Information"
+   "label": "Analysis"
   },
   {
    "default": "Medium",
+   "description": "Choose your appetite for risk",
    "fieldname": "risk_profile",
    "fieldtype": "Select",
    "label": "Risk Profile",
-   "options": "Low\nMedium\nHigh"
+   "options": "Low\nMedium\nHigh",
+   "reqd": 1
   },
   {
-   "fieldname": "notes",
-   "fieldtype": "Text Editor",
-   "label": "Notes"
+   "fieldname": "ai_suggestion",
+   "fieldtype": "Markdown Editor",
+   "hidden": 1,
+   "label": "AI Suggestion",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_suggestion_html",
+   "fieldtype": "HTML",
+   "label": "AI Suggestion HTML"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -107,7 +117,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-16 09:26:18.820183",
+ "modified": "2025-05-18 11:37:24.966288",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",

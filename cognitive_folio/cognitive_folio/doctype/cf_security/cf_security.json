@@ -22,9 +22,16 @@
   "column_break_bpmj",
   "sector",
   "industry",
+  "suggestion_section",
+  "suggestion_action",
+  "suggestion_rating",
+  "column_break_rfgw",
+  "suggestion_buy_price",
+  "suggestion_sell_price",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
+  "ai_response",
   "section_break_11",
   "ticker_info",
   "news"
@@ -147,7 +154,8 @@
   },
   {
    "fieldname": "analysis_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Analysis"
   },
   {
    "fieldname": "ai_suggestion",
@@ -166,6 +174,54 @@
    "fieldname": "ai_suggestion_html",
    "fieldtype": "HTML",
    "label": "AI Suggestion HTML"
+  },
+  {
+   "fieldname": "suggestion_section",
+   "fieldtype": "Section Break",
+   "hidden": 1,
+   "label": "Evaluation"
+  },
+  {
+   "fieldname": "suggestion_action",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Recommendation",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_rfgw",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "suggestion_buy_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price Target Buy Below",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "suggestion_sell_price",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Price Target Sell Above",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "suggestion_rating",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Rating",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_response",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "AI Response"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -183,7 +239,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-17 18:44:46.466061",
+ "modified": "2025-05-18 10:01:01.452757",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

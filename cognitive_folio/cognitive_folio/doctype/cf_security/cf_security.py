@@ -2,13 +2,11 @@
 # For license information, please see license.txt
 
 import json
-import os
 import requests
-from urllib.parse import urljoin
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import get_files_path
+from frappe.utils import flt
 from openai import OpenAI
 
 try:
@@ -71,19 +69,17 @@ class CFSecurity(Document):
             
     def update_portfolio_holdings(self):
         """Update the value of portfolio holdings that contain this security"""
-        if self.has_value_changed("current_price"):
-            # Check if CF Portfolio Holding DocType exists before trying to access it
-            if frappe.db.table_exists("CF Portfolio Holding"):
-                holdings = frappe.get_all(
-                    "CF Portfolio Holding",
-                    filters={"security": self.name},
-                    fields=["name"]
-                )
-                
-                for holding in holdings:
-                    # Trigger value recalculation in each holding
-                    holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
-                    holding_doc.save()
+        if frappe.db.table_exists("CF Portfolio Holding"):
+            holdings = frappe.get_all(
+                "CF Portfolio Holding",
+                filters={"security": self.name},
+                fields=["name"]
+            )
+            
+            for holding in holdings:
+                # Trigger value recalculation in each holding
+                holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
+                holding_doc.save()
 
     @frappe.whitelist()
     def generate_ai_suggestion(self):
@@ -110,75 +106,168 @@ class CFSecurity(Document):
             # Create base prompt with security data
             prompt = f"""
             You own below security.
-            Please analyze this security based on "Ticker Information" and "Recent News".
-            
+
             Security: {self.security_name} ({self.symbol})
             Exchange: {self.stock_exchange}
             Sector: {self.sector}
             Industry: {self.industry}
+            Current Price: {self.current_price}
+            
+            Evaluate below security using Warren Buffett's qualitative principles,
+            but use quantitative data from "Ticker Information" to support your evaluation.
             
             Ticker Information:
             {json.dumps(ticker_info, indent=2)}
             
+            For your evaluation also consider "Recent News":
             Recent News:
             {json.dumps(news, indent=2)}
             """                        
             
             # Add final instructions to the prompt
             prompt += """
+            Do not mention your name.
+            Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
+            State your recommendation Buy, Hold, or Sell.
+            State the price target that you would think for buying and selling.
+            Output in JSON format but give titles to each column so I am able to render them in markdown format.
             
-            Provide the following without mentioning your name:
-            - A summary of the analysis.
-            - A detailed analysis of the security.
-            - A recommendation on whether to buy, hold, or sell this security.
-            - Provide a risk assessment based on the analysis.
-            - Provide a target price for the next 3 months.
-            - Provide a target price for the next 6 months.
-            - Provide a target price for the next 12 months.
-            - Provide a risk/reward ratio based on the analysis.
-            - Provide a volatility analysis based on the historical data.
-            - Provide a sentiment analysis based on the news articles.
-            - Provide a technical analysis based on the historical data.
-            - Provide a fundamental analysis based on the financial data.
-            - Provide a macroeconomic analysis based on the current economic conditions.
-            - Provide a geopolitical analysis based on the current geopolitical conditions.
-            - Provide a sector analysis based on the current sector conditions.
-            - Provide a market analysis based on the current market conditions.
-            - Provide a risk management strategy based on the analysis.
-            - Provide a portfolio allocation strategy based on the analysis.
-            - Provide a diversification strategy based on the analysis.
-            - Provide a rebalancing strategy based on the analysis.
-            - Provide a tax strategy based on the analysis.
-            - Provide a retirement strategy based on the analysis.
-            - Provide an estate planning strategy based on the analysis.
-            - Provide a wealth management strategy based on the analysis.
-            - Provide a financial planning strategy based on the analysis.
-            - Provide a risk tolerance assessment based on the analysis.
-            - Provide a financial goals assessment based on the analysis.
-
-            Also provide sell and buy signals based on the analysis.
+            EXAMPLE JSON OUTPUT:
+            {
+                "Summary": "Analysis summary of the security. Do not mention your name.",
+                "Evaluation": {
+                    "Rating": 4,
+                    "Recommendation": "Buy",
+                    "Price Target Buy Below": 156.01,
+                    "Price Target Sell Above": 185.18
+                },
+                "Qualitative Analysis": {
+                    "Durable Competitive Advantage": {
+                        "Assessment": "Strong",
+                        "Supporting Data": {
+                            "Market Position": "Dominant player in China's e-commerce and cloud computing with 39.95% gross margins and 13.06% profit margins.",
+                            "Return on Equity": "11.44% (moderate but stable)",
+                            "EBITDA Margins": "18.33% (healthy operational efficiency)"
+                        }
+                    },
+                    "Management Competence": {
+                        "Assessment": "Experienced leadership with long-term alignment",
+                        "Supporting Data": {
+                            "Executive Tenure": "Key officers like Joseph Tsai (Executive Chairman) and Yongming Wu (CEO) have extensive industry experience.",
+                            "Compensation Risk": "Low (score 10)",
+                            "Insider Ownership": "6.48% (moderate alignment with shareholders)"
+                        }
+                    },
+                    "Valuation": {
+                        "Assessment": "Undervalued relative to fundamentals",
+                        "Supporting Data": {
+                            "Price-to-Book": "0.28 (extremely low)",
+                            "Forward P/E": "13.07 (below sector average)",
+                            "Price-to-Sales": "2.36 (attractive for growth company)"
+                        }
+                    },
+                    "Financial Health": {
+                        "Assessment": "Robust balance sheet",
+                        "Supporting Data": {
+                            "Current Ratio": "1.55 (strong liquidity)",
+                            "Debt-to-Equity": "22.78 (conservative leverage)",
+                            "Operating Cash Flow": "HK$163.5B (substantial reinvestment capacity)"
+                        }
+                    }
+                },
+                "Risk Factors": {
+                    "Geopolitical Risks": "U.S.-China tensions and regulatory scrutiny",
+                    "Growth Sustainability": "Earnings growth rate of 296.4% may face normalization pressure",
+                    "Recent Performance": "52-week price decline of -15.42% from highs reflects market concerns"
+                }
+            }
             """
             
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
+            messages = [
                     {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
                     {"role": "user", "content": prompt},
-            ],
-                stream=False
+            ]
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=False,
+                temperature=0.2
             )
 
-            ai_response = response.choices[0].message.content
-            if ai_response:
-                self.ai_suggestion = ai_response
-                self.save()
-                return {'success': True}
+             # Parse the JSON from the content string, removing any Markdown formatting
+            content_string = response.choices[0].message.content
+            # Remove Markdown code blocks if present
+            if content_string.startswith('```') and '```' in content_string[3:]:
+                # Extract content between the first and last backtick markers
+                content_string = content_string.split('```', 2)[1]
+                # Remove the language identifier if present (e.g., 'json\n')
+                if '\n' in content_string:
+                    content_string = content_string.split('\n', 1)[1]
+                # Remove trailing backticks if any remain
+                if '```' in content_string:
+                    content_string = content_string.split('```')[0]
+            suggestion = json.loads(content_string)
+
+            # Convert JSON to markdown for better display
+            markdown_content = self.convert_json_to_markdown(suggestion)
+            
+            self.ai_response = content_string
+            self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
+            self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
+            self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
+            self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
+            self.ai_suggestion = markdown_content
+            self.save()
+            return {'success': True}
         except requests.exceptions.RequestException as e:
             frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
             return {'success': False, 'error': str(e)}
         except Exception as e:
             frappe.log_error(f"Error generating AI suggestion: {str(e)}", "AI Suggestion Error")
             return {'success': False, 'error': str(e)}
+            
+    def convert_json_to_markdown(self, data):
+        """Convert JSON data to markdown format for better display"""
+        markdown = []
+        
+        # Add Summary
+        if "Summary" in data:
+            markdown.append(f"## Summary\n{data['Summary']}\n")
+        
+        # Add Evaluation as bullet points
+        if "Evaluation" in data:
+            eval_data = data["Evaluation"]
+            markdown.append("## Evaluation")
+            
+            rating = "⭐" * int(eval_data.get("Rating", 0))
+            markdown.append(f"- Rating: {rating}")
+            markdown.append(f"- Recommendation: **{eval_data.get('Recommendation', '-')}**")
+            markdown.append(f"- Buy Below: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
+            markdown.append(f"- Sell Above: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
+            markdown.append("")
+        
+        # Add Qualitative Analysis
+        if "Qualitative Analysis" in data:
+            markdown.append("## Qualitative Analysis")
+            qual_data = data["Qualitative Analysis"]
+            
+            for category, details in qual_data.items():
+                markdown.append(f"### {category}")
+                markdown.append(f"**Assessment**: {details.get('Assessment', '-')}")
+                
+                if "Supporting Data" in details:
+                    markdown.append("\n**Supporting Data**:")
+                    for key, value in details["Supporting Data"].items():
+                        markdown.append(f"- **{key}**: {value}")
+                markdown.append("")
+        
+        # Add Risk Factors
+        if "Risk Factors" in data:
+            markdown.append("## Risk Factors")
+            for factor, description in data["Risk Factors"].items():
+                markdown.append(f"- **{factor}**: {description}")
+        
+        return "\n".join(markdown)
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):
