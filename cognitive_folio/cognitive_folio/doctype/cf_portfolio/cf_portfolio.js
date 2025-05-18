@@ -11,10 +11,8 @@ frappe.ui.form.on("CF Portfolio", {
                 
                 // Call server-side method to update prices
                 frm.call({
-                    method: 'cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio.fetch_all_prices',
-                    args: {
-                        portfolio_name: frm.doc.name // Pass the current document's name
-                    },
+                    method: 'fetch_all_prices',
+                    doc: frm.doc,
                     callback: function(r) {
                         if (r.message) {
                             frappe.show_alert({
