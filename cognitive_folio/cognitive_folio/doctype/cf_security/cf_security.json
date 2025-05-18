@@ -178,6 +178,7 @@
   {
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
+   "hidden": 1,
    "label": "Evaluation"
   },
   {
@@ -194,6 +195,7 @@
   {
    "fieldname": "suggestion_buy_price",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Price Target Buy Below",
    "options": "currency",
    "read_only": 1
@@ -201,6 +203,7 @@
   {
    "fieldname": "suggestion_sell_price",
    "fieldtype": "Currency",
+   "in_list_view": 1,
    "label": "Price Target Sell Above",
    "options": "currency",
    "read_only": 1
@@ -234,7 +237,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-18 09:49:31.682673",
+ "modified": "2025-05-18 09:53:35.981983",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

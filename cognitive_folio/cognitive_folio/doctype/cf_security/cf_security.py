@@ -242,8 +242,8 @@ class CFSecurity(Document):
             rating = "⭐" * int(eval_data.get("Rating", 0))
             markdown.append(f"**Rating**: {eval_data.get('Rating', 0)} {rating}")
             markdown.append(f"**Recommendation**: {eval_data.get('Recommendation', '-')}")
-            markdown.append(f"**Buy Below**: {eval_data.get('Price Target Buy Below', '-')}")
-            markdown.append(f"**Sell Above**: {eval_data.get('Price Target Sell Above', '-')}")
+            markdown.append(f"**Buy Below**: {self.currency} {eval_data.get('Price Target Buy Below', '-')}")
+            markdown.append(f"**Sell Above**: {self.currency} {eval_data.get('Price Target Sell Above', '-')}")
             markdown.append("")
         
         # Add Qualitative Analysis
