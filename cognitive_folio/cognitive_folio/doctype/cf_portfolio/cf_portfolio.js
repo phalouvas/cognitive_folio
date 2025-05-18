@@ -5,6 +5,16 @@ frappe.ui.form.on("CF Portfolio", {
     refresh(frm) {
         // Only show buttons for saved documents (not new ones)
         if (!frm.is_new()) {
+
+            if(frm.doc.ai_suggestion) {
+                let md_html = frappe.markdown(frm.doc.ai_suggestion);
+                frm.set_df_property('ai_suggestion_html', 'options', 
+                    `<div class="markdown-preview">${md_html}</div>`);
+            } else {
+                frm.set_df_property('ai_suggestion_html', 'options',
+                    `<div class="markdown-preview">No AI suggestion available.</div>`);
+            }
+            
             // Add "Fetch All Prices" button
             frm.add_custom_button(__('Fetch Holdings Prices'), function() {
                 // Show loading indicator
