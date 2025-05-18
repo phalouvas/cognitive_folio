@@ -244,9 +244,7 @@ class CFPortfolio(Document):
 				filters=[
 					["portfolio", "=", self.name],
 				],
-				fields=["name", "security", "security_name", "quantity", "current_price", 
-						"current_value", "allocation_percentage", "security_type",
-						"sector", "industry", "country", "profit_loss", "profit_loss_percentage"]
+				fields=["*"]
 			)
 			
 			if not holdings:
@@ -260,6 +258,8 @@ class CFPortfolio(Document):
 			sector_allocation = {}
 			industry_allocation = {}
 			country_allocation = {}
+			region_allocation = {}
+			subregion_allocation = {}
 			security_type_allocation = {}
 			
 			for holding in holdings:
@@ -281,6 +281,18 @@ class CFPortfolio(Document):
 						country_allocation[holding.country] = 0
 					country_allocation[holding.country] += holding.current_value or 0
 				
+				# Region allocation
+				if holding.region:
+					if holding.region not in region_allocation:
+						region_allocation[holding.region] = 0
+					region_allocation[holding.region] += holding.current_value or 0
+				
+				# Subregion allocation
+				if holding.subregion:
+					if holding.subregion not in subregion_allocation:
+						subregion_allocation[holding.subregion] = 0
+					subregion_allocation[holding.subregion] += holding.current_value or 0
+				
 				# Security type allocation
 				if holding.security_type:
 					if holding.security_type not in security_type_allocation:
@@ -292,6 +304,8 @@ class CFPortfolio(Document):
 				sector_allocation = {k: (v/total_value*100) for k, v in sector_allocation.items()}
 				industry_allocation = {k: (v/total_value*100) for k, v in industry_allocation.items()}
 				country_allocation = {k: (v/total_value*100) for k, v in country_allocation.items()}
+				region_allocation = {k: (v/total_value*100) for k, v in region_allocation.items()}
+				subregion_allocation = {k: (v/total_value*100) for k, v in subregion_allocation.items()}
 				security_type_allocation = {k: (v/total_value*100) for k, v in security_type_allocation.items()}
 			
 			# Get target allocations from CF Asset Allocation
@@ -331,6 +345,8 @@ class CFPortfolio(Document):
 				  Sector: {holding.sector or "Unknown"}
 				  Industry: {holding.industry or "Unknown"}
 				  Country: {holding.country or "Unknown"}
+				  Region: {holding.region or "Unknown"}
+				  Subregion: {holding.subregion or "Unknown"}
 				"""
 			
 			# Add current allocation data
@@ -345,6 +361,14 @@ class CFPortfolio(Document):
 			prompt += "\nCountry Allocation:\n"
 			for country, percentage in sorted(country_allocation.items(), key=lambda x: x[1], reverse=True):
 				prompt += f"- {country}: {percentage:.2f}%\n"
+			
+			prompt += "\nRegion Allocation:\n"
+			for region, percentage in sorted(region_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {region}: {percentage:.2f}%\n"
+			
+			prompt += "\nSubregion Allocation:\n"
+			for subregion, percentage in sorted(subregion_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {subregion}: {percentage:.2f}%\n"
 			
 			prompt += "\nSecurity Type Allocation:\n"
 			for security_type, percentage in sorted(security_type_allocation.items(), key=lambda x: x[1], reverse=True):
@@ -370,7 +394,7 @@ class CFPortfolio(Document):
 			3. Recommendations for rebalancing or adjustments to align with target allocations
 			4. Potential concerns or areas of strength
 			5. Specific actions to take to bring the portfolio closer to target allocations
-
+	
 			Do not use your own name "Warren Buffet" in the response.
 			Also do not include any tables, instead make bulleted lists.
 			"""
