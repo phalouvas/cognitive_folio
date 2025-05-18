@@ -94,7 +94,7 @@ class CFSecurity(Document):
             if not model:
                 frappe.throw(_('Default AI model is not configured in CF Settings'))
 
-            # Prepare data for the prompt_1
+            # Prepare data for the prompt
             ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
             
             news_json = json.loads(self.news) if self.news else []
@@ -103,8 +103,8 @@ class CFSecurity(Document):
                             for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
             news = "\n".join(news_urls)
             
-            # Create base prompt_1 with security data
-            prompt_1 = f"""
+            # Create base prompt with security data
+            prompt = f"""
             You own below security.
 
             Security: {self.security_name} ({self.symbol})
@@ -124,8 +124,8 @@ class CFSecurity(Document):
             {json.dumps(news, indent=2)}
             """                        
             
-            # Add final instructions to the prompt_1
-            prompt_1 += """
+            # Add final instructions to the prompt
+            prompt += """
             Do not mention your name.
             Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
             State your recommendation Buy, Hold, or Sell.
@@ -185,7 +185,7 @@ class CFSecurity(Document):
             
             messages = [
                     {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
-                    {"role": "user", "content": prompt_1},
+                    {"role": "user", "content": prompt},
             ]
             response = client.chat.completions.create(
                 model=model,
@@ -208,6 +208,7 @@ class CFSecurity(Document):
                     content_string = content_string.split('```')[0]
             suggestion = json.loads(content_string)
 
+            self.summary = suggestion.get("Summary", "")
             self.ai_suggestion = content_string
             self.save()
             return {'success': True}

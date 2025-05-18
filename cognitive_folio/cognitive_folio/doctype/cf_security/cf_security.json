@@ -25,7 +25,6 @@
   "suggestion_section",
   "suggestion_action",
   "suggestion_rating",
-  "suggestion_risk_reward_ratio",
   "column_break_rfgw",
   "suggestion_buy_price",
   "suggestion_sell_price",
@@ -34,6 +33,7 @@
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
+  "ai_response",
   "section_break_11",
   "ticker_info",
   "news"
@@ -186,13 +186,7 @@
    "fieldname": "suggestion_action",
    "fieldtype": "Data",
    "in_list_view": 1,
-   "label": "Action",
-   "read_only": 1
-  },
-  {
-   "fieldname": "suggestion_risk_reward_ratio",
-   "fieldtype": "Data",
-   "label": "Risk/Reward Ration",
+   "label": "Recommendation",
    "read_only": 1
   },
   {
@@ -202,14 +196,14 @@
   {
    "fieldname": "suggestion_buy_price",
    "fieldtype": "Currency",
-   "label": "Buy Price",
+   "label": "Price Target Buy Below",
    "options": "currency",
    "read_only": 1
   },
   {
    "fieldname": "suggestion_sell_price",
    "fieldtype": "Currency",
-   "label": "Sell Price",
+   "label": "Price Target Sell Above",
    "options": "currency"
   },
   {
@@ -227,6 +221,12 @@
    "in_list_view": 1,
    "label": "Rating",
    "read_only": 1
+  },
+  {
+   "fieldname": "ai_response",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "AI Response"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -244,7 +244,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-17 19:58:48.300401",
+ "modified": "2025-05-18 09:36:22.270109",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
