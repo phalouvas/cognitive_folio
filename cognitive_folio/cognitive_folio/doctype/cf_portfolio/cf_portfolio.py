@@ -3,6 +3,7 @@ from frappe.model.document import Document
 from frappe.utils import flt
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
+from datetime import datetime, timedelta
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -22,7 +23,10 @@ class CFPortfolio(Document):
 	def generate_holdings_ai_suggestions(self):
 		"""Generate AI suggestions for all holdings in this portfolio"""
 		try:
-			# Get all holdings for this portfolio that aren't cash
+			# Calculate the timestamp for 24 hours ago as a datetime object
+			cutoff_time = datetime.now() - timedelta(hours=24)
+			
+			# Get holdings in this portfolio
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters=[
@@ -35,14 +39,13 @@ class CFPortfolio(Document):
 			if not holdings:
 				return {'success': False, 'error': _('No non-cash holdings found in this portfolio')}
 			
-			processed_count = 0
-			total_count = len(holdings) + 1
+			total_count = len(holdings)
 			
 			for i, holding in enumerate(holdings):
 				frappe.publish_progress(
-					percent=(processed_count+1)/total_count * 100,
+					percent=(i)/total_count * 100,
 					title=_("Generating AI Suggestions"),
-					description=_("Processing holding {0} of {1}").format(processed_count+1, total_count-1)
+					description=_("Processing holding {0} of {1}").format(i+1, total_count)
 				)
 				
 				if not holding.security:
@@ -51,13 +54,11 @@ class CFPortfolio(Document):
 				try:
 					# Get the security document
 					security = frappe.get_doc("CF Security", holding.security)
-					
-					# Call the generate_ai_suggestion method on the security
-					result = security.generate_ai_suggestion()
-					
-					if result and result.get('success'):
-						processed_count += 1
-						
+
+					# Now properly compare datetime objects
+					if not security.ai_suggestion or security.modified < cutoff_time:
+						security.generate_ai_suggestion()
+									
 				except Exception as e:
 					frappe.log_error(
 						f"Error generating AI suggestion for holding {holding.name}: {str(e)}",
@@ -66,11 +67,12 @@ class CFPortfolio(Document):
 					continue
 			
 			frappe.publish_progress(
-				percent=(processed_count+1)/total_count * 100,
+				percent=100,
 				title=_("Generating AI Suggestions"),
-				description=_("Processing holding {0} of {1}").format(processed_count+1, total_count-1)
+				description=_("Processing complete")
 			)
-			return {'success': True, 'count': processed_count}
+			
+			return {'success': True, 'count': total_count}
 			
 		except Exception as e:
 			frappe.log_error(f"Error generating AI suggestions for holdings: {str(e)}", "Portfolio Error")
@@ -84,6 +86,9 @@ class CFPortfolio(Document):
 		except ImportError:
 			frappe.msgprint("YFinance package is not installed. Please run 'bench pip install yfinance'")
 			return 0
+		
+		# Calculate the timestamp for 24 hours ago as a datetime object
+		cutoff_time = datetime.now() - timedelta(hours=24)
 		
 		# Get all holdings for this portfolio (excluding Cash type securities)
 		holdings = frappe.get_all(
