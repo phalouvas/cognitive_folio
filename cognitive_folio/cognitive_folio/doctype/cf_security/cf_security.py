@@ -106,67 +106,84 @@ class CFSecurity(Document):
             # Create base prompt_1 with security data
             prompt_1 = f"""
             You own below security.
-            Please analyze this security based on "Ticker Information" and "Recent News".
-            
+
             Security: {self.security_name} ({self.symbol})
             Exchange: {self.stock_exchange}
             Sector: {self.sector}
             Industry: {self.industry}
+            Current Price: {self.current_price}
+            
+            Evaluate below security using Warren Buffett's qualitative principles,
+            but use quantitative data from "Ticker Information" to support your evaluation.
             
             Ticker Information:
             {json.dumps(ticker_info, indent=2)}
             
+            For your evaluation also consider "Recent News":
             Recent News:
             {json.dumps(news, indent=2)}
             """                        
             
             # Add final instructions to the prompt_1
             prompt_1 += """
+            Do not mention your name.
+            Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
+            State your recommendation Buy, Hold, or Sell.
+            State the price target that you would think for buying and selling.
+            Output in JSON format but give titles to each column so I am able to render them in markdown format.
             
-            Provide the following without mentioning your name:
-            - summary of the analysis.
-            - detailed analysis of the security.
-            - recommendation on whether to buy, hold, or sell this security.
-            - risk assessment based on the analysis.
-            - target price for the next 3 months.
-            - target price for the next 6 months.
-            - target price for the next 12 months.
-            - risk/reward ratio based on the analysis.
-            - volatility analysis based on the historical data.
-            - sentiment analysis based on the news articles.
-            - technical analysis based on the historical data.
-            - fundamental analysis based on the financial data.
-            - macroeconomic analysis based on the current economic conditions.
-            - geopolitical analysis based on the current geopolitical conditions.
-            - sector analysis based on the current sector conditions.
-            - market analysis based on the current market conditions.
-            - risk management strategy based on the analysis.
-            - portfolio allocation strategy based on the analysis.
-            - diversification strategy based on the analysis.
-            - rebalancing strategy based on the analysis.
-            - tax strategy based on the analysis.
-            - retirement strategy based on the analysis.
-            - estate planning strategy based on the analysis.
-            - wealth management strategy based on the analysis.
-            - financial planning strategy based on the analysis.
-            - risk tolerance assessment based on the analysis.
-            - financial goals assessment based on the analysis.
-            - rating between 1 and 10 based on the analysis.
-            - sell and buy signals based on the analysis.
-
-            Output in JSON format.
             EXAMPLE JSON OUTPUT:
-            {{
-                "suggestion_action": "Hold (with caution)",
-                "suggestion_buy_price": "10.00",
-                "suggestion_sell_price": "20.00",
-                "suggestion_risk_reward_ratio": "1:2",
-                "suggestion_rating": "8",
-                "suggestion_summary": "The stock is undervalued and has strong growth potential."
-            }}
+            {
+                "Summary": "Bayer AG, a diversified healthcare and agriculture company, shows mixed signals under my criteria. While undervalued on traditional metrics (low P/B, P/S) and strong cash flows, significant debt, negative earnings, and management alignment concerns offset potential upside.",
+                "Evaluation": {
+                    "Rating": 2,
+                    "Recommendation": "Hold",
+                    "Price Target Buy Below": 18.38,
+                    "Price Target Sell Above": 27.0
+                },
+                "Qualitative Analysis": {
+                    "Durable Competitive Advantage": {
+                        "Assessment": "Moderate",
+                        "Supporting Data": {
+                            "Market Position": "Global leader in pharmaceuticals/crop science with 56.28% gross margins",
+                            "Return on Equity": "-9.49% (concerning)",
+                            "EBITDA Margins": "18.10% (adequate but pressured)"
+                        }
+                    },
+                    "Management Competence": {
+                        "Assessment": "Experienced but misaligned",
+                        "Supporting Data": {
+                            "Executive Tenure": "Seasoned leadership (average age 55)",
+                            "Compensation Risk": "Low (score 1)",
+                            "Insider Ownership": "0% (no skin in the game)"
+                        }
+                    },
+                    "Valuation": {
+                        "Assessment": "Cheap but value trap risk",
+                        "Supporting Data": {
+                            "Price-to-Book": "0.69 (discount to 33.028 book value)",
+                            "Forward P/E": "4.3 (deceptively low due to debt burden)",
+                            "Price-to-Sales": "0.48 (sector: ~3.5)"
+                        }
+                    },
+                    "Financial Health": {
+                        "Assessment": "Highly leveraged",
+                        "Supporting Data": {
+                            "Current Ratio": "1.25 (adequate)",
+                            "Debt-to-Equity": "120.88% (dangerous)",
+                            "Operating Cash Flow": "€8.5B (positive but servicing €39.4B debt)"
+                        }
+                    }
+                },
+                "Risk Factors": {
+                    "Balance Sheet Risk": "€39.4B debt vs €4B cash",
+                    "Litigation/Regulatory": "Recent FDA challenges per news links",
+                    "Profitability Crisis": "-35.2% earnings growth, -6.98% net margins",
+                    "Dividend Sustainability": "163% payout ratio despite 0.48% yield"
+                }
+            }
             """
             
-            # Round 1
             messages = [
                     {"role": "system", "content": "You are Warren Buffet, the legendary investor."},
                     {"role": "user", "content": prompt_1},
@@ -174,7 +191,8 @@ class CFSecurity(Document):
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
-                stream=False
+                stream=False,
+                temperature=0.6,
             )
 
              # Parse the JSON from the content string, removing any Markdown formatting
