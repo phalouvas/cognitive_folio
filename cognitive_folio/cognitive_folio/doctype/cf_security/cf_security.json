@@ -36,6 +36,7 @@
   "news_html",
   "news",
   "section_break_11",
+  "ticker_info_html",
   "ticker_info"
  ],
  "fields": [
@@ -120,8 +121,8 @@
   {
    "description": "Stores raw ticker.info data as JSON",
    "fieldname": "ticker_info",
-   "fieldtype": "Text",
-   "label": "Ticker Info",
+   "fieldtype": "JSON",
+   "label": "Ticker Info Raw",
    "read_only": 1
   },
   {
@@ -237,6 +238,11 @@
    "fieldname": "news_html",
    "fieldtype": "HTML",
    "label": "News"
+  },
+  {
+   "fieldname": "ticker_info_html",
+   "fieldtype": "HTML",
+   "label": "Ticker Info"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -254,7 +260,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-20 09:14:54.711384",
+ "modified": "2025-05-20 19:35:58.423422",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

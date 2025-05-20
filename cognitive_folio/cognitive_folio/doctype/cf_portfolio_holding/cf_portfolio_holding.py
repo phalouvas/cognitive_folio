@@ -20,6 +20,7 @@ class CFPortfolioHolding(Document):
         self.calculate_current_value()
         self.calculate_profit_loss()
         self.calculate_allocation_percentage()
+        self.calculate_dividend_data()
         
     def convert_average_purchase_price(self):
         """Convert average purchase price to portfolio currency if changed"""
@@ -163,3 +164,30 @@ class CFPortfolioHolding(Document):
         except Exception as e:
             frappe.log_error(f"Error generating AI suggestion: {str(e)}", "Portfolio Holding Error")
             return {'success': False, 'error': str(e)}
+
+    def calculate_dividend_data(self):
+        """Calculate dividend yield and yearly dividend income"""
+        if not self.ticker_info:
+            return
+            
+        try:
+            # Parse ticker_info JSON if it's a string
+            if isinstance(self.ticker_info, str):
+                ticker_data = json.loads(self.ticker_info)
+            else:
+                ticker_data = self.ticker_info
+                
+            # Get dividend yield from ticker data
+            if ticker_data.get("dividendYield"):
+                self.dividend_yield = flt(ticker_data.get("dividendYield"), 2)
+            
+            # Calculate yearly dividend income
+            if self.dividend_yield and self.current_value:
+                # Calculate yearly dividend income based on current value and yield percentage
+                self.yearly_dividend_income = flt((self.dividend_yield / 100) * self.current_value)
+                
+        except Exception as e:
+            frappe.log_error(
+                f"Dividend calculation failed: {str(e)}",
+                "Portfolio Holding Dividend Calculation Error"
+            )
