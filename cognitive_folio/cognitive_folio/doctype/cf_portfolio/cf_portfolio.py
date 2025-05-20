@@ -4,7 +4,6 @@ from frappe.utils import flt
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
 from datetime import datetime, timedelta
-from openai import OpenAI
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -221,6 +220,12 @@ class CFPortfolio(Document):
 	@frappe.whitelist()
 	def generate_portfolio_ai_analysis(self):
 		"""Generate AI analysis for the entire portfolio"""
+		try:
+			from openai import OpenAI			
+		except ImportError:
+			frappe.msgprint("OpenAI package is not installed. Please run 'bench pip install openai'")
+			return 0
+		
 		try:
 			# Get OpenWebUI settings
 			settings = frappe.get_single("CF Settings")
