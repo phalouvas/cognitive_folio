@@ -1,5 +1,6 @@
 {
  "actions": [],
+ "allow_import": 1,
  "autoname": "format:CFAA-{####}",
  "creation": "2025-05-14 14:00:00",
  "doctype": "DocType",
