@@ -32,6 +32,20 @@ frappe.ui.form.on('CF Security', {
                     `<div class="markdown-preview">No AI suggestion available.</div>`);
             }
 
+            // Format and display ticker info if available
+            if(frm.doc.ticker_info) {
+                try {
+                    formatTickerInfo(frm);
+                } catch (error) {
+                    console.error("Error formatting ticker info:", error);
+                    frm.set_df_property('ticker_info_html', 'options', 
+                        '<div class="text-muted">Error displaying ticker information.</div>');
+                }
+            } else {
+                frm.set_df_property('ticker_info_html', 'options', 
+                    '<div class="text-muted">No ticker information available.</div>');
+            }
+
             frm.add_custom_button(__('Fetch Ticker Info'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
@@ -302,4 +316,266 @@ function formatNewsData(newsData) {
     htmlContent.push('</div>');
     
     return htmlContent.join('');
+}
+
+/**
+ * Format ticker_info into a human-readable structured display
+ * @param {Object} frm - The form object
+ */
+function formatTickerInfo(frm) {
+    try {
+        const data = JSON.parse(frm.doc.ticker_info);
+        
+        // Create container with styling
+        let html = `
+            <style>
+                .ticker-info-container { font-family: var(--font-stack); }
+                .ticker-info-container h3 { margin-top: 20px; margin-bottom: 10px; color: #1a1a1a; }
+                .ticker-info-container .info-card { 
+                    background: #f8f8f8; border-radius: 5px; padding: 15px; 
+                    margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+                }
+                .ticker-info-container .info-grid {
+                    display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+                    grid-gap: 15px; margin-bottom: 15px;
+                }
+                .ticker-info-container .metric-item {
+                    padding: 10px; border-radius: 4px; background: #fff;
+                    border-left: 4px solid #4d99e7;
+                }
+                .ticker-info-container .metric-label {
+                    font-size: 0.85rem; color: #6c7680; margin-bottom: 5px;
+                }
+                .ticker-info-container .metric-value {
+                    font-size: 1.1rem; font-weight: 500; color: #1a1a1a;
+                }
+                .ticker-info-container .positive { color: #28a745; }
+                .ticker-info-container .negative { color: #dc3545; }
+                .ticker-info-container .table-condensed { margin-bottom: 0; }
+                .ticker-info-container .table-condensed td, 
+                .ticker-info-container .table-condensed th { padding: 5px 8px; }
+                .ticker-info-container .company-summary {
+                    line-height: 1.5; margin-bottom: 15px; 
+                    max-height: 150px; overflow-y: auto;
+                }
+            </style>
+            <div class="ticker-info-container">
+        `;
+        
+        // Company overview section
+        html += `<h3>Company Overview</h3>`;
+        html += `<div class="info-card">`;
+        
+        // Company summary if available
+        if (data.longBusinessSummary) {
+            html += `
+                <div class="company-summary">
+                    ${data.longBusinessSummary}
+                </div>
+            `;
+        }
+        
+        // Basic company info
+        html += `<div class="info-grid">`;
+        
+        // Add company details grid items
+        const companyDetails = [
+            {label: "Sector", value: data.sector},
+            {label: "Industry", value: data.industryDisp || data.industry},
+            {label: "Country", value: data.country},
+            {label: "Exchange", value: data.fullExchangeName},
+            {label: "Employees", value: data.fullTimeEmployees ? formatNumber(data.fullTimeEmployees) : null},
+            {label: "Website", value: data.website ? `<a href="${data.website}" target="_blank">${data.website}</a>` : null}
+        ];
+        
+        companyDetails.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div></div>`;
+        
+        // Market data section
+        html += `<h3>Market Data</h3>`;
+        html += `<div class="info-grid">`;
+        
+        // Add market metrics grid items
+        const marketMetrics = [
+            {label: "Current Price", value: formatCurrency(data.currentPrice, data.currency)},
+            {label: "Market Cap", value: formatLargeNumber(data.marketCap, data.currency)},
+            {label: "52-Week Range", value: data.fiftyTwoWeekLow && data.fiftyTwoWeekHigh ? 
+                `${formatCurrency(data.fiftyTwoWeekLow, data.currency)} - ${formatCurrency(data.fiftyTwoWeekHigh, data.currency)}` : null},
+            {label: "52-Week Change", value: formatPercentWithColor(data["52WeekChange"])},
+            {label: "Day Range", value: data.dayLow && data.dayHigh ? 
+                `${formatCurrency(data.dayLow, data.currency)} - ${formatCurrency(data.dayHigh, data.currency)}` : null},
+            {label: "Average Volume", value: data.averageVolume ? formatNumber(data.averageVolume) : null}
+        ];
+        
+        marketMetrics.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
+        // Financial metrics section
+        html += `<h3>Financial Metrics</h3>`;
+        html += `<div class="info-grid">`;
+        
+        // Add financial metrics grid items
+        const financialMetrics = [
+            {label: "P/E Ratio", value: data.trailingPE ? data.trailingPE.toFixed(2) : null},
+            {label: "Forward P/E", value: data.forwardPE ? data.forwardPE.toFixed(2) : null},
+            {label: "EPS (TTM)", value: data.trailingEps ? formatCurrency(data.trailingEps, data.currency) : null},
+            {label: "Dividend Yield", value: formatPercentWithColor(data.dividendYield/100)},
+            {label: "Profit Margins", value: formatPercentWithColor(data.profitMargins)},
+            {label: "Operating Margins", value: formatPercentWithColor(data.operatingMargins)},
+            {label: "Return on Equity", value: formatPercentWithColor(data.returnOnEquity)},
+            {label: "Revenue Growth", value: formatPercentWithColor(data.revenueGrowth)},
+            {label: "Earnings Growth", value: formatPercentWithColor(data.earningsGrowth)},
+            {label: "Book Value", value: data.bookValue ? formatCurrency(data.bookValue, data.currency) : null},
+            {label: "Price to Book", value: data.priceToBook ? data.priceToBook.toFixed(2) : null},
+            {label: "Beta", value: data.beta ? data.beta.toFixed(2) : null}
+        ];
+        
+        financialMetrics.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
+        // Key executive team (if data available)
+        if (data.companyOfficers && data.companyOfficers.length > 0) {
+            html += `<h3>Key Executives</h3>`;
+            html += `<div class="info-card">`;
+            html += `<div class="table-responsive">`;
+            html += `<table class="table table-bordered table-condensed">`;
+            html += `<thead><tr>
+                <th>Name</th>
+                <th>Title</th>
+                <th>Age</th>
+            </tr></thead><tbody>`;
+            
+            // Show up to 5 key executives
+            const executives = data.companyOfficers.slice(0, 5);
+            executives.forEach(exec => {
+                html += `<tr>
+                    <td>${exec.name || '-'}</td>
+                    <td>${exec.title || '-'}</td>
+                    <td>${exec.age || '-'}</td>
+                </tr>`;
+            });
+            
+            html += `</tbody></table></div></div>`;
+        }
+        
+        html += `</div>`;
+        
+        // Set the HTML content
+        frm.set_df_property('ticker_info_html', 'options', html);
+        
+    } catch (error) {
+        console.error("Error formatting ticker info:", error);
+        frm.set_df_property('ticker_info_html', 'options', 
+            `<div class="text-danger">Error displaying ticker information: ${error.message}</div>`);
+    }
+}
+
+/**
+ * Format a number with commas for thousands
+ * @param {number} num - The number to format
+ * @returns {string} - The formatted number
+ */
+function formatNumber(num) {
+    if (num === null || num === undefined) return null;
+    return new Intl.NumberFormat().format(num);
+}
+
+/**
+ * Format a currency value
+ * @param {number} value - The value to format
+ * @param {string} currency - The currency code
+ * @returns {string} - The formatted currency value
+ */
+function formatCurrency(value, currency) {
+    if (value === null || value === undefined) return null;
+    
+    // Use default currency if not provided
+    const currencyCode = currency || 'USD';
+    
+    // Round to 2 decimal places if not a whole number
+    const formatOptions = {
+        style: 'currency',
+        currency: currencyCode,
+        minimumFractionDigits: Math.round(value) === value ? 0 : 2,
+        maximumFractionDigits: 2
+    };
+    
+    return new Intl.NumberFormat(undefined, formatOptions).format(value);
+}
+
+/**
+ * Format a large number (like market cap) with abbreviations
+ * @param {number} num - The number to format
+ * @param {string} currency - The currency code
+ * @returns {string} - The formatted large number
+ */
+function formatLargeNumber(num, currency) {
+    if (num === null || num === undefined) return null;
+    
+    const currencySymbol = currency === 'USD' ? '$' : 
+                         currency === 'EUR' ? '€' : 
+                         currency === 'GBP' ? '£' : 
+                         currency === 'JPY' ? '¥' : 
+                         currency === 'HKD' ? 'HK$' : 
+                         currency ? currency + ' ' : '';
+    
+    if (num >= 1e12) {
+        return currencySymbol + (num / 1e12).toFixed(2) + 'T';
+    } else if (num >= 1e9) {
+        return currencySymbol + (num / 1e9).toFixed(2) + 'B';
+    } else if (num >= 1e6) {
+        return currencySymbol + (num / 1e6).toFixed(2) + 'M';
+    } else if (num >= 1e3) {
+        return currencySymbol + (num / 1e3).toFixed(2) + 'K';
+    } else {
+        return currencySymbol + num;
+    }
+}
+
+/**
+ * Format a percentage value with color coding
+ * @param {number} value - The value to format as a percentage
+ * @returns {string} - HTML with the formatted percentage
+ */
+function formatPercentWithColor(value) {
+    if (value === null || value === undefined) return null;
+    
+    const percent = (value * 100).toFixed(2) + '%';
+    if (value > 0) {
+        return `<span class="positive">+${percent}</span>`;
+    } else if (value < 0) {
+        return `<span class="negative">${percent}</span>`;
+    } else {
+        return percent;
+    }
 }
