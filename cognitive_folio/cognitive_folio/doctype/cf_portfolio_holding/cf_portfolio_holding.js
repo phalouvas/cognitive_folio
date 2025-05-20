@@ -4,6 +4,21 @@
 frappe.ui.form.on("CF Portfolio Holding", {
 	refresh(frm) {
         if (!frm.is_new()) {
+            // Process news data and render it in the news_html field
+            if(frm.doc.news) {
+                try {
+                    const newsData = JSON.parse(frm.doc.news);
+                    const newsHtml = formatNewsData(newsData);
+                    frm.set_df_property('news_html', 'options', newsHtml);
+                } catch (error) {
+                    console.error("Error parsing news data:", error);
+                    frm.set_df_property('news_html', 'options', 
+                        '<div class="text-muted">Error displaying news data.</div>');
+                }
+            } else {
+                frm.set_df_property('news_html', 'options', 
+                    '<div class="text-muted">No news available for this security.</div>');
+            }
 
             if(frm.doc.ai_suggestion) {
                 let md_html = frappe.markdown(frm.doc.ai_suggestion);
@@ -85,3 +100,54 @@ frappe.ui.form.on("CF Portfolio Holding", {
         }
 	},
 });
+
+/**
+ * Format news data into HTML for display
+ * @param {Array} newsData - Array of news items
+ * @returns {string} - Formatted HTML string
+ */
+function formatNewsData(newsData) {
+    if (!newsData || !newsData.length) {
+        return '<div class="text-muted">No news available for this security.</div>';
+    }
+    
+    let htmlContent = ['<div class="cf-news-container">'];
+    
+    for (const item of newsData) {
+        if (!item.content) continue;
+        
+        const content = item.content;
+        const canonicalUrl = content.canonicalUrl && content.canonicalUrl.url;
+        const title = content.title || 'No title';
+        const summary = content.summary || 'No summary available';
+        const pubDate = content.pubDate || '';
+        
+        if (!canonicalUrl) continue;
+        
+        // Format the publication date if it exists
+        let formattedDate = '';
+        if (pubDate) {
+            try {
+                const date = new Date(pubDate);
+                formattedDate = date.toLocaleDateString() + ' ' + date.toLocaleTimeString();
+            } catch (e) {
+                formattedDate = pubDate; // Use the original string if parsing fails
+            }
+        }
+        
+        // Format each news item as a card with publication date
+        htmlContent.push(`
+            <div class="cf-news-item">
+                <p class="text-muted"><small><a href="${canonicalUrl}" target="_blank" rel="noopener noreferrer">${canonicalUrl}</a></small></p>
+                <h5>${title}</h5>
+                <p>${summary}</p>
+                <p class="text-muted"><small>${formattedDate}</small></p>
+                <hr>
+            </div>
+        `);
+    }
+    
+    htmlContent.push('</div>');
+    
+    return htmlContent.join('');
+}

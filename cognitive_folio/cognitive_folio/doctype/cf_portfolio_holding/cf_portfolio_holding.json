@@ -41,8 +41,9 @@
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
-  "section_break_9",
-  "notes"
+  "news_section",
+  "news_html",
+  "news"
  ],
  "fields": [
   {
@@ -103,16 +104,6 @@
    "read_only": 1
   },
   {
-   "fieldname": "section_break_9",
-   "fieldtype": "Section Break",
-   "label": "Additional Information"
-  },
-  {
-   "fieldname": "notes",
-   "fieldtype": "Small Text",
-   "label": "Notes"
-  },
-  {
    "fetch_from": "security.currency",
    "fieldname": "currency",
    "fieldtype": "Link",
@@ -145,6 +136,7 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_hwcf",
    "fieldtype": "Section Break",
    "label": "Valuation"
@@ -167,6 +159,7 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "allocation_section",
    "fieldtype": "Section Break",
    "label": "Allocation"
@@ -230,6 +223,7 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "analysis_section",
    "fieldtype": "Section Break",
    "label": "Analysis"
@@ -256,6 +250,7 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
    "hidden": 1,
@@ -300,11 +295,29 @@
    "in_standard_filter": 1,
    "label": "Rating",
    "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "news_section",
+   "fieldtype": "Section Break",
+   "label": "News"
+  },
+  {
+   "fieldname": "news_html",
+   "fieldtype": "HTML",
+   "label": "News"
+  },
+  {
+   "fetch_from": "security.news",
+   "fieldname": "news",
+   "fieldtype": "JSON",
+   "hidden": 1,
+   "label": "News Raw"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-18 10:00:40.791795",
+ "modified": "2025-05-20 09:32:57.334839",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
