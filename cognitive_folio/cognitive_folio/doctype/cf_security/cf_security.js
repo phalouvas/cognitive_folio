@@ -463,6 +463,106 @@ function formatTickerInfo(frm) {
         
         html += `</div>`;
         
+        // Financials and Analysis section
+        html += `<h3>Financials and Analysis</h3>`;
+        
+        // Analyst Recommendations subsection
+        if (data.averageAnalystRating || data.recommendationKey || data.targetMeanPrice) {
+            html += `<h4 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Analyst Recommendations</h4>`;
+            html += `<div class="info-grid">`;
+            
+            // Analyst ratings and price targets
+            const analysisMetrics = [
+                {label: "Analyst Rating", value: data.averageAnalystRating},
+                {label: "Recommendation", value: data.recommendationKey ? 
+                    data.recommendationKey.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) : null},
+                {label: "Target Price (Mean)", value: data.targetMeanPrice ? 
+                    formatCurrency(data.targetMeanPrice, data.currency) : null},
+                {label: "Target Price Range", value: data.targetLowPrice && data.targetHighPrice ? 
+                    `${formatCurrency(data.targetLowPrice, data.currency)} - ${formatCurrency(data.targetHighPrice, data.currency)}` : null},
+                {label: "Potential Return", value: data.targetMeanPrice && data.currentPrice ? 
+                    formatPercentWithColor((data.targetMeanPrice / data.currentPrice) - 1) : null}
+            ];
+            
+            analysisMetrics.forEach(item => {
+                if (item.value) {
+                    html += `
+                        <div class="metric-item">
+                            <div class="metric-label">${item.label}</div>
+                            <div class="metric-value">${item.value}</div>
+                        </div>
+                    `;
+                }
+            });
+            
+            html += `</div>`;
+        }
+        
+        // Financial Highlights subsection
+        html += `<h4 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Financial Highlights</h4>`;
+        html += `<div class="info-grid">`;
+        
+        // Add balance sheet and cash flow metrics
+        const financialHighlights = [
+            {label: "Total Revenue", value: data.totalRevenue ? 
+                formatLargeNumber(data.totalRevenue, data.financialCurrency) : null},
+            {label: "EBITDA", value: data.ebitda ? 
+                formatLargeNumber(data.ebitda, data.financialCurrency) : null},
+            {label: "EBITDA Margin", value: formatPercentWithColor(data.ebitdaMargins)},
+            {label: "Total Cash", value: data.totalCash ? 
+                formatLargeNumber(data.totalCash, data.financialCurrency) : null},
+            {label: "Total Debt", value: data.totalDebt ? 
+                formatLargeNumber(data.totalDebt, data.financialCurrency) : null},
+            {label: "Debt to Equity", value: data.debtToEquity ? (data.debtToEquity / 100).toFixed(2) : null},
+            {label: "Operating Cash Flow", value: data.operatingCashflow ? 
+                formatLargeNumber(data.operatingCashflow, data.financialCurrency) : null},
+            {label: "Free Cash Flow", value: data.freeCashflow ? 
+                formatLargeNumber(data.freeCashflow, data.financialCurrency) : null}
+        ];
+        
+        financialHighlights.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
+        // Financial Health Ratios subsection
+        html += `<h4 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Financial Health Ratios</h4>`;
+        html += `<div class="info-grid">`;
+        
+        // Add health ratios
+        const healthRatios = [
+            {label: "Current Ratio", value: data.currentRatio ? data.currentRatio.toFixed(2) : null},
+            {label: "Quick Ratio", value: data.quickRatio ? data.quickRatio.toFixed(2) : null},
+            {label: "Return on Assets", value: formatPercentWithColor(data.returnOnAssets)},
+            {label: "Enterprise Value", value: data.enterpriseValue ? 
+                formatLargeNumber(data.enterpriseValue, data.financialCurrency) : null},
+            {label: "EV/Revenue", value: data.enterpriseToRevenue ? data.enterpriseToRevenue.toFixed(2) : null},
+            {label: "EV/EBITDA", value: data.enterpriseToEbitda ? data.enterpriseToEbitda.toFixed(2) : null},
+            {label: "Payout Ratio", value: data.payoutRatio ? formatPercentWithColor(data.payoutRatio) : null},
+            {label: "PEG Ratio", value: data.trailingPegRatio ? data.trailingPegRatio.toFixed(2) : null}
+        ];
+        
+        healthRatios.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
         // Key executive team (if data available)
         if (data.companyOfficers && data.companyOfficers.length > 0) {
             html += `<h3>Key Executives</h3>`;
