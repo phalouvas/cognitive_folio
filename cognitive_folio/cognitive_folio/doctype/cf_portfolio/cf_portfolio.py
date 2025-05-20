@@ -416,6 +416,144 @@ class CFPortfolio(Document):
 			frappe.log_error(f"Error generating portfolio AI analysis: {str(e)}", "Portfolio AI Analysis Error")
 			return {'success': False, 'error': str(e)}
 	
+	@frappe.whitelist()
+	def update_purchase_prices_from_market(self):
+		"""Update average purchase prices for all holdings using closing prices from the portfolio start date"""
+		try:
+			import yfinance as yf
+			from datetime import datetime, timedelta
+		except ImportError:
+			frappe.msgprint("YFinance package is not installed. Please run 'bench pip install yfinance'")
+			return 0
+		
+		# Check if portfolio has a start date
+		if not self.start_date:
+			frappe.msgprint("Portfolio doesn't have a start date defined. Please set a start date first.")
+			return 0
+		
+		# Convert start_date to datetime format for yfinance
+		start_date_str = self.start_date
+		# Add one day to get closing price of the start date
+		end_date = datetime.strptime(start_date_str, '%Y-%m-%d') + timedelta(days=1)
+		end_date_str = end_date.strftime('%Y-%m-%d')
+		
+		# Get all holdings for this portfolio (excluding Cash type securities)
+		holdings = frappe.get_all(
+			"CF Portfolio Holding",
+			filters=[
+				["portfolio", "=", self.name],
+				["security_type", "!=", "Cash"]
+			],
+			fields=["name", "security"]
+		)
+		
+		if not holdings:
+			frappe.msgprint("No holdings found in this portfolio")
+			return 0
+		
+		# Get unique securities and map them to their holdings
+		security_to_holdings_map = {}
+		for holding in holdings:
+			security = holding.security
+			if security not in security_to_holdings_map:
+				security_to_holdings_map[security] = []
+			security_to_holdings_map[security].append(holding.name)
+		
+		# Get securities data for batch request
+		securities_data = {}
+		for security_name in security_to_holdings_map:
+			security = frappe.get_doc("CF Security", security_name)
+			if security.symbol:
+				securities_data[security_name] = {
+					"symbol": security.symbol,
+					"currency": security.currency
+				}
+		
+		# Extract symbols
+		symbols = [data["symbol"] for data in securities_data.values() if data["symbol"]]
+		
+		if not symbols:
+			frappe.msgprint("No valid symbols found in portfolio securities")
+			return 0
+		
+		try:
+			updated_count = 0
+			total_steps = len(securities_data)
+			
+			for security_name, data in securities_data.items():
+				symbol = data["symbol"]
+				security_currency = data["currency"]
+	
+				frappe.publish_progress(
+					percent=(updated_count+1)/total_steps * 100,
+					title="Processing",
+					description=f"Processing item {updated_count+1} of {total_steps} ({symbol})"
+				)
+				
+				if not symbol:
+					updated_count += 1
+					continue
+				
+				try:
+					# Get historical data for the start date
+					ticker = yf.Ticker(symbol)
+					hist = ticker.history(start=start_date_str, end=end_date_str)
+					
+					if hist.empty:
+						frappe.log_error(
+							f"No historical data available for {symbol} on {start_date_str}",
+							"Portfolio Purchase Price Update Error"
+						)
+						updated_count += 1
+						continue
+					
+					# Get the closing price from the historical data
+					if 'Close' in hist.columns and len(hist) > 0:
+						close_price = flt(hist['Close'].iloc[0])
+						
+						# Update each holding for this security
+						for holding_name in security_to_holdings_map[security_name]:
+							holding = frappe.get_doc("CF Portfolio Holding", holding_name)
+							
+							# Set average_purchase_price based on currency conversion if needed
+							if security_currency == self.currency:
+								# No conversion needed if currencies match
+								holding.average_purchase_price = close_price
+							else:
+								# Convert price to portfolio currency
+								try:
+									conversion_rate = get_exchange_rate(security_currency, self.currency)
+									if security_currency.upper() == 'GBP':
+										conversion_rate = conversion_rate / 100
+									if conversion_rate:
+										holding.average_purchase_price = flt(close_price * conversion_rate)
+								except Exception as e:
+									frappe.log_error(
+										f"Currency conversion failed for {symbol}: {str(e)}",
+										"Portfolio Purchase Price Update Error"
+									)
+									# Use unconverted price if conversion fails
+									holding.average_purchase_price = close_price
+							
+							# Save the holding
+							holding.save()
+							updated_count += 1
+				
+				except Exception as e:
+					frappe.log_error(
+						f"Failed to update {symbol} historical price data: {str(e)}",
+						"Portfolio Purchase Price Update Error"
+					)
+			
+			return updated_count
+			
+		except Exception as e:
+			frappe.log_error(
+				f"Historical price update failed: {str(e)}",
+				"Portfolio Purchase Price Update Error"
+			)
+			return 0
+
 @frappe.whitelist()
 def generate_single_holding_ai_suggestion(holding_name, security_name):
 	"""Generate AI suggestion for a single holding (meant to be run as a background job)"""

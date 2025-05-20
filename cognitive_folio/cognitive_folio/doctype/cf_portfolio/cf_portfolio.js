@@ -111,6 +111,40 @@ frappe.ui.form.on("CF Portfolio", {
                     }
                 );
             }, __('Actions'));
+
+            // Add button to update purchase prices from market data
+            frm.add_custom_button(__('Update Purchase Prices'), function() {
+                frappe.confirm(
+                    __('This will update all holdings to use current market closing prices as purchase prices. This will affect profit/loss calculations. Continue?'),
+                    function() {
+                        
+                        frm.call({
+                            method: 'update_purchase_prices_from_market',
+                            doc: frm.doc,
+                            callback: function(r) {
+                                if (r.message) {
+                                    frappe.show_alert({
+                                        message: __('Updated purchase prices for ' + r.message + ' holdings'),
+                                        indicator: 'green'
+                                    });
+                                    setTimeout(function() {
+                                        frm.reload_doc();
+                                    }, 5);
+                                } else {
+                                    frappe.msgprint({
+                                        title: __('Error'),
+                                        indicator: 'red',
+                                        message: __('Failed to update purchase prices')
+                                    });
+                                }
+                            },
+                            error: function() {
+                                frappe.msgprint(__('An error occurred while updating purchase prices.'));
+                            }
+                        });
+                    }
+                );
+            }, __('Holdings'));
         }
     }
 });
