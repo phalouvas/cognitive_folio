@@ -24,6 +24,9 @@
   "column_break_ovgu",
   "profit_loss",
   "profit_loss_percentage",
+  "column_break_gvpf",
+  "dividend_yield",
+  "yearly_dividend_income",
   "allocation_section",
   "allocation_percentage",
   "sector",
@@ -43,7 +46,9 @@
   "ai_suggestion",
   "news_section",
   "news_html",
-  "news"
+  "news",
+  "yahoo_data_section",
+  "ticker_info"
  ],
  "fields": [
   {
@@ -313,11 +318,39 @@
    "fieldtype": "JSON",
    "hidden": 1,
    "label": "News Raw"
+  },
+  {
+   "fieldname": "column_break_gvpf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "dividend_yield",
+   "fieldtype": "Percent",
+   "label": "Dividend Yield",
+   "read_only": 1
+  },
+  {
+   "fieldname": "yearly_dividend_income",
+   "fieldtype": "Currency",
+   "label": "Yearly Dividend Income",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "yahoo_data_section",
+   "fieldtype": "Section Break",
+   "label": "Yahoo Data"
+  },
+  {
+   "fetch_from": "security.ticker_info",
+   "fieldname": "ticker_info",
+   "fieldtype": "JSON",
+   "label": "Ticker Info"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-20 09:32:57.334839",
+ "modified": "2025-05-20 19:37:12.106221",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
