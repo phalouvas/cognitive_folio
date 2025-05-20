@@ -32,9 +32,11 @@
   "ai_suggestion_html",
   "ai_suggestion",
   "ai_response",
+  "news_section",
+  "news_html",
+  "news",
   "section_break_11",
-  "ticker_info",
-  "news"
+  "ticker_info"
  ],
  "fields": [
   {
@@ -92,6 +94,7 @@
    "read_only_depends_on": "eval:doc.security_type !== 'Cash'"
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_8",
    "fieldtype": "Section Break",
    "label": "Classification"
@@ -109,16 +112,15 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "section_break_11",
    "fieldtype": "Section Break",
-   "hidden": 1,
-   "label": "Market Data"
+   "label": "Yahoo Data"
   },
   {
    "description": "Stores raw ticker.info data as JSON",
    "fieldname": "ticker_info",
    "fieldtype": "Text",
-   "hidden": 1,
    "label": "Ticker Info",
    "read_only": 1
   },
@@ -149,10 +151,11 @@
    "fieldname": "news",
    "fieldtype": "JSON",
    "hidden": 1,
-   "label": "News",
+   "label": "News Raw",
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "analysis_section",
    "fieldtype": "Section Break",
    "label": "Analysis"
@@ -176,6 +179,7 @@
    "label": "AI Suggestion HTML"
   },
   {
+   "collapsible": 1,
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
    "hidden": 1,
@@ -222,6 +226,17 @@
    "fieldtype": "JSON",
    "hidden": 1,
    "label": "AI Response"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "news_section",
+   "fieldtype": "Section Break",
+   "label": "News"
+  },
+  {
+   "fieldname": "news_html",
+   "fieldtype": "HTML",
+   "label": "News"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -239,7 +254,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-18 10:01:01.452757",
+ "modified": "2025-05-20 09:14:54.711384",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

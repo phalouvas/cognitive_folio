@@ -41,35 +41,30 @@ frappe.ui.form.on("CF Portfolio", {
 
             frm.add_custom_button(__('Generate AI Suggestions'), function() {
                 frappe.confirm(
-                    __('This will generate AI suggestions for all holdings in this portfolio. This may take some time. Continue?'),
+                    __('This will queue AI suggestion generation for all holdings in the background. Continue?'),
                     function() {
+                        frappe.show_alert({
+                            message: __('Queueing AI suggestion jobs...'),
+                            indicator: 'blue'
+                        });
                         
                         frm.call({
                             doc: frm.doc,
                             method: 'generate_holdings_ai_suggestions',
                             callback: function(r) {
-                                
                                 if (r.message && r.message.success) {
                                     frappe.show_alert({
-                                        message: __('AI suggestions generated successfully for ' + r.message.count + ' holdings'),
+                                        message: __('Queued {0} AI suggestion jobs', [r.message.count]),
                                         indicator: 'green'
                                     });
-                                    frm.refresh();
                                 } else {
                                     frappe.msgprint({
                                         title: __('Error'),
                                         indicator: 'red',
                                         message: r.message && r.message.error ? 
-                                            r.message.error : __('Failed to generate AI suggestions')
+                                            r.message.error : __('Failed to queue AI suggestions')
                                     });
                                 }
-                            },
-                            error: function() {
-                                frappe.msgprint({
-                                    title: __('Error'),
-                                    indicator: 'red',
-                                    message: __('An error occurred while generating AI suggestions')
-                                });
                             }
                         });
                     }
