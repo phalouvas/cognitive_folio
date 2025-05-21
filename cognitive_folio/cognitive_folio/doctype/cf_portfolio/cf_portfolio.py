@@ -1,9 +1,9 @@
 import frappe
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.utils import flt, add_days, date_diff
+from datetime import datetime, timedelta
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
-from datetime import datetime, timedelta
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -558,6 +558,125 @@ class CFPortfolio(Document):
 				"Portfolio Purchase Price Update Error"
 			)
 			return 0
+	
+	@frappe.whitelist()
+	def calculate_portfolio_performance(self):
+		"""Calculate overall portfolio performance metrics"""
+		try:
+			# Get all holdings for this portfolio
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"portfolio": self.name},
+				fields=["*"]
+			)
+			
+			if not holdings:
+				return {'success': False, 'error': _('No holdings found in this portfolio')}
+			
+			# Initialize metrics
+			total_current_value = 0
+			total_cost = 0
+			total_yearly_dividend_income = 0
+			
+			# Calculate totals from holdings
+			for holding in holdings:
+				total_current_value += flt(holding.current_value or 0)
+				total_cost += flt(holding.base_cost or 0)
+				total_yearly_dividend_income += flt(holding.yearly_dividend_income or 0)
+			
+			# Set basic portfolio values
+			self.cost = total_cost
+			self.current_value = total_current_value
+			
+			# Calculate price-based returns
+			price_return = total_current_value - total_cost
+			self.returns_price = price_return
+			
+			# Calculate price-based returns percentage
+			if total_cost > 0:
+				self.returns_percentage_price = flt((price_return / total_cost) * 100, 2)
+			else:
+				self.returns_percentage_price = 0
+			
+			# Calculate dividend returns
+			self.returns_dividends = total_yearly_dividend_income
+			
+			# Calculate dividend returns percentage
+			if total_cost > 0:
+				self.returns_percentage_dividends = flt((total_yearly_dividend_income / total_cost) * 100, 2)
+			else:
+				self.returns_percentage_dividends = 0
+			
+			# Calculate total returns (price + dividends)
+			total_return = price_return + total_yearly_dividend_income
+			self.returns_total = total_return
+			
+			# Calculate total returns percentage
+			if total_cost > 0:
+				self.returns_percentage_total = flt((total_return / total_cost) * 100, 2)
+			else:
+				self.returns_percentage_total = 0
+			
+			# Calculate annualized metrics if we have a start date
+			if self.start_date:
+				days_held = date_diff(datetime.now().strftime('%Y-%m-%d'), self.start_date)
+				
+				if days_held > 0:
+					# Annualized price returns
+					price_return_rate = self.returns_percentage_price / 100
+					self.annualized_percentage_price = flt(
+						(((1 + price_return_rate) ** (365.0 / days_held)) - 1) * 100, 
+						2
+					)
+					
+					# Convert annualized percentage to currency amount
+					self.annualized_price = flt((total_cost * self.annualized_percentage_price / 100), 2)
+					
+					# Annualized dividend returns
+					dividend_return_rate = self.returns_percentage_dividends / 100
+					self.annualized_percentage_dividends = flt(
+						(((1 + dividend_return_rate) ** (365.0 / days_held)) - 1) * 100, 
+						2
+					)
+					
+					# Convert annualized percentage to currency amount
+					self.annualized_dividends = flt((total_cost * self.annualized_percentage_dividends / 100), 2)
+					
+					# Annualized total returns
+					total_return_rate = self.returns_percentage_total / 100
+					self.annualized_percentage_total = flt(
+						(((1 + total_return_rate) ** (365.0 / days_held)) - 1) * 100, 
+						2
+					)
+					
+					# Convert annualized percentage to currency amount
+					self.annualized_total = flt((total_cost * self.annualized_percentage_total / 100), 2)
+					
+				else:
+					# If portfolio is brand new (less than a day old), annualized is same as current
+					self.annualized_percentage_price = self.returns_percentage_price
+					self.annualized_price = self.returns_price
+					self.annualized_percentage_dividends = self.returns_percentage_dividends
+					self.annualized_dividends = self.returns_dividends
+					self.annualized_percentage_total = self.returns_percentage_total
+					self.annualized_total = self.returns_total
+			else:
+				# If no start date, annualized is same as current
+				self.annualized_percentage_price = self.returns_percentage_price
+				self.annualized_price = self.returns_price
+				self.annualized_percentage_dividends = self.returns_percentage_dividends
+				self.annualized_dividends = self.returns_dividends
+				self.annualized_percentage_total = self.returns_percentage_total
+				self.annualized_total = self.returns_total
+		
+			self.save()
+			
+			return {'success': True}
+			
+		except Exception as e:
+			frappe.log_error(f"Error calculating portfolio performance: {str(e)}", 
+							"Portfolio Performance Error")
+			return {'success': False, 'error': str(e)}
 
 @frappe.whitelist()
 def generate_single_holding_ai_suggestion(holding_name, security_name):
