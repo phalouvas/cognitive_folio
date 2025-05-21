@@ -37,7 +37,9 @@
   "news",
   "section_break_11",
   "ticker_info_html",
-  "ticker_info"
+  "ticker_info",
+  "ai_tab",
+  "ai_prompt"
  ],
  "fields": [
   {
@@ -243,6 +245,17 @@
    "fieldname": "ticker_info_html",
    "fieldtype": "HTML",
    "label": "Ticker Info"
+  },
+  {
+   "fieldname": "ai_tab",
+   "fieldtype": "Tab Break",
+   "label": "AI"
+  },
+  {
+   "fieldname": "ai_prompt",
+   "fieldtype": "Text",
+   "label": "AI Prompt",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -260,7 +273,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-20 19:35:58.423422",
+ "modified": "2025-05-21 17:52:22.809845",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

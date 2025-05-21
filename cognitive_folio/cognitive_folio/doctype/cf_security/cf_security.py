@@ -222,6 +222,7 @@ class CFSecurity(Document):
 			self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
 			self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
 			self.ai_suggestion = markdown_content
+			self.ai_prompt = prompt
 			self.save()
 			return {'success': True}
 		except requests.exceptions.RequestException as e:
