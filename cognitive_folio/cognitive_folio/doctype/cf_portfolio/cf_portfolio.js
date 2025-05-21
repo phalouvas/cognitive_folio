@@ -145,6 +145,42 @@ frappe.ui.form.on("CF Portfolio", {
                     }
                 );
             }, __('Holdings'));
+
+            // Add button to calculate portfolio performance metrics
+            frm.add_custom_button(__('Calculate Performance'), function() {
+                frappe.dom.freeze(__('Calculating portfolio performance...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'calculate_portfolio_performance',
+                    callback: function(r) {
+                        frappe.dom.unfreeze();
+                        
+                        if (r.message && r.message.success) {
+                            frappe.show_alert({
+                                message: __('Portfolio performance metrics calculated successfully'),
+                                indicator: 'green'
+                            });
+                            frm.refresh();
+                        } else {
+                            frappe.msgprint({
+                                title: __('Error'),
+                                indicator: 'red',
+                                message: r.message && r.message.error ? 
+                                    r.message.error : __('Failed to calculate portfolio performance')
+                            });
+                        }
+                    },
+                    error: function() {
+                        frappe.dom.unfreeze();
+                        frappe.msgprint({
+                            title: __('Error'),
+                            indicator: 'red',
+                            message: __('An error occurred while calculating portfolio performance')
+                        });
+                    }
+                });
+            }, __('Actions'));
         }
     }
 });

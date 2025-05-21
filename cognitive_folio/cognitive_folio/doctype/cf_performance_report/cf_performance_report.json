@@ -1,8 +1,7 @@
 {
  "actions": [],
- "allow_rename": 0,
  "autoname": "format:CFPR-{####}",
- "creation": "2025-05-14 16:00:00.000000",
+ "creation": "2025-05-14 16:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -10,13 +9,14 @@
   "report_name",
   "report_period",
   "column_break_4",
-  "start_date",
-  "end_date",
-  "section_break_7",
-  "starting_value",
-  "ending_value",
   "deposits",
   "withdrawals",
+  "section_break_7",
+  "start_date",
+  "starting_value",
+  "end_date",
+  "ending_value",
+  "yearly_dividends",
   "column_break_12",
   "return_value",
   "return_percentage",
@@ -25,7 +25,8 @@
   "benchmark",
   "benchmark_return_percentage",
   "section_break_19",
-  "notes"
+  "notes",
+  "currency"
  ],
  "fields": [
   {
@@ -34,7 +35,8 @@
    "in_list_view": 1,
    "label": "Portfolio",
    "options": "CF Portfolio",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "report_name",
@@ -60,12 +62,14 @@
    "fieldtype": "Date",
    "in_list_view": 1,
    "label": "Start Date",
+   "read_only": 1,
    "reqd": 1
   },
   {
    "fieldname": "end_date",
    "fieldtype": "Date",
    "label": "End Date",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -78,6 +82,7 @@
    "fieldtype": "Currency",
    "label": "Starting Value",
    "options": "currency",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -85,6 +90,7 @@
    "fieldtype": "Currency",
    "label": "Ending Value",
    "options": "currency",
+   "read_only": 1,
    "reqd": 1
   },
   {
@@ -128,16 +134,16 @@
    "label": "Benchmark Comparison"
   },
   {
+   "description": "Enter the benchmark name (e.g., S&P 500, FTSE 100)",
    "fieldname": "benchmark",
    "fieldtype": "Data",
-   "label": "Benchmark",
-   "description": "Enter the benchmark name (e.g., S&P 500, FTSE 100)"
+   "label": "Benchmark"
   },
   {
+   "description": "Enter the benchmark return for the same period",
    "fieldname": "benchmark_return_percentage",
    "fieldtype": "Percent",
-   "label": "Benchmark Return",
-   "description": "Enter the benchmark return for the same period"
+   "label": "Benchmark Return"
   },
   {
    "fieldname": "section_break_19",
@@ -157,11 +163,19 @@
    "label": "Currency",
    "options": "Currency",
    "read_only": 1
+  },
+  {
+   "fieldname": "yearly_dividends",
+   "fieldtype": "Currency",
+   "label": "Yearly Dividends",
+   "options": "currency",
+   "read_only": 1,
+   "reqd": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 16:00:00.000000",
+ "modified": "2025-05-21 07:20:03.419431",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Performance Report",
@@ -198,6 +212,7 @@
    "role": "Customer"
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "portfolio,report_name,report_period,start_date,end_date",
  "sort_field": "modified",
  "sort_order": "DESC",

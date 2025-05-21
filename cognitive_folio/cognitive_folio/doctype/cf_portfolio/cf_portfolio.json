@@ -11,10 +11,28 @@
   "customer",
   "description",
   "column_break_4",
+  "start_date",
   "risk_profile",
   "currency",
-  "start_date",
+  "cost",
+  "current_value",
   "disabled",
+  "performance_section",
+  "price_column",
+  "returns_price",
+  "returns_percentage_price",
+  "annualized_price",
+  "annualized_percentage_price",
+  "column_break_iksu",
+  "returns_dividends",
+  "returns_percentage_dividends",
+  "annualized_dividends",
+  "annualized_percentage_dividends",
+  "column_break_umia",
+  "returns_total",
+  "returns_percentage_total",
+  "annualized_total",
+  "annualized_percentage_total",
   "section_break_8",
   "ai_suggestion_html",
   "ai_suggestion"
@@ -92,6 +110,118 @@
    "fieldname": "ai_suggestion_html",
    "fieldtype": "HTML",
    "label": "AI Suggestion HTML"
+  },
+  {
+   "fieldname": "performance_section",
+   "fieldtype": "Section Break",
+   "label": "Performance"
+  },
+  {
+   "fieldname": "column_break_umia",
+   "fieldtype": "Column Break",
+   "label": "Total"
+  },
+  {
+   "fieldname": "current_value",
+   "fieldtype": "Currency",
+   "label": "Current Value",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "cost",
+   "fieldtype": "Currency",
+   "label": "Cost",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_iksu",
+   "fieldtype": "Column Break",
+   "label": "Dividends"
+  },
+  {
+   "fieldname": "price_column",
+   "fieldtype": "Column Break",
+   "label": "Price Based"
+  },
+  {
+   "fieldname": "returns_price",
+   "fieldtype": "Currency",
+   "label": "Returns",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "returns_percentage_price",
+   "fieldtype": "Percent",
+   "label": "Returns Percentage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_price",
+   "fieldtype": "Currency",
+   "label": "Annualized",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_percentage_price",
+   "fieldtype": "Percent",
+   "label": "Annualized Percentage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "returns_dividends",
+   "fieldtype": "Currency",
+   "label": "Returns",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "returns_percentage_dividends",
+   "fieldtype": "Percent",
+   "label": "Returns Percentage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_dividends",
+   "fieldtype": "Currency",
+   "label": "Annualized",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_percentage_dividends",
+   "fieldtype": "Percent",
+   "label": "Annualized Percentage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "returns_total",
+   "fieldtype": "Currency",
+   "label": "Returns",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "returns_percentage_total",
+   "fieldtype": "Percent",
+   "label": "Returns Percentage",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_total",
+   "fieldtype": "Currency",
+   "label": "Annualized",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "fieldname": "annualized_percentage_total",
+   "fieldtype": "Percent",
+   "label": "Annualized Percentage",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -117,7 +247,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-18 11:37:24.966288",
+ "modified": "2025-05-21 10:01:36.456417",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
