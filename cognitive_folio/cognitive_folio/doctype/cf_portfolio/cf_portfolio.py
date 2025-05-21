@@ -598,29 +598,52 @@ class CFPortfolio(Document):
 			else:
 				self.returns_percentage_price = 0
 			
-			# Calculate actual dividend returns based on portfolio age
+			# Calculate dividend returns using linear growth model
 			days_held = date_diff(datetime.now().strftime('%Y-%m-%d'), self.start_date)
 			years_held = flt(days_held / 365.0, 6)  # Convert days to years
-
-			# For actual dividends received, we need to account for the full time period
-			if days_held < 365:
-				# Portfolio is less than a year old, prorate the dividend income
-				actual_dividend_income = flt(total_yearly_dividend_income * years_held, 2)
-			else:
-				# Portfolio is over a year old, multiply by years held
-				actual_dividend_income = flt(total_yearly_dividend_income * years_held, 2)
 			
-			# Store both yearly and actual dividend income
-			self.returns_dividends = actual_dividend_income
+			# Calculate portfolio dividend yield (weighted average)
+			portfolio_dividend_yield = 0
+			if total_current_value > 0:
+				for holding in holdings:
+					weight = flt((holding.current_value or 0) / total_current_value, 6)
+					portfolio_dividend_yield += weight * flt(holding.dividend_yield or 0, 6)
+			
+			# Use linear growth model with quarterly dividends to estimate total dividends received
+			total_dividends = 0
+			quarters = int(years_held * 4)
+			
+			if quarters > 0:
+				# Calculate average quarter-to-quarter growth rate
+				quarterly_step = (total_current_value - total_cost) / quarters
+				
+				# For each quarter, calculate the portfolio value and apply dividend yield
+				for q in range(quarters):
+					# Estimated portfolio value for this quarter
+					quarter_value = total_cost + (quarterly_step * q)
+					
+					# Calculate quarterly dividend (annual yield divided by 4)
+					quarter_dividend = quarter_value * (portfolio_dividend_yield / 100) / 4
+					total_dividends += quarter_dividend
+			
+			# Add partial quarter if needed
+			if years_held * 4 > quarters:
+				fraction_remaining = (years_held * 4) - quarters
+				last_quarter_value = total_cost + (quarterly_step * quarters)
+				partial_quarter_dividend = last_quarter_value * (portfolio_dividend_yield / 100) / 4 * fraction_remaining
+				total_dividends += partial_quarter_dividend
+			
+			# Store actual dividend income received
+			self.returns_dividends = flt(total_dividends, 2)
 			
 			# Calculate dividend returns percentage
 			if total_cost > 0:
-				self.returns_percentage_dividends = flt((actual_dividend_income / total_cost) * 100, 2)
+				self.returns_percentage_dividends = flt((self.returns_dividends / total_cost) * 100, 2)
 			else:
 				self.returns_percentage_dividends = 0
 			
 			# Calculate total returns (price + actual dividends)
-			total_return = price_return + actual_dividend_income
+			total_return = price_return + self.returns_dividends
 			self.returns_total = total_return
 			
 			# Calculate total returns percentage
@@ -634,9 +657,6 @@ class CFPortfolio(Document):
 				days_held = date_diff(datetime.now().strftime('%Y-%m-%d'), self.start_date)
 				
 				if days_held > 0:
-					# For annualized calculations, we use the FULL yearly dividend income
-					# since we're projecting what a full year would look like
-					
 					# Annualized price returns
 					price_return_rate = self.returns_percentage_price / 100
 					self.annualized_percentage_price = flt(
@@ -647,38 +667,30 @@ class CFPortfolio(Document):
 					# Convert annualized percentage to currency amount
 					self.annualized_price = flt((total_cost * self.annualized_percentage_price / 100), 2)
 					
-					# For dividend yield, we always use the FULL yearly amount for annualized values
-					# as this represents what you'd get over a full year
-					if total_cost > 0:
-						yearly_dividend_percentage = flt((total_yearly_dividend_income / total_cost) * 100, 2)
-					else:
-						yearly_dividend_percentage = 0
-						
-					# No need to annualize dividend yield - it's already annual!
-					self.annualized_percentage_dividends = yearly_dividend_percentage
-					self.annualized_dividends = total_yearly_dividend_income
+					# For dividend yield, we use the current yield for annualized values
+					self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
+					self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
 					
-					# For annualized total, we combine the annualized price return with the full yearly dividend
-					total_annualized_percentage = self.annualized_percentage_price + yearly_dividend_percentage
-					self.annualized_percentage_total = total_annualized_percentage
-					self.annualized_total = flt(self.annualized_price + total_yearly_dividend_income, 2)
+					# For annualized total, we combine the annualized price return with the current dividend yield
+					self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+					self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 					
 				else:
 					# If portfolio is brand new (less than a day old)
 					self.annualized_percentage_price = self.returns_percentage_price
 					self.annualized_price = self.returns_price
-					self.annualized_percentage_dividends = flt((total_yearly_dividend_income / total_cost) * 100, 2) if total_cost > 0 else 0
-					self.annualized_dividends = total_yearly_dividend_income
-					self.annualized_percentage_total = self.annualized_percentage_price + self.annualized_percentage_dividends
-					self.annualized_total = self.annualized_price + total_yearly_dividend_income
+					self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
+					self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
+					self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+					self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 			else:
 				# If no start date
 				self.annualized_percentage_price = self.returns_percentage_price
 				self.annualized_price = self.returns_price
-				self.annualized_percentage_dividends = flt((total_yearly_dividend_income / total_cost) * 100, 2) if total_cost > 0 else 0
-				self.annualized_dividends = total_yearly_dividend_income
-				self.annualized_percentage_total = self.annualized_percentage_price + self.annualized_percentage_dividends
-				self.annualized_total = self.annualized_price + total_yearly_dividend_income
+				self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
+				self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
+				self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+				self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 	
 			self.save()
 			
