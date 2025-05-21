@@ -413,6 +413,7 @@ class CFPortfolio(Document):
 			
 			# Save to ai_suggestion field
 			self.ai_suggestion = content
+			self.ai_prompt = prompt
 			self.save()
 			
 			return {'success': True}

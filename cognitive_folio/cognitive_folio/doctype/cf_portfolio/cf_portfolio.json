@@ -35,7 +35,9 @@
   "annualized_percentage_total",
   "section_break_8",
   "ai_suggestion_html",
-  "ai_suggestion"
+  "ai_suggestion",
+  "ai_tab",
+  "ai_prompt"
  ],
  "fields": [
   {
@@ -222,6 +224,17 @@
    "fieldtype": "Percent",
    "label": "Annualized Percentage",
    "read_only": 1
+  },
+  {
+   "fieldname": "ai_prompt",
+   "fieldtype": "Text",
+   "label": "AI Prompt",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ai_tab",
+   "fieldtype": "Tab Break",
+   "label": "AI"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -247,7 +260,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-21 10:01:36.456417",
+ "modified": "2025-05-21 17:43:54.394449",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
