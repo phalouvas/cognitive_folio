@@ -7,6 +7,8 @@
  "field_order": [
   "open_ai_url",
   "open_ai_api_key",
+  "system_content",
+  "user_content",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -29,10 +31,10 @@
    "label": "AI Models"
   },
   {
+   "description": "Select the default AI model to use for operations",
    "fieldname": "default_ai_model",
    "fieldtype": "Select",
-   "label": "Default AI Model",
-   "description": "Select the default AI model to use for operations"
+   "label": "Default AI Model"
   },
   {
    "fieldname": "ai_models",
@@ -40,13 +42,24 @@
    "label": "AI Models",
    "options": "CF AI Model",
    "read_only": 1
+  },
+  {
+   "fieldname": "system_content",
+   "fieldtype": "Small Text",
+   "label": "System Content"
+  },
+  {
+   "description": "Variables: {Target Allocations}",
+   "fieldname": "user_content",
+   "fieldtype": "Markdown Editor",
+   "label": "User Content (Prompt)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-05-15 09:35:53.228646",
+ "modified": "2025-05-22 11:20:18.973203",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",
