@@ -229,10 +229,12 @@ class CFPortfolio(Document):
 		try:
 			# Get OpenWebUI settings
 			settings = frappe.get_single("CF Settings")
-			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 			model = settings.default_ai_model
 			if not model:
 				frappe.throw(_('Default AI model is not configured in CF Settings'))
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			system_content = settings.system_content
+			user_content = settings.user_content
 	
 			# Get all holdings for this portfolio
 			holdings = frappe.get_all(
@@ -321,8 +323,6 @@ class CFPortfolio(Document):
 			
 			# Build the prompt with portfolio data
 			prompt = f"""
-			Analyze this portfolio:
-			
 			Portfolio Name: {self.portfolio_name}
 			Risk Profile: {self.risk_profile or "Not specified"}
 			Currency: {self.currency or "Not specified"}
@@ -370,35 +370,31 @@ class CFPortfolio(Document):
 			prompt += "\nSecurity Type Allocation:\n"
 			for security_type, percentage in sorted(security_type_allocation.items(), key=lambda x: x[1], reverse=True):
 				prompt += f"- {security_type}: {percentage:.2f}%\n"
-			
-			# Add target allocation data
+
+			prompt += settings.user_content
+
+			# Check if Target Allocations placeholder exists in user_content
+			target_allocations_text = ""
 			if grouped_targets:
-				prompt += "\nTarget Allocations:\n"
+				target_allocations_text = "\nTarget Allocations:\n"
 				for alloc_type, allocations in grouped_targets.items():
-					prompt += f"\n{alloc_type} Targets:\n"
+					target_allocations_text += f"\n{alloc_type} Targets:\n"
 					for alloc in sorted(allocations, key=lambda x: x.target_percentage, reverse=True):
 						current = alloc.current_percentage or 0
 						target = alloc.target_percentage or 0
 						diff = alloc.difference or 0
-						prompt += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
+						target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
 			
-			# Add final instructions
-			prompt += """
-			Please provide a comprehensive analysis of this portfolio including:
-			
-			1. Overall assessment of portfolio composition and diversification
-			2. Risk analysis based on allocations and holdings
-			3. Recommendations for rebalancing or adjustments to align with target allocations
-			4. Potential concerns or areas of strength
-			5. Specific actions to take to bring the portfolio closer to target allocations
-	
-			Do not use your own name "Warren Buffet" in the response.
-			Also do not include any tables, instead make bulleted lists.
-			"""
+			# Replace {Target Allocations} placeholder in user_content if it exists
+			if "{Target Allocations}" in prompt:
+				prompt = prompt.replace("{Target Allocations}", target_allocations_text)
+			# Otherwise, add target allocation data if it exists
+			elif grouped_targets:
+				prompt += target_allocations_text
 			
 			# Make the API call
 			messages = [
-				{"role": "system", "content": "You are Warren Buffet, the legendary investor providing analysis and recommendations."},
+				{"role": "system", "content": system_content},
 				{"role": "user", "content": prompt},
 			]
 			
@@ -415,6 +411,7 @@ class CFPortfolio(Document):
 			# Save to ai_suggestion field
 			self.ai_suggestion = content
 			self.ai_prompt = prompt
+			self.ai_suggestion = frappe.utils.markdown(content)
 			self.save()
 			
 			return {'success': True}
