@@ -325,6 +325,7 @@ class CFPortfolio(Document):
 			
 			Portfolio Name: {self.portfolio_name}
 			Risk Profile: {self.risk_profile or "Not specified"}
+			Currency: {self.currency or "Not specified"}
 			Total Value: {total_value} {self.currency}
 			Total Profit/Loss: {total_profit_loss} {self.currency} ({(total_profit_loss/total_value*100) if total_value else 0:.2f}%)
 			
