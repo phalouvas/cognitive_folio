@@ -410,6 +410,7 @@ class CFPortfolio(Document):
 			
 			# Save to ai_suggestion field
 			self.ai_suggestion = content
+			self.ai_prompt = prompt
 			self.ai_suggestion = frappe.utils.markdown(content)
 			self.save()
 			
