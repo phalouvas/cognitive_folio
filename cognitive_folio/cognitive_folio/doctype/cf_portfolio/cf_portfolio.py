@@ -79,7 +79,7 @@ class CFPortfolio(Document):
 			return 0
 		
 		# Calculate the timestamp for 24 hours ago as a datetime object
-		cutoff_time = datetime.now() - timedelta(hours=24)
+		cutoff_time = datetime.now() - timedelta(hours=1)
 		
 		# Get all holdings for this portfolio (excluding Cash type securities)
 		holdings = frappe.get_all(
