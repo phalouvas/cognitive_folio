@@ -385,13 +385,10 @@ class CFPortfolio(Document):
 						diff = alloc.difference or 0
 						target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
 			
-			# Replace {Target Allocations} placeholder in user_content if it exists
+			# Replace {Target Allocations} placeholder in prompt if it exists
 			if "{Target Allocations}" in prompt:
 				prompt = prompt.replace("{Target Allocations}", target_allocations_text)
-			# Otherwise, add target allocation data if it exists
-			elif grouped_targets:
-				prompt += target_allocations_text
-			
+
 			# Make the API call
 			messages = [
 				{"role": "system", "content": system_content},
