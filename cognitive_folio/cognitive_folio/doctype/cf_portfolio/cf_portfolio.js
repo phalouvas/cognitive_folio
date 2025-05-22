@@ -8,11 +8,10 @@ frappe.ui.form.on("CF Portfolio", {
 
             if(frm.doc.ai_suggestion) {
                 let md_html = frappe.markdown(frm.doc.ai_suggestion);
-                frm.set_df_property('ai_suggestion_html', 'options', 
-                    `<div class="markdown-preview">${md_html}</div>`);
+                frm.set_df_property('ai_suggestion_html', 'options', frm.doc.ai_suggestion);
             } else {
                 frm.set_df_property('ai_suggestion_html', 'options',
-                    `<div class="markdown-preview">No AI suggestion available.</div>`);
+                    `<div class="text-muted">No AI suggestion available.</div>`);
             }
             
             // Add "Fetch All Prices" button
