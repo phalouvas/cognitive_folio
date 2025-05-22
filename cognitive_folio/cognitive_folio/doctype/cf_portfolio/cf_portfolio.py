@@ -233,8 +233,6 @@ class CFPortfolio(Document):
 			if not model:
 				frappe.throw(_('Default AI model is not configured in CF Settings'))
 			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-			system_content = settings.system_content
-			user_content = settings.user_content
 	
 			# Get all holdings for this portfolio
 			holdings = frappe.get_all(
@@ -391,7 +389,7 @@ class CFPortfolio(Document):
 
 			# Make the API call
 			messages = [
-				{"role": "system", "content": system_content},
+				{"role": "system", "content": settings.system_content},
 				{"role": "user", "content": prompt},
 			]
 			

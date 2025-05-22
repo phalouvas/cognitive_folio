@@ -189,7 +189,7 @@ class CFSecurity(Document):
 			"""
 			
 			messages = [
-					{"role": "system", "content": "You are Warren Buffet, the legendary investor."},
+					{"role": "system", "content": settings.system_content},
 					{"role": "user", "content": prompt},
 			]
 			response = client.chat.completions.create(
