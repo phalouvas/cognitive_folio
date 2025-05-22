@@ -244,23 +244,19 @@
    "link_fieldname": "portfolio"
   },
   {
-   "link_doctype": "CF Transaction",
+   "link_doctype": "CF Asset Allocation",
    "link_fieldname": "portfolio"
   },
   {
-   "link_doctype": "CF Asset Allocation",
+   "link_doctype": "CF Transaction",
    "link_fieldname": "portfolio"
   },
   {
    "link_doctype": "CF Dividend",
    "link_fieldname": "portfolio"
-  },
-  {
-   "link_doctype": "CF Performance Report",
-   "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-21 17:43:54.394449",
+ "modified": "2025-05-22 06:29:47.125694",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
