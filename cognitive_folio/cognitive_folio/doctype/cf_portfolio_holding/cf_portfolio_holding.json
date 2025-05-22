@@ -141,7 +141,6 @@
    "read_only": 1
   },
   {
-   "collapsible": 1,
    "fieldname": "section_break_hwcf",
    "fieldtype": "Section Break",
    "label": "Valuation"
@@ -350,7 +349,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-20 19:37:12.106221",
+ "modified": "2025-05-22 06:45:25.493853",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
