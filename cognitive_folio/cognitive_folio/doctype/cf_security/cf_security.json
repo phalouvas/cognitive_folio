@@ -37,9 +37,17 @@
   "news",
   "section_break_11",
   "ticker_info_html",
-  "ticker_info",
   "ai_tab",
-  "ai_prompt"
+  "ai_prompt",
+  "raw_data_tab",
+  "ticker_info_section",
+  "ticker_info",
+  "profit_and_loss_statement_section",
+  "profit_loss",
+  "balance_sheet_section",
+  "balance_sheet",
+  "cash_flow_section",
+  "cash_flow"
  ],
  "fields": [
   {
@@ -256,6 +264,53 @@
    "fieldtype": "Text",
    "label": "AI Prompt",
    "read_only": 1
+  },
+  {
+   "fieldname": "raw_data_tab",
+   "fieldtype": "Tab Break",
+   "label": "Raw Data"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "ticker_info_section",
+   "fieldtype": "Section Break",
+   "label": "Ticker Info"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "profit_and_loss_statement_section",
+   "fieldtype": "Section Break",
+   "label": "Profit and Loss Statement"
+  },
+  {
+   "fieldname": "profit_loss",
+   "fieldtype": "JSON",
+   "label": "Profit & Loss",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "balance_sheet_section",
+   "fieldtype": "Section Break",
+   "label": "Balance Sheet"
+  },
+  {
+   "fieldname": "balance_sheet",
+   "fieldtype": "JSON",
+   "label": "Balance Sheet",
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "cash_flow_section",
+   "fieldtype": "Section Break",
+   "label": "Cash Flow"
+  },
+  {
+   "fieldname": "cash_flow",
+   "fieldtype": "JSON",
+   "label": "Cash Flow",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -273,7 +328,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-21 17:52:22.809845",
+ "modified": "2025-05-23 11:39:37.599254",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

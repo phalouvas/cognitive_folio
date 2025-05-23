@@ -40,7 +40,6 @@ class CFSecurity(Document):
 
 	@frappe.whitelist()
 	def fetch_current_price(self):
-
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('Price is only for non-cash securities')}
 		
@@ -48,6 +47,9 @@ class CFSecurity(Document):
 		try:
 			ticker = yf.Ticker(self.symbol)
 			ticker_info = ticker.get_info()
+			self.profit_loss = ticker.financials.to_json(date_format='iso')
+			self.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
+			self.cash_flow = ticker.cashflow.to_json(date_format='iso')
 			self.ticker_info = frappe.as_json(ticker_info)
 			self.currency = ticker_info['currency']
 			self.current_price = ticker_info['regularMarketPrice']
@@ -61,26 +63,6 @@ class CFSecurity(Document):
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
-			
-	def on_update(self):
-		"""Update related documents when a security is updated"""
-		self.update_portfolio_holdings()
-			
-	def update_portfolio_holdings(self):
-		"""Update the value of portfolio holdings that contain this security"""
-		if frappe.db.table_exists("CF Portfolio Holding"):
-			holdings = frappe.get_all(
-				"CF Portfolio Holding",
-				filters={"security": self.name},
-				fields=["name"]
-			)
-			
-			for holding in holdings:
-				# Trigger value recalculation in each holding
-				holding_doc = frappe.get_doc("CF Portfolio Holding", holding.name)
-				holding_doc.save()
-
-	@frappe.whitelist()
 	def generate_ai_suggestion(self):
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('AI suggestion is only for non-cash securities')}
