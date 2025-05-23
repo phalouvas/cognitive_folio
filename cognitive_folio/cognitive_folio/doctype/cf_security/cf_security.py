@@ -119,6 +119,7 @@ class CFSecurity(Document):
 			
 			# Add final instructions to the prompt
 			prompt += """
+			Act like if you own the company and you consider whether you will buy more, hold, or sell.
 			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
 			State your recommendation Buy, Hold, or Sell.
 			State the price target that you would think for buying and selling.
