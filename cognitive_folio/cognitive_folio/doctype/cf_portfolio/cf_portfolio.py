@@ -23,6 +23,8 @@ class CFPortfolio(Document):
 	def generate_holdings_ai_suggestions(self):
 		"""Queue AI suggestion generation for each holding as separate background jobs"""
 		from frappe.utils.background_jobs import enqueue
+
+		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=1)
 		
 		try:
 			# Get holdings in this portfolio
@@ -32,7 +34,7 @@ class CFPortfolio(Document):
 					["portfolio", "=", self.name],
 					["security_type", "!=", "Cash"]
 				],
-				fields=["name", "security"]
+				fields=["name", "security", "modified"]
 			)
 			
 			if not holdings:
@@ -41,7 +43,7 @@ class CFPortfolio(Document):
 			# Queue a job for each holding
 			job_count = 0
 			for holding in holdings:
-				if not holding.security:
+				if not holding.security or holding.modified > cutoff_time:
 					continue
 					
 				# Calculate a unique job name to prevent duplicates
@@ -78,8 +80,8 @@ class CFPortfolio(Document):
 			frappe.msgprint("YFinance package is not installed. Please run 'bench pip install yfinance'")
 			return 0
 		
-		# Calculate the timestamp for 24 hours ago as a datetime object
-		cutoff_time = datetime.now() - timedelta(hours=1)
+		# Calculate the timestamp for 1 hour ago as a datetime object
+		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=1)
 		
 		# Get all holdings for this portfolio (excluding Cash type securities)
 		holdings = frappe.get_all(
@@ -112,7 +114,7 @@ class CFPortfolio(Document):
 					"symbol": security.symbol,
 					"currency": security.currency,
 					"doc": security,
-					"datetime": security.modified
+					"modified": security.modified
 				}
 		
 		# Extract symbols for batch request
@@ -141,7 +143,7 @@ class CFPortfolio(Document):
 					description=f"Processing item {updated_count+1} of {total_steps} ({symbol})"
 				)
 				
-				if not symbol or symbol not in tickers.tickers or security.modified > cutoff_time:
+				if not symbol or symbol not in tickers.tickers or data["modified"] > cutoff_time:
 					updated_count += 1
 					continue
 					
@@ -593,7 +595,7 @@ class CFPortfolio(Document):
 				self.returns_percentage_price = 0
 			
 			# Calculate dividend returns using linear growth model
-			days_held = date_diff(datetime.now().strftime('%Y-%m-%d'), self.start_date)
+			days_held = date_diff(frappe.utils.now_datetime().strftime('%Y-%m-%d'), self.start_date)
 			years_held = flt(days_held / 365.0, 6)  # Convert days to years
 			
 			# Calculate portfolio dividend yield (weighted average)
@@ -648,7 +650,7 @@ class CFPortfolio(Document):
 			
 			# Calculate annualized metrics if we have a start date
 			if self.start_date:
-				days_held = date_diff(datetime.now().strftime('%Y-%m-%d'), self.start_date)
+				days_held = date_diff(frappe.utils.now_datetime().strftime('%Y-%m-%d'), self.start_date)
 				
 				if days_held > 0:
 					# Annualized price returns
