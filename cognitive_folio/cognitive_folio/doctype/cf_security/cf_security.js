@@ -13,7 +13,7 @@ frappe.ui.form.on('CF Security', {
                     const newsData = JSON.parse(frm.doc.news);
                     const htmlResultArray = formatNewsData(newsData);
                     frm.set_df_property('news_html', 'options', htmlResultArray[0]);
-                    frm.set_value('news', htmlResultArray[1]);
+                    frm.set_value('news_urls', htmlResultArray[1]);
                 } catch (error) {
                     console.error("Error parsing news data:", error);
                     frm.set_df_property('news_html', 'options', 
@@ -47,7 +47,7 @@ frappe.ui.form.on('CF Security', {
                     '<div class="text-muted">No ticker information available.</div>');
             }
 
-            frm.add_custom_button(__('Fetch Ticker Info'), function() {
+            frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
                 frm.call({
@@ -117,7 +117,7 @@ frappe.ui.form.on('CF Security', {
             }, __('Actions'));
             
             // Add copy buttons for multiple fields
-            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news'];
+            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news_urls'];
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });

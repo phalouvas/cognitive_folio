@@ -72,7 +72,7 @@ class CFPortfolio(Document):
 			return {'success': False, 'error': str(e)}
 
 	@frappe.whitelist()
-	def fetch_all_prices(self):
+	def fetch_all_prices(self, type):
 		"""Update prices for all holdings in this portfolio using batch requests"""
 		try:
 			import yfinance as yf
@@ -201,6 +201,11 @@ class CFPortfolio(Document):
 						
 						if hasattr(security_doc, "industry") and 'industry' in ticker_info:
 							security_doc.industry = ticker_info['industry']
+
+						if type == "fundamentals":
+							security_doc.profit_loss = ticker.financials.to_json(date_format='iso')
+							security_doc.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
+							security_doc.cash_flow = ticker.cashflow.to_json(date_format='iso')
 						
 						security_doc.save()
 						
