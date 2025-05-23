@@ -91,7 +91,7 @@ class CFSecurity(Document):
 			
 			# Create base prompt with security data
 			prompt = f"""
-			Evaluate below company using your qualitative principles, and quantitative data.
+			You own stocks of below company and you must decide whether you will buy more, hold, or sell.
 			
 			Profit and Loss Statement:
 			{self.profit_loss}
@@ -106,7 +106,6 @@ class CFSecurity(Document):
 			
 			# Add final instructions to the prompt
 			prompt += """
-			Act like if you own the company and you must decide whether you will buy more, hold, or sell.
 			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
 			State your recommendation Buy, Hold, or Sell.
 			State the price target that you would think for buying and selling.
@@ -120,8 +119,8 @@ class CFSecurity(Document):
 				"Evaluation": {
 					"Rating": 4,
 					"Recommendation": "Buy",
-					"Buy Below": 156.01,
-					"Sell Above": 185.18
+					"Price Target Buy Below": 156.01,
+					"Price Target Sell Above": 185.18
 				}
 			}
 			"""
@@ -157,8 +156,8 @@ class CFSecurity(Document):
 			self.ai_response = content_string
 			self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
 			self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
-			self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Buy Below", 0)
-			self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Sell Above", 0)
+			self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
+			self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
 			self.ai_suggestion = markdown_content
 			self.ai_prompt = prompt
 			self.save()
