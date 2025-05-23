@@ -64,6 +64,7 @@ class CFSecurity(Document):
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
 	
+	@frappe.whitelist()
 	def generate_ai_suggestion(self):
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('AI suggestion is only for non-cash securities')}
@@ -96,7 +97,16 @@ class CFSecurity(Document):
 			Evaluate below company using your qualitative principles, and quantitative data.
 			
 			Company Information:
-			{json.dumps(ticker_info, indent=2)}
+			{self.ticker_info}
+
+			Profit and Loss Statement:
+			{self.profit_loss}
+
+			Balance Sheet:
+			{self.balance_sheet}
+
+			Cash Flow Statement:
+			{self.cash_flow}	
 
 			"""                        
 			
