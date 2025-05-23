@@ -83,9 +83,6 @@ class CFSecurity(Document):
 			if not model:
 				frappe.throw(_('Default AI model is not configured in CF Settings'))
 
-			# Prepare data for the prompt
-			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
-			
 			news_json = json.loads(self.news) if self.news else []
 			# Extract URLs from news data and format with # prefix
 			news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
@@ -96,9 +93,6 @@ class CFSecurity(Document):
 			prompt = f"""
 			Evaluate below company using your qualitative principles, and quantitative data.
 			
-			Company Information:
-			{self.ticker_info}
-
 			Profit and Loss Statement:
 			{self.profit_loss}
 
@@ -112,7 +106,7 @@ class CFSecurity(Document):
 			
 			# Add final instructions to the prompt
 			prompt += """
-			Act like if you own the company and you consider whether you will buy more, hold, or sell.
+			Act like if you own the company and you must decide whether you will buy more, hold, or sell.
 			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
 			State your recommendation Buy, Hold, or Sell.
 			State the price target that you would think for buying and selling.
@@ -120,51 +114,14 @@ class CFSecurity(Document):
 			
 			EXAMPLE JSON OUTPUT:
 			{
-				"Summary": "Analysis summary of the security. Do not mention your name.",
+				"Summary": "Your summary here in markdown format",
+				"Analysis": "Your evaluation analysis here in markdown format",
+				"Risks": "The identified risks here in markdown format",
 				"Evaluation": {
 					"Rating": 4,
 					"Recommendation": "Buy",
-					"Price Target Buy Below": 156.01,
-					"Price Target Sell Above": 185.18
-				},
-				"Qualitative Analysis": {
-					"Durable Competitive Advantage": {
-						"Assessment": "Strong",
-						"Supporting Data": {
-							"Market Position": "Dominant player in China's e-commerce and cloud computing with 39.95% gross margins and 13.06% profit margins.",
-							"Return on Equity": "11.44% (moderate but stable)",
-							"EBITDA Margins": "18.33% (healthy operational efficiency)"
-						}
-					},
-					"Management Competence": {
-						"Assessment": "Experienced leadership with long-term alignment",
-						"Supporting Data": {
-							"Executive Tenure": "Key officers like Joseph Tsai (Executive Chairman) and Yongming Wu (CEO) have extensive industry experience.",
-							"Compensation Risk": "Low (score 10)",
-							"Insider Ownership": "6.48% (moderate alignment with shareholders)"
-						}
-					},
-					"Valuation": {
-						"Assessment": "Undervalued relative to fundamentals",
-						"Supporting Data": {
-							"Price-to-Book": "0.28 (extremely low)",
-							"Forward P/E": "13.07 (below sector average)",
-							"Price-to-Sales": "2.36 (attractive for growth company)"
-						}
-					},
-					"Financial Health": {
-						"Assessment": "Robust balance sheet",
-						"Supporting Data": {
-							"Current Ratio": "1.55 (strong liquidity)",
-							"Debt-to-Equity": "22.78 (conservative leverage)",
-							"Operating Cash Flow": "HK$163.5B (substantial reinvestment capacity)"
-						}
-					}
-				},
-				"Risk Factors": {
-					"Geopolitical Risks": "U.S.-China tensions and regulatory scrutiny",
-					"Growth Sustainability": "Earnings growth rate of 296.4% may face normalization pressure",
-					"Recent Performance": "52-week price decline of -15.42% from highs reflects market concerns"
+					"Buy Below": 156.01,
+					"Sell Above": 185.18
 				}
 			}
 			"""
@@ -200,8 +157,8 @@ class CFSecurity(Document):
 			self.ai_response = content_string
 			self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
 			self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
-			self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
-			self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
+			self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Buy Below", 0)
+			self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Sell Above", 0)
 			self.ai_suggestion = markdown_content
 			self.ai_prompt = prompt
 			self.save()
@@ -233,27 +190,14 @@ class CFSecurity(Document):
 			markdown.append(f"- Sell Above: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
 			markdown.append("")
 		
-		# Add Qualitative Analysis
-		if "Qualitative Analysis" in data:
-			markdown.append("## Qualitative Analysis")
-			qual_data = data["Qualitative Analysis"]
-			
-			for category, details in qual_data.items():
-				markdown.append(f"### {category}")
-				markdown.append(f"**Assessment**: {details.get('Assessment', '-')}")
-				
-				if "Supporting Data" in details:
-					markdown.append("\n**Supporting Data**:")
-					for key, value in details["Supporting Data"].items():
-						markdown.append(f"- **{key}**: {value}")
-				markdown.append("")
-		
-		# Add Risk Factors
-		if "Risk Factors" in data:
-			markdown.append("## Risk Factors")
-			for factor, description in data["Risk Factors"].items():
-				markdown.append(f"- **{factor}**: {description}")
-		
+		# Add Analysis
+		if "Analysis" in data:
+			markdown.append(f"## Analysis\n{data['Analysis']}\n")
+
+		# Add Risks
+		if "Risks" in data:
+			markdown.append(f"## Risks\n{data['Risks']}\n")
+
 		return "\n".join(markdown)
 
 @frappe.whitelist()
