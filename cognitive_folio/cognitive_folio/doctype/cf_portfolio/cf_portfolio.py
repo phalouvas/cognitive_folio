@@ -714,7 +714,7 @@ def generate_single_holding_ai_suggestion(holding_name, security_name):
 			return
 			
 		# Calculate the timestamp for 24 hours ago as a datetime object
-		cutoff_time = datetime.now() - timedelta(hours=24)
+		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=24)
 		
 		# Get the security document
 		security = frappe.get_doc("CF Security", security_name)
