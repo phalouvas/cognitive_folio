@@ -110,28 +110,15 @@ class CFSecurity(Document):
 			
 			# Create base prompt with security data
 			prompt = f"""
-			You own below security.
-
-			Security: {self.security_name} ({self.symbol})
-			Exchange: {self.stock_exchange}
-			Sector: {self.sector}
-			Industry: {self.industry}
-			Current Price: {self.current_price}
+			Evaluate below company using your qualitative principles, and quantitative data.
 			
-			Evaluate below security using Warren Buffett's qualitative principles,
-			but use quantitative data from "Ticker Information" to support your evaluation.
-			
-			Ticker Information:
+			Company Information:
 			{json.dumps(ticker_info, indent=2)}
-			
-			For your evaluation also consider "Recent News":
-			Recent News:
-			{news}
+
 			"""                        
 			
 			# Add final instructions to the prompt
 			prompt += """
-			Do not mention your name.
 			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
 			State your recommendation Buy, Hold, or Sell.
 			State the price target that you would think for buying and selling.
