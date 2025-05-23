@@ -126,7 +126,7 @@ class CFSecurity(Document):
 			
 			For your evaluation also consider "Recent News":
 			Recent News:
-			{json.dumps(news, indent=2)}
+			{news}
 			"""                        
 			
 			# Add final instructions to the prompt
