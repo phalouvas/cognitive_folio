@@ -34,7 +34,6 @@
   "ai_response",
   "news_section",
   "news_html",
-  "news",
   "section_break_11",
   "ticker_info_html",
   "ai_tab",
@@ -42,6 +41,8 @@
   "raw_data_tab",
   "ticker_info_section",
   "ticker_info",
+  "news_urls_section",
+  "news",
   "profit_and_loss_statement_section",
   "profit_loss",
   "balance_sheet_section",
@@ -161,7 +162,6 @@
   {
    "fieldname": "news",
    "fieldtype": "JSON",
-   "hidden": 1,
    "label": "News Raw",
    "read_only": 1
   },
@@ -311,6 +311,12 @@
    "fieldtype": "JSON",
    "label": "Cash Flow",
    "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "news_urls_section",
+   "fieldtype": "Section Break",
+   "label": "News Urls"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -328,7 +334,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-23 11:39:37.599254",
+ "modified": "2025-05-23 14:22:07.962767",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

@@ -11,8 +11,9 @@ frappe.ui.form.on('CF Security', {
             if(frm.doc.news) {
                 try {
                     const newsData = JSON.parse(frm.doc.news);
-                    const newsHtml = formatNewsData(newsData);
-                    frm.set_df_property('news_html', 'options', newsHtml);
+                    const htmlResultArray = formatNewsData(newsData);
+                    frm.set_df_property('news_html', 'options', htmlResultArray[0]);
+                    frm.set_value('news', htmlResultArray[1]);
                 } catch (error) {
                     console.error("Error parsing news data:", error);
                     frm.set_df_property('news_html', 'options', 
@@ -116,7 +117,7 @@ frappe.ui.form.on('CF Security', {
             }, __('Actions'));
             
             // Add copy buttons for multiple fields
-            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt'];
+            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news'];
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });
@@ -357,6 +358,7 @@ function formatNewsData(newsData) {
         return '<div class="text-muted">No news available for this security.</div>';
     }
     
+    let urls = [];
     let htmlContent = ['<div class="cf-news-container">'];
     
     for (const item of newsData) {
@@ -382,6 +384,7 @@ function formatNewsData(newsData) {
         }
         
         // Format each news item as a card with publication date
+        urls.push("#" + canonicalUrl);
         htmlContent.push(`
             <div class="cf-news-item">
                 <p class="text-muted"><small><a href="${canonicalUrl}" target="_blank" rel="noopener noreferrer">${canonicalUrl}</a></small></p>
@@ -394,8 +397,8 @@ function formatNewsData(newsData) {
     }
     
     htmlContent.push('</div>');
-    
-    return htmlContent.join('');
+
+    return [htmlContent.join(''), urls.join('\n')];
 }
 
 /**

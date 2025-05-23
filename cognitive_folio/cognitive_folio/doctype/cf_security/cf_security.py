@@ -63,6 +63,7 @@ class CFSecurity(Document):
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
+	
 	def generate_ai_suggestion(self):
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('AI suggestion is only for non-cash securities')}
