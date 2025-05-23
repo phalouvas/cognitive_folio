@@ -11,8 +11,9 @@ frappe.ui.form.on('CF Security', {
             if(frm.doc.news) {
                 try {
                     const newsData = JSON.parse(frm.doc.news);
-                    const newsHtml = formatNewsData(newsData);
-                    frm.set_df_property('news_html', 'options', newsHtml);
+                    const htmlResultArray = formatNewsData(newsData);
+                    frm.set_df_property('news_html', 'options', htmlResultArray[0]);
+                    frm.set_value('news_urls', htmlResultArray[1]);
                 } catch (error) {
                     console.error("Error parsing news data:", error);
                     frm.set_df_property('news_html', 'options', 
@@ -46,7 +47,7 @@ frappe.ui.form.on('CF Security', {
                     '<div class="text-muted">No ticker information available.</div>');
             }
 
-            frm.add_custom_button(__('Fetch Ticker Info'), function() {
+            frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
                 frm.call({
@@ -114,6 +115,86 @@ frappe.ui.form.on('CF Security', {
                     }
                 });
             }, __('Actions'));
+            
+            // Add copy buttons for multiple fields
+            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news_urls'];
+            fieldsWithCopyButtons.forEach(fieldName => {
+                addCopyButtonToField(frm, fieldName);
+            });
+            
+            // Add inline copy button for balance_sheet field
+            if (frm.doc.balance_sheet) {
+                // Add the button directly to the field's wrapper
+                const balance_sheet_field = frm.get_field('balance_sheet');
+                if (balance_sheet_field && balance_sheet_field.$wrapper) {
+                    // Remove any existing copy button first
+                    balance_sheet_field.$wrapper.find('.copy-btn').remove();
+                    
+                    // Create a small copy button
+                    const copyBtn = $(`
+                        <button type="button" class="btn btn-xs btn-default copy-btn" 
+                                style="margin-left: 5px; padding: 2px 8px; font-size: 11px;">
+                            <i class="fa fa-copy"></i> Copy
+                        </button>
+                    `);
+                    
+                    // Add click handler
+                    copyBtn.on('click', function(e) {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        
+                        // Use the modern Clipboard API
+                        if (navigator.clipboard && window.isSecureContext) {
+                            navigator.clipboard.writeText(frm.doc.balance_sheet).then(function() {
+                                frappe.show_alert({
+                                    message: __('Balance sheet data copied to clipboard'),
+                                    indicator: 'green'
+                            });
+                            }).catch(function(err) {
+                                console.error('Failed to copy: ', err);
+                                frappe.msgprint({
+                                    title: __('Copy Error'),
+                                    indicator: 'red',
+                                    message: __('Failed to copy balance sheet data to clipboard')
+                                });
+                            });
+                        } else {
+                            // Fallback for older browsers or non-secure contexts
+                            try {
+                                const textArea = document.createElement('textarea');
+                                textArea.value = frm.doc.balance_sheet;
+                                textArea.style.position = 'fixed';
+                                textArea.style.opacity = '0';
+                                document.body.appendChild(textArea);
+                                textArea.focus();
+                                textArea.select();
+                                
+                                const successful = document.execCommand('copy');
+                                document.body.removeChild(textArea);
+                                
+                                if (successful) {
+                                    frappe.show_alert({
+                                        message: __('Balance sheet data copied to clipboard'),
+                                        indicator: 'green'
+                                    });
+                                } else {
+                                    throw new Error('Copy command failed');
+                                }
+                            } catch (err) {
+                                console.error('Fallback copy failed: ', err);
+                                frappe.msgprint({
+                                    title: __('Copy Error'),
+                                    indicator: 'red',
+                                    message: __('Failed to copy balance sheet data to clipboard')
+                                });
+                            }
+                        }
+                    });
+                    
+                    // Append the button to the field's label area
+                    balance_sheet_field.$wrapper.find('.control-label').append(copyBtn);
+                }
+            }
         }
     },
 
@@ -277,6 +358,7 @@ function formatNewsData(newsData) {
         return '<div class="text-muted">No news available for this security.</div>';
     }
     
+    let urls = [];
     let htmlContent = ['<div class="cf-news-container">'];
     
     for (const item of newsData) {
@@ -302,6 +384,7 @@ function formatNewsData(newsData) {
         }
         
         // Format each news item as a card with publication date
+        urls.push("#" + canonicalUrl);
         htmlContent.push(`
             <div class="cf-news-item">
                 <p class="text-muted"><small><a href="${canonicalUrl}" target="_blank" rel="noopener noreferrer">${canonicalUrl}</a></small></p>
@@ -314,8 +397,8 @@ function formatNewsData(newsData) {
     }
     
     htmlContent.push('</div>');
-    
-    return htmlContent.join('');
+
+    return [htmlContent.join(''), urls.join('\n')];
 }
 
 /**
@@ -678,4 +761,91 @@ function formatPercentWithColor(value) {
     } else {
         return percent;
     }
+}
+
+// Add this helper function after the frappe.ui.form.on block
+function addCopyButtonToField(frm, fieldName) {
+    if (frm.doc[fieldName]) {
+        // Get the field wrapper
+        const field = frm.get_field(fieldName);
+        if (field && field.$wrapper) {
+            // Remove any existing copy button first
+            field.$wrapper.find('.copy-btn').remove();
+            
+            // Create a small copy button
+            const copyBtn = $(`
+                <button type="button" class="btn btn-xs btn-default copy-btn" 
+                        style="margin-left: 5px; padding: 2px 8px; font-size: 11px;">
+                    <i class="fa fa-copy"></i> Copy
+                </button>
+            `);
+            
+            // Add click handler
+            copyBtn.on('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                
+                // Use the modern Clipboard API
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(frm.doc[fieldName]).then(function() {
+                        frappe.show_alert({
+                            message: __(`${getFieldDisplayName(fieldName)} data copied to clipboard`),
+                            indicator: 'green'
+                        });
+                    }).catch(function(err) {
+                        console.error('Failed to copy: ', err);
+                        frappe.msgprint({
+                            title: __('Copy Error'),
+                            indicator: 'red',
+                            message: __(`Failed to copy ${getFieldDisplayName(fieldName)} data to clipboard`)
+                        });
+                    });
+                } else {
+                    // Fallback for older browsers or non-secure contexts
+                    try {
+                        const textArea = document.createElement('textarea');
+                        textArea.value = frm.doc[fieldName];
+                        textArea.style.position = 'fixed';
+                        textArea.style.opacity = '0';
+                        document.body.appendChild(textArea);
+                        textArea.focus();
+                        textArea.select();
+                        
+                        const successful = document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        
+                        if (successful) {
+                            frappe.show_alert({
+                                message: __(`${getFieldDisplayName(fieldName)} data copied to clipboard`),
+                                indicator: 'green'
+                            });
+                        } else {
+                            throw new Error('Copy command failed');
+                        }
+                    } catch (err) {
+                        console.error('Fallback copy failed: ', err);
+                        frappe.msgprint({
+                            title: __('Copy Error'),
+                            indicator: 'red',
+                            message: __(`Failed to copy ${getFieldDisplayName(fieldName)} data to clipboard`)
+                        });
+                    }
+                }
+            });
+            
+            // Append the button to the field's label area
+            field.$wrapper.find('.control-label').append(copyBtn);
+        }
+    }
+}
+
+// Helper function to get user-friendly field names for messages
+function getFieldDisplayName(fieldName) {
+    const displayNames = {
+        'balance_sheet': 'Balance Sheet',
+        'ticker_info': 'Ticker Info',
+        'profit_loss': 'Profit & Loss',
+        'cash_flow': 'Cash Flow'
+    };
+    return displayNames[fieldName] || fieldName;
 }

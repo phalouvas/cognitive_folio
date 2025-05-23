@@ -29,7 +29,7 @@ frappe.ui.form.on("CF Portfolio Holding", {
                     `<div class="markdown-preview">No AI suggestion available.</div>`);
             }
 
-            frm.add_custom_button(__('Fetch Ticker Info'), function() {
+            frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
                 frm.call({

@@ -16,12 +16,35 @@ frappe.ui.form.on("CF Portfolio", {
             
             // Add "Fetch All Prices" button
             frm.add_custom_button(__('Fetch Prices'), function() {
-                // Show loading indicator
-                
-                // Call server-side method to update prices
                 frm.call({
                     method: 'fetch_all_prices',
                     doc: frm.doc,
+                    args: {
+						type: "prices",
+					},
+                    callback: function(r) {
+                        if (r.message) {
+                            frappe.show_alert({
+                                message: __('Updated prices for ' + r.message + ' securities'),
+                                indicator: 'green'
+                            }, 5);
+                            frm.reload_doc();
+                        }
+                    },
+                    error: function() {
+                        // Unfreeze UI in case of an error
+                        frappe.msgprint(__('An error occurred while updating prices.'));
+                    }
+                });
+            }, __('Holdings'));
+
+            frm.add_custom_button(__('Fetch Fundamendals'), function() {
+                frm.call({
+                    method: 'fetch_all_prices',
+                    doc: frm.doc,
+                    args: {
+						type: "fundamentals",
+					},
                     callback: function(r) {
                         if (r.message) {
                             frappe.show_alert({
