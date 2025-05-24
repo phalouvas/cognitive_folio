@@ -29,12 +29,35 @@ frappe.ui.form.on("CF Portfolio Holding", {
                     `<div class="markdown-preview">No AI suggestion available.</div>`);
             }
 
+            frm.add_custom_button(__('Fetch Current Price'), function() {
+                frappe.dom.freeze(__('Fetching current price...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'fetch_current_price',
+                    callback: function(r) {
+                        // Unfreeze the GUI when operation completes
+                        frappe.dom.unfreeze();
+                        
+                        frappe.show_alert({
+                            message: __('Security data refreshed'),
+                            indicator: 'green'
+                        });
+                        frm.refresh();
+                    },
+                    error: function(r) {
+                        // Make sure to unfreeze even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+
             frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_current_price',
+                    method: 'fetch_fundamentals',
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();

@@ -36,10 +36,39 @@ class CFSecurity(Document):
 	def after_insert(self):
 		"""Fetch and set the current price after inserting the document"""
 		if YFINANCE_INSTALLED:
-			self.fetch_current_price()
+			self.fetch_fundamentals()
 
 	@frappe.whitelist()
 	def fetch_current_price(self):
+		if self.security_type == "Cash":
+			return {'success': False, 'error': _('Price is only for non-cash securities')}
+		
+		"""Fetch the current price from Yahoo Finance"""
+		try:
+			ticker = yf.Ticker(self.symbol)
+			
+			# Using fast_info which is more efficient for basic price data
+			self.current_price = ticker.fast_info['last_price']
+			self.currency = ticker.fast_info['currency']
+			self.save()
+			# Get all portfolio holdings of this security
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"security": self.name},
+				fields=["name"]
+			)
+			
+			# Update each holding with the new price
+			for holding in holdings:
+				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
+				portfolio_holding.save()
+			return {'success': True, 'price': self.current_price, 'currency': self.currency}
+		except Exception as e:
+			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
+			frappe.throw("Error fetching current price. Please check the symbol.")
+
+	@frappe.whitelist()
+	def fetch_fundamentals(self):
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('Price is only for non-cash securities')}
 		
@@ -55,11 +84,25 @@ class CFSecurity(Document):
 			self.current_price = ticker_info['regularMarketPrice']
 			self.news = frappe.as_json(ticker.get_news())
 			self.country = ticker_info.get('country', '')
+			self.dividends = ticker.dividends.to_json(date_format='iso')
 			if self.country == "South Korea":
 				self.country = "Korea, Republic of"
 			if not self.region:
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
+
+			# Get all portfolio holdings of this security
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"security": self.name},
+				fields=["name"]
+			)
+			
+			# Update each holding with the new price
+			for holding in holdings:
+				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
+				portfolio_holding.save()
+				
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")

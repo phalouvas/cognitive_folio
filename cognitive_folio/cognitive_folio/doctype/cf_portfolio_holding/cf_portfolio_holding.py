@@ -18,9 +18,9 @@ class CFPortfolioHolding(Document):
     def validate(self):
         self.convert_average_purchase_price()
         self.calculate_current_value()
+        self.calculate_dividend_data()
         self.calculate_profit_loss()
         self.calculate_allocation_percentage()
-        self.calculate_dividend_data()
         
     def convert_average_purchase_price(self):
         """Convert average purchase price to portfolio currency if changed"""
@@ -77,7 +77,7 @@ class CFPortfolioHolding(Document):
     def calculate_profit_loss(self):
         """Calculate profit/loss based on purchase price and current value"""
         self.base_cost = flt(self.base_average_purchase_price * self.quantity)
-        self.profit_loss = flt(self.current_value - self.base_cost)
+        self.profit_loss = flt(self.current_value + self.total_dividend_income - self.base_cost)
         self.profit_loss_percentage = flt((self.profit_loss / self.base_cost) * 100, 2)
 
     def calculate_allocation_percentage(self):
@@ -133,9 +133,29 @@ class CFPortfolioHolding(Document):
         try:
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
-            
-            # Call the fetch_current_price method on the security
             security.fetch_current_price()
+            self.save()
+
+            return {"success": True}
+        except Exception as e:
+            frappe.log_error(f"Error fetching current price: {str(e)}", "Portfolio Holding Error")
+            frappe.throw("Error fetching current price. Please check the security.")
+
+    @frappe.whitelist()
+    def fetch_fundamentals(self):
+
+        if self.security_type == "Cash":
+            return {"success": True}
+        
+        """Fetch the current price from the related security"""
+        if not self.security:
+            frappe.throw("Security must be specified to fetch current price.")
+            
+        try:
+            # Get the security document
+            security = frappe.get_doc("CF Security", self.security)
+            security.fetch_fundamentals()
+            self.save()
             
             return {"success": True}
         except Exception as e:
@@ -181,10 +201,60 @@ class CFPortfolioHolding(Document):
             if ticker_data.get("dividendYield"):
                 self.dividend_yield = flt(ticker_data.get("dividendYield"), 2)
             
-            # Calculate yearly dividend income
-            if self.dividend_yield and self.current_value:
-                # Calculate yearly dividend income based on current value and yield percentage
-                self.yearly_dividend_income = flt((self.dividend_yield / 100) * self.current_value)
+            # Get latest dividend from dividend history
+            security = frappe.get_doc("CF Security", self.security)
+            if security.dividends:
+                # get portfolio start_date
+                portfolio = frappe.get_doc("CF Portfolio", self.portfolio)
+                dividends = json.loads(security.dividends) if isinstance(security.dividends, str) else security.dividends
+                if dividends:
+                    # Sort dates in descending order to get the most recent one
+                    dates = sorted(dividends.keys(), reverse=True)
+                    if dates:
+                        # Calculate total dividend income since portfolio start date
+                        total_dividend_income = 0
+                        from datetime import datetime
+
+                        for date_str in dates:
+                            # Convert string date to datetime.date object for comparison
+                            try:
+                                # Handle full ISO format date string (YYYY-MM-DDTHH:MM:SS.sssZ)
+                                if 'T' in date_str:
+                                    # Parse ISO 8601 format with time component
+                                    dividend_date = datetime.fromisoformat(date_str.replace('Z', '+00:00')).date()
+                                else:
+                                    # Handle simple YYYY-MM-DD format
+                                    dividend_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+                                
+                                # Convert portfolio.start_date to datetime.date if it's a string
+                                portfolio_start_date = portfolio.start_date
+                                if isinstance(portfolio_start_date, str):
+                                    portfolio_start_date = datetime.strptime(portfolio_start_date, '%Y-%m-%d').date()
+                                
+                                # Only count dividends after portfolio start date
+                                if portfolio_start_date and dividend_date >= portfolio_start_date:
+                                    total_dividend_income += flt(dividends[date_str]) * self.quantity
+                            except ValueError as e:
+                                # Skip if date format is invalid
+                                frappe.log_error(
+                                    f"Invalid date format in dividend data: {date_str}, error: {str(e)}",
+                                    "Portfolio Holding Dividend Calculation Error"
+                                )
+
+                        # Convert total dividend income to portfolio currency if needed
+                        if total_dividend_income > 0 and security.currency != portfolio.currency:
+                            try:
+                                conversion_rate = get_exchange_rate(security.currency, portfolio.currency)
+                                if security.currency.upper() == 'GBP':
+                                    conversion_rate = conversion_rate / 100
+                                total_dividend_income = flt(total_dividend_income * conversion_rate)
+                            except Exception as e:
+                                frappe.log_error(
+                                    f"Currency conversion failed for dividend total: {str(e)}",
+                                    "Portfolio Holding Dividend Currency Conversion Error"
+                                )
+
+                        self.total_dividend_income = flt(total_dividend_income, 2)
                 
         except Exception as e:
             frappe.log_error(

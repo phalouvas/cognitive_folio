@@ -24,8 +24,6 @@ class CFPortfolio(Document):
 		"""Queue AI suggestion generation for each holding as separate background jobs"""
 		from frappe.utils.background_jobs import enqueue
 
-		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=1)
-		
 		try:
 			# Get holdings in this portfolio
 			holdings = frappe.get_all(
@@ -43,7 +41,7 @@ class CFPortfolio(Document):
 			# Queue a job for each holding
 			job_count = 0
 			for holding in holdings:
-				if not holding.security or holding.modified > cutoff_time:
+				if not holding.security:
 					continue
 					
 				# Calculate a unique job name to prevent duplicates
@@ -72,16 +70,8 @@ class CFPortfolio(Document):
 			return {'success': False, 'error': str(e)}
 
 	@frappe.whitelist()
-	def fetch_all_prices(self, type):
+	def fetch_all_prices(self):
 		"""Update prices for all holdings in this portfolio using batch requests"""
-		try:
-			import yfinance as yf
-		except ImportError:
-			frappe.msgprint("YFinance package is not installed. Please run 'bench pip install yfinance'")
-			return 0
-		
-		# Calculate the timestamp for 1 hour ago as a datetime object
-		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=1)
 		
 		# Get all holdings for this portfolio (excluding Cash type securities)
 		holdings = frappe.get_all(
@@ -97,132 +87,49 @@ class CFPortfolio(Document):
 			frappe.msgprint("No holdings found in this portfolio")
 			return 0
 		
-		# Get unique securities and map them to their holdings
-		security_to_holdings_map = {}
-		for holding in holdings:
-			security = holding.security
-			if security not in security_to_holdings_map:
-				security_to_holdings_map[security] = []
-			security_to_holdings_map[security].append(holding.name)
-		
-		# Get securities data for batch request
-		securities_data = {}
-		for security_name in security_to_holdings_map:
-			security = frappe.get_doc("CF Security", security_name)
-			if security.symbol:
-				securities_data[security_name] = {
-					"symbol": security.symbol,
-					"currency": security.currency,
-					"doc": security,
-					"modified": security.modified
-				}
-		
-		# Extract symbols for batch request
-		symbols = [data["symbol"] for data in securities_data.values() if data["symbol"]]
-		
-		if not symbols:
-			frappe.msgprint("No valid symbols found in portfolio securities")
-			return 0
-		
-		try:
-			# Make a single batch request for all symbols
-			tickers = yf.Tickers(" ".join(symbols))
-			
-			# Update each holding with the batch data
-			updated_count = 0
-			total_steps = len(securities_data)
-			
-			for security_name, data in securities_data.items():
-
-				symbol = data["symbol"]
-				security_currency = data["currency"]
-
-				frappe.publish_progress(
-					percent=(updated_count+1)/total_steps * 100,
-					title="Processing",
-					description=f"Processing item {updated_count+1} of {total_steps} ({symbol})"
-				)
-				
-				if not symbol or symbol not in tickers.tickers or data["modified"] > cutoff_time:
-					updated_count += 1
-					continue
-					
-				ticker = tickers.tickers[symbol]
-				
-				try:
-					# Get ticker info
-					ticker_info = ticker.info
-					
-					# Update current price for all holdings of this security
-					if 'regularMarketPrice' in ticker_info:
-						price_in_security_currency = flt(ticker_info['regularMarketPrice'])
-						
-						# Update each holding for this security
-						for holding_name in security_to_holdings_map[security_name]:
-							holding = frappe.get_doc("CF Portfolio Holding", holding_name)
-							
-							# Set current_price based on currency conversion if needed
-							if security_currency == self.currency:
-								# No conversion needed if currencies match
-								holding.current_price = price_in_security_currency
-							else:
-								# Convert price to portfolio currency
-								try:
-									conversion_rate = get_exchange_rate(security_currency, self.currency)
-									if conversion_rate:
-										holding.current_price = flt(price_in_security_currency * conversion_rate)
-								except Exception as e:
-									frappe.log_error(
-										f"Currency conversion failed for {symbol}: {str(e)}",
-										"Portfolio Currency Conversion Error"
-									)
-									# Use unconverted price if conversion fails
-									holding.current_price = price_in_security_currency
-							
-							# Update other values in the holding
-							holding.current_value = holding.quantity * holding.current_price
-							if holding.average_purchase_price and holding.quantity:
-								total_cost = holding.average_purchase_price * holding.quantity
-								holding.profit_loss = holding.current_value - total_cost
-							
-							# Save the holding
-							holding.save()
-							updated_count += 1
-					
-					# Save ticker info in the security document if needed
-					if ticker_info and hasattr(data["doc"], "ticker_info"):
-						security_doc = data["doc"]
-						security_doc.ticker_info = frappe.as_json(ticker_info)
-						security_doc.current_price = ticker_info['regularMarketPrice']
-						
-						# Update sector and industry if they exist in the security doctype
-						if hasattr(security_doc, "sector") and 'sector' in ticker_info:
-							security_doc.sector = ticker_info['sector']
-						
-						if hasattr(security_doc, "industry") and 'industry' in ticker_info:
-							security_doc.industry = ticker_info['industry']
-
-						if type == "fundamentals":
-							security_doc.profit_loss = ticker.financials.to_json(date_format='iso')
-							security_doc.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
-							security_doc.cash_flow = ticker.cashflow.to_json(date_format='iso')
-						
-						security_doc.save()
-						
-				except Exception as e:
-					frappe.log_error(
-						f"Failed to update {symbol} from batch data: {str(e)}",
-						"Portfolio Batch Update Error"
-					)
-			
-			return updated_count
-			
-		except Exception as e:
-			frappe.log_error(
-				f"Batch update failed: {str(e)}",
-				"Portfolio Batch Update Error"
+		# Use enumerate to get a counter in the for loop
+		total_steps = len(holdings)
+		for counter, holding in enumerate(holdings, 1):
+			frappe.publish_progress(
+				percent=(counter)/total_steps * 100,
+				title="Processing",
+				description=f"Processing item {counter} of {total_steps} ({holding.security})"
 			)
+			security = frappe.get_doc("CF Security", holding.security)
+			security.fetch_current_price()
+			
+		return total_steps
+	
+	@frappe.whitelist()
+	def fetch_all_fundamentals(self):
+		"""Update prices for all holdings in this portfolio using batch requests"""
+		
+		# Get all holdings for this portfolio (excluding Cash type securities)
+		holdings = frappe.get_all(
+			"CF Portfolio Holding",
+			filters=[
+				["portfolio", "=", self.name],
+				["security_type", "!=", "Cash"]
+			],
+			fields=["name", "security"]
+		)
+		
+		if not holdings:
+			frappe.msgprint("No holdings found in this portfolio")
 			return 0
+		
+		# Use enumerate to get a counter in the for loop
+		total_steps = len(holdings)
+		for counter, holding in enumerate(holdings, 1):
+			frappe.publish_progress(
+				percent=(counter)/total_steps * 100,
+				title="Processing",
+				description=f"Processing item {counter} of {total_steps} ({holding.security})"
+			)
+			security = frappe.get_doc("CF Security", holding.security)
+			security.fetch_fundamentals()
+			
+		return total_steps
 	
 	@frappe.whitelist()
 	def generate_portfolio_ai_analysis(self):
@@ -576,13 +483,13 @@ class CFPortfolio(Document):
 			# Initialize metrics
 			total_current_value = 0
 			total_cost = 0
-			total_yearly_dividend_income = 0
+			total_dividend_income = 0
 			
 			# Calculate totals from holdings
 			for holding in holdings:
 				total_current_value += flt(holding.current_value or 0)
 				total_cost += flt(holding.base_cost or 0)
-				total_yearly_dividend_income += flt(holding.yearly_dividend_income or 0)
+				total_dividend_income += flt(holding.total_dividend_income or 0)
 			
 			# Set basic portfolio values
 			self.cost = total_cost
@@ -598,43 +505,8 @@ class CFPortfolio(Document):
 			else:
 				self.returns_percentage_price = 0
 			
-			# Calculate dividend returns using linear growth model
-			days_held = date_diff(frappe.utils.now_datetime().strftime('%Y-%m-%d'), self.start_date)
-			years_held = flt(days_held / 365.0, 6)  # Convert days to years
-			
-			# Calculate portfolio dividend yield (weighted average)
-			portfolio_dividend_yield = 0
-			if total_current_value > 0:
-				for holding in holdings:
-					weight = flt((holding.current_value or 0) / total_current_value, 6)
-					portfolio_dividend_yield += weight * flt(holding.dividend_yield or 0, 6)
-			
-			# Use linear growth model with quarterly dividends to estimate total dividends received
-			total_dividends = 0
-			quarters = int(years_held * 4)
-			
-			if quarters > 0:
-				# Calculate average quarter-to-quarter growth rate
-				quarterly_step = (total_current_value - total_cost) / quarters
-				
-				# For each quarter, calculate the portfolio value and apply dividend yield
-				for q in range(quarters):
-					# Estimated portfolio value for this quarter
-					quarter_value = total_cost + (quarterly_step * q)
-					
-					# Calculate quarterly dividend (annual yield divided by 4)
-					quarter_dividend = quarter_value * (portfolio_dividend_yield / 100) / 4
-					total_dividends += quarter_dividend
-			
-			# Add partial quarter if needed
-			if years_held * 4 > quarters:
-				fraction_remaining = (years_held * 4) - quarters
-				last_quarter_value = total_cost + (quarterly_step * quarters)
-				partial_quarter_dividend = last_quarter_value * (portfolio_dividend_yield / 100) / 4 * fraction_remaining
-				total_dividends += partial_quarter_dividend
-			
-			# Store actual dividend income received
-			self.returns_dividends = flt(total_dividends, 2)
+			# Use actual total dividend income received since portfolio start
+			self.returns_dividends = flt(total_dividend_income, 2)
 			
 			# Calculate dividend returns percentage
 			if total_cost > 0:
@@ -652,11 +524,20 @@ class CFPortfolio(Document):
 			else:
 				self.returns_percentage_total = 0
 			
+			# Calculate portfolio dividend yield (weighted average)
+			portfolio_dividend_yield = 0
+			if total_current_value > 0:
+				for holding in holdings:
+					weight = flt((holding.current_value or 0) / total_current_value, 6)
+					portfolio_dividend_yield += weight * flt(holding.dividend_yield or 0, 6)
+			
 			# Calculate annualized metrics if we have a start date
 			if self.start_date:
 				days_held = date_diff(frappe.utils.now_datetime().strftime('%Y-%m-%d'), self.start_date)
 				
 				if days_held > 0:
+					years_held = flt(days_held / 365.0, 6)
+					
 					# Annualized price returns
 					price_return_rate = self.returns_percentage_price / 100
 					self.annualized_percentage_price = flt(
@@ -667,12 +548,18 @@ class CFPortfolio(Document):
 					# Convert annualized percentage to currency amount
 					self.annualized_price = flt((total_cost * self.annualized_percentage_price / 100), 2)
 					
-					# For dividend yield, we use the current yield for annualized values
-					self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
-					self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
+					# Annualized dividend returns based on actual dividends received
+					if years_held > 0:
+						annualized_dividend_rate = (self.returns_dividends / total_cost) / years_held if total_cost > 0 else 0
+						self.annualized_percentage_dividends = flt(annualized_dividend_rate * 100, 2)
+						self.annualized_dividends = flt(total_cost * annualized_dividend_rate, 2)
+					else:
+						# For very short periods, use current dividend yield
+						self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
+						self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
 					
-					# For annualized total, we combine the annualized price return with the current dividend yield
-					self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+					# Total annualized returns
+					self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 					self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 					
 				else:
@@ -681,7 +568,7 @@ class CFPortfolio(Document):
 					self.annualized_price = self.returns_price
 					self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
 					self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
-					self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+					self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 					self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 			else:
 				# If no start date
@@ -689,7 +576,7 @@ class CFPortfolio(Document):
 				self.annualized_price = self.returns_price
 				self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
 				self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
-				self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+				self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 				self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 	
 			self.save()
@@ -712,14 +599,11 @@ def generate_single_holding_ai_suggestion(holding_name, security_name):
 		if not security_name:
 			return
 			
-		# Calculate the timestamp for 24 hours ago as a datetime object
-		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=24)
-		
 		# Get the security document
 		security = frappe.get_doc("CF Security", security_name)
 
 		# Only generate if needed
-		if not security.ai_suggestion or security.modified < cutoff_time:
+		if not security.ai_suggestion:
 			security.generate_ai_suggestion()
 			frappe.db.commit()  # Important to commit in background jobs
 			frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
