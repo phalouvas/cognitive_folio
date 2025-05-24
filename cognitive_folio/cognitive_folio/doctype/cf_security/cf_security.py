@@ -21,6 +21,7 @@ class CFSecurity(Document):
 			self.current_price = 1.0
 
 		self.validate_isin()
+		self.set_alert()
 	
 	def validate_isin(self):
 		"""Validate ISIN format if provided"""
@@ -241,6 +242,18 @@ class CFSecurity(Document):
 			markdown.append(f"## Risks\n{data['Risks']}\n")
 
 		return "\n".join(markdown)
+
+	def set_alert(self):
+		"""Set an alert for the security"""
+		self.is_alert = 0
+		self.alert_details = ""
+
+		if self.current_price < self.suggestion_buy_price:
+			self.alert_details = f"Current price is below **BUY** price target of {self.suggestion_buy_price}."
+			self.is_alert = 1
+		if self.current_price > self.suggestion_sell_price:
+			self.alert_details = f"Current price is above **SELL** price target of {self.suggestion_sell_price}."
+			self.is_alert = 1
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):
