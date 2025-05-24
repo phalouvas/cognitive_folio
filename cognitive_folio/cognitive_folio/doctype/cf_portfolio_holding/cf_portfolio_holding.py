@@ -214,7 +214,7 @@ class CFPortfolioHolding(Document):
                         # Calculate total dividend income since portfolio start date
                         total_dividend_income = 0
                         from datetime import datetime
-                        
+
                         for date_str in dates:
                             # Convert string date to datetime.date object for comparison
                             try:
@@ -240,7 +240,20 @@ class CFPortfolioHolding(Document):
                                     f"Invalid date format in dividend data: {date_str}, error: {str(e)}",
                                     "Portfolio Holding Dividend Calculation Error"
                                 )
-                        
+
+                        # Convert total dividend income to portfolio currency if needed
+                        if total_dividend_income > 0 and security.currency != portfolio.currency:
+                            try:
+                                conversion_rate = get_exchange_rate(security.currency, portfolio.currency)
+                                if security.currency.upper() == 'GBP':
+                                    conversion_rate = conversion_rate / 100
+                                total_dividend_income = flt(total_dividend_income * conversion_rate)
+                            except Exception as e:
+                                frappe.log_error(
+                                    f"Currency conversion failed for dividend total: {str(e)}",
+                                    "Portfolio Holding Dividend Currency Conversion Error"
+                                )
+
                         self.total_dividend_income = flt(total_dividend_income, 2)
                 
         except Exception as e:
