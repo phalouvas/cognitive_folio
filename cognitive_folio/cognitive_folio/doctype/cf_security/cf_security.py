@@ -39,6 +39,24 @@ class CFSecurity(Document):
 			self.fetch_fundamentals()
 
 	@frappe.whitelist()
+	def fetch_current_price(self):
+		if self.security_type == "Cash":
+			return {'success': False, 'error': _('Price is only for non-cash securities')}
+		
+		"""Fetch the current price from Yahoo Finance"""
+		try:
+			ticker = yf.Ticker(self.symbol)
+			
+			# Using fast_info which is more efficient for basic price data
+			self.current_price = ticker.fast_info['last_price']
+			self.currency = ticker.fast_info['currency']
+			self.save()
+			return {'success': True, 'price': self.current_price, 'currency': self.currency}
+		except Exception as e:
+			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
+			frappe.throw("Error fetching current price. Please check the symbol.")
+
+	@frappe.whitelist()
 	def fetch_fundamentals(self):
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('Price is only for non-cash securities')}

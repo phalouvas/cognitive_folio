@@ -121,6 +121,28 @@ class CFPortfolioHolding(Document):
             holding_doc.db_set("allocation_percentage", allocation_percentage)
             
     @frappe.whitelist()
+    def fetch_current_price(self):
+
+        if self.security_type == "Cash":
+            return {"success": True}
+        
+        """Fetch the current price from the related security"""
+        if not self.security:
+            frappe.throw("Security must be specified to fetch current price.")
+            
+        try:
+            # Get the security document
+            security = frappe.get_doc("CF Security", self.security)
+            
+            # Call the fetch_fundamentals method on the security
+            security.fetch_current_price()
+            
+            return {"success": True}
+        except Exception as e:
+            frappe.log_error(f"Error fetching current price: {str(e)}", "Portfolio Holding Error")
+            frappe.throw("Error fetching current price. Please check the security.")
+
+    @frappe.whitelist()
     def fetch_fundamentals(self):
 
         if self.security_type == "Cash":
