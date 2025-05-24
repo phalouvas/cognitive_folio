@@ -24,8 +24,6 @@ class CFPortfolio(Document):
 		"""Queue AI suggestion generation for each holding as separate background jobs"""
 		from frappe.utils.background_jobs import enqueue
 
-		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=1)
-		
 		try:
 			# Get holdings in this portfolio
 			holdings = frappe.get_all(
@@ -43,7 +41,7 @@ class CFPortfolio(Document):
 			# Queue a job for each holding
 			job_count = 0
 			for holding in holdings:
-				if not holding.security or holding.modified > cutoff_time:
+				if not holding.security:
 					continue
 					
 				# Calculate a unique job name to prevent duplicates
@@ -79,9 +77,6 @@ class CFPortfolio(Document):
 		except ImportError:
 			frappe.msgprint("YFinance package is not installed. Please run 'bench pip install yfinance'")
 			return 0
-		
-		# Calculate the timestamp for 1 hour ago as a datetime object
-		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=1)
 		
 		# Get all holdings for this portfolio (excluding Cash type securities)
 		holdings = frappe.get_all(
@@ -143,7 +138,7 @@ class CFPortfolio(Document):
 					description=f"Processing item {updated_count+1} of {total_steps} ({symbol})"
 				)
 				
-				if not symbol or symbol not in tickers.tickers or data["modified"] > cutoff_time:
+				if not symbol or symbol not in tickers.tickers:
 					updated_count += 1
 					continue
 					
@@ -693,14 +688,11 @@ def generate_single_holding_ai_suggestion(holding_name, security_name):
 		if not security_name:
 			return
 			
-		# Calculate the timestamp for 24 hours ago as a datetime object
-		cutoff_time = frappe.utils.now_datetime() - timedelta(hours=24)
-		
 		# Get the security document
 		security = frappe.get_doc("CF Security", security_name)
 
 		# Only generate if needed
-		if not security.ai_suggestion or security.modified < cutoff_time:
+		if not security.ai_suggestion:
 			security.generate_ai_suggestion()
 			frappe.db.commit()  # Important to commit in background jobs
 			frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
