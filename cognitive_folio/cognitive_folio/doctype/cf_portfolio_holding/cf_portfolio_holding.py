@@ -18,9 +18,9 @@ class CFPortfolioHolding(Document):
     def validate(self):
         self.convert_average_purchase_price()
         self.calculate_current_value()
+        self.calculate_dividend_data()
         self.calculate_profit_loss()
         self.calculate_allocation_percentage()
-        self.calculate_dividend_data()
         
     def convert_average_purchase_price(self):
         """Convert average purchase price to portfolio currency if changed"""
@@ -77,7 +77,7 @@ class CFPortfolioHolding(Document):
     def calculate_profit_loss(self):
         """Calculate profit/loss based on purchase price and current value"""
         self.base_cost = flt(self.base_average_purchase_price * self.quantity)
-        self.profit_loss = flt(self.current_value - self.base_cost)
+        self.profit_loss = flt(self.current_value + self.total_dividend_income - self.base_cost)
         self.profit_loss_percentage = flt((self.profit_loss / self.base_cost) * 100, 2)
 
     def calculate_allocation_percentage(self):
