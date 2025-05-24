@@ -206,6 +206,7 @@ class CFPortfolio(Document):
 							security_doc.profit_loss = ticker.financials.to_json(date_format='iso')
 							security_doc.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
 							security_doc.cash_flow = ticker.cashflow.to_json(date_format='iso')
+							security_doc.dividends = ticker.dividends.to_json(date_format='iso')
 						
 						security_doc.save()
 						
