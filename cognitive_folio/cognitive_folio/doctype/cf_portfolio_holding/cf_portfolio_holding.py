@@ -133,10 +133,9 @@ class CFPortfolioHolding(Document):
         try:
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
-            
-            # Call the fetch_fundamentals method on the security
             security.fetch_current_price()
-            
+            self.save()
+
             return {"success": True}
         except Exception as e:
             frappe.log_error(f"Error fetching current price: {str(e)}", "Portfolio Holding Error")
@@ -155,9 +154,8 @@ class CFPortfolioHolding(Document):
         try:
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
-            
-            # Call the fetch_fundamentals method on the security
             security.fetch_fundamentals()
+            self.save()
             
             return {"success": True}
         except Exception as e:

@@ -51,6 +51,17 @@ class CFSecurity(Document):
 			self.current_price = ticker.fast_info['last_price']
 			self.currency = ticker.fast_info['currency']
 			self.save()
+			# Get all portfolio holdings of this security
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"security": self.name},
+				fields=["name"]
+			)
+			
+			# Update each holding with the new price
+			for holding in holdings:
+				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
+				portfolio_holding.save()
 			return {'success': True, 'price': self.current_price, 'currency': self.currency}
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
@@ -79,6 +90,19 @@ class CFSecurity(Document):
 			if not self.region:
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
+
+			# Get all portfolio holdings of this security
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"security": self.name},
+				fields=["name"]
+			)
+			
+			# Update each holding with the new price
+			for holding in holdings:
+				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
+				portfolio_holding.save()
+				
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
