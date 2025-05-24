@@ -17,6 +17,7 @@
   "base_average_purchase_price",
   "base_cost",
   "currency",
+  "is_alert",
   "section_break_hwcf",
   "current_price_sec",
   "current_price",
@@ -352,11 +353,20 @@
    "fieldtype": "Currency",
    "label": "Total Dividend Income",
    "read_only": 1
+  },
+  {
+   "default": "0",
+   "fetch_from": "security.is_alert",
+   "fieldname": "is_alert",
+   "fieldtype": "Check",
+   "in_filter": 1,
+   "label": "Alert",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-24 15:43:39.950820",
+ "modified": "2025-05-24 19:43:50.535417",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

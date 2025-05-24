@@ -15,6 +15,9 @@
   "stock_exchange",
   "currency",
   "current_price",
+  "alert_section",
+  "is_alert",
+  "alert_details",
   "section_break_8",
   "country",
   "region",
@@ -339,6 +342,23 @@
    "fieldtype": "JSON",
    "label": "Dividends",
    "read_only": 1
+  },
+  {
+   "fieldname": "alert_section",
+   "fieldtype": "Section Break",
+   "label": "Alert"
+  },
+  {
+   "default": "0",
+   "fieldname": "is_alert",
+   "fieldtype": "Check",
+   "in_filter": 1,
+   "label": "Alert"
+  },
+  {
+   "fieldname": "alert_details",
+   "fieldtype": "Markdown Editor",
+   "label": "Alert Details"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -356,7 +376,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-24 09:29:42.043373",
+ "modified": "2025-05-24 19:44:25.257240",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
