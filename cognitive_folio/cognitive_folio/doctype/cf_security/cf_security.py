@@ -55,6 +55,7 @@ class CFSecurity(Document):
 			self.current_price = ticker_info['regularMarketPrice']
 			self.news = frappe.as_json(ticker.get_news())
 			self.country = ticker_info.get('country', '')
+			self.dividends = ticker.dividends.to_json(date_format='iso')
 			if self.country == "South Korea":
 				self.country = "Korea, Republic of"
 			if not self.region:
