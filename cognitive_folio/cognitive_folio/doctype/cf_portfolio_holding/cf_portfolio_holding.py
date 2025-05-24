@@ -121,7 +121,7 @@ class CFPortfolioHolding(Document):
             holding_doc.db_set("allocation_percentage", allocation_percentage)
             
     @frappe.whitelist()
-    def fetch_current_price(self):
+    def fetch_fundamentals(self):
 
         if self.security_type == "Cash":
             return {"success": True}
@@ -134,8 +134,8 @@ class CFPortfolioHolding(Document):
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
             
-            # Call the fetch_current_price method on the security
-            security.fetch_current_price()
+            # Call the fetch_fundamentals method on the security
+            security.fetch_fundamentals()
             
             return {"success": True}
         except Exception as e:

@@ -34,7 +34,7 @@ frappe.ui.form.on("CF Portfolio Holding", {
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_current_price',
+                    method: 'fetch_fundamentals',
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();

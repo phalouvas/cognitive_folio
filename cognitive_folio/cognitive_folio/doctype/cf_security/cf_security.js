@@ -52,7 +52,7 @@ frappe.ui.form.on('CF Security', {
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_current_price',
+                    method: 'fetch_fundamentals',
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();
@@ -117,7 +117,7 @@ frappe.ui.form.on('CF Security', {
             }, __('Actions'));
             
             // Add copy buttons for multiple fields
-            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news_urls'];
+            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news_urls', 'dividends'];
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });

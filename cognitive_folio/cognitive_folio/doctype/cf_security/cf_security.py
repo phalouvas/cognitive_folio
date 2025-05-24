@@ -36,10 +36,10 @@ class CFSecurity(Document):
 	def after_insert(self):
 		"""Fetch and set the current price after inserting the document"""
 		if YFINANCE_INSTALLED:
-			self.fetch_current_price()
+			self.fetch_fundamentals()
 
 	@frappe.whitelist()
-	def fetch_current_price(self):
+	def fetch_fundamentals(self):
 		if self.security_type == "Cash":
 			return {'success': False, 'error': _('Price is only for non-cash securities')}
 		
