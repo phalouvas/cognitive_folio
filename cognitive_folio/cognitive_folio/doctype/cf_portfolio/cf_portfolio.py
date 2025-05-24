@@ -152,6 +152,27 @@ class CFPortfolio(Document):
 				try:
 					# Get ticker info
 					ticker_info = ticker.info
+
+					# Save ticker info in the security document if needed
+					if ticker_info and hasattr(data["doc"], "ticker_info"):
+						security_doc = data["doc"]
+						security_doc.ticker_info = frappe.as_json(ticker_info)
+						security_doc.current_price = ticker_info['regularMarketPrice']
+						
+						# Update sector and industry if they exist in the security doctype
+						if hasattr(security_doc, "sector") and 'sector' in ticker_info:
+							security_doc.sector = ticker_info['sector']
+						
+						if hasattr(security_doc, "industry") and 'industry' in ticker_info:
+							security_doc.industry = ticker_info['industry']
+
+						if type == "fundamentals":
+							security_doc.profit_loss = ticker.financials.to_json(date_format='iso')
+							security_doc.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
+							security_doc.cash_flow = ticker.cashflow.to_json(date_format='iso')
+							security_doc.dividends = ticker.dividends.to_json(date_format='iso')
+						
+						security_doc.save()
 					
 					# Update current price for all holdings of this security
 					if 'regularMarketPrice' in ticker_info:
@@ -189,27 +210,6 @@ class CFPortfolio(Document):
 							holding.save()
 							updated_count += 1
 					
-					# Save ticker info in the security document if needed
-					if ticker_info and hasattr(data["doc"], "ticker_info"):
-						security_doc = data["doc"]
-						security_doc.ticker_info = frappe.as_json(ticker_info)
-						security_doc.current_price = ticker_info['regularMarketPrice']
-						
-						# Update sector and industry if they exist in the security doctype
-						if hasattr(security_doc, "sector") and 'sector' in ticker_info:
-							security_doc.sector = ticker_info['sector']
-						
-						if hasattr(security_doc, "industry") and 'industry' in ticker_info:
-							security_doc.industry = ticker_info['industry']
-
-						if type == "fundamentals":
-							security_doc.profit_loss = ticker.financials.to_json(date_format='iso')
-							security_doc.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
-							security_doc.cash_flow = ticker.cashflow.to_json(date_format='iso')
-							security_doc.dividends = ticker.dividends.to_json(date_format='iso')
-						
-						security_doc.save()
-						
 				except Exception as e:
 					frappe.log_error(
 						f"Failed to update {symbol} from batch data: {str(e)}",
@@ -577,13 +577,13 @@ class CFPortfolio(Document):
 			# Initialize metrics
 			total_current_value = 0
 			total_cost = 0
-			total_yearly_dividend_income = 0
+			total_dividend_income = 0
 			
 			# Calculate totals from holdings
 			for holding in holdings:
 				total_current_value += flt(holding.current_value or 0)
 				total_cost += flt(holding.base_cost or 0)
-				total_yearly_dividend_income += flt(holding.yearly_dividend_income or 0)
+				total_dividend_income += flt(holding.total_dividend_income or 0)
 			
 			# Set basic portfolio values
 			self.cost = total_cost
@@ -599,43 +599,8 @@ class CFPortfolio(Document):
 			else:
 				self.returns_percentage_price = 0
 			
-			# Calculate dividend returns using linear growth model
-			days_held = date_diff(frappe.utils.now_datetime().strftime('%Y-%m-%d'), self.start_date)
-			years_held = flt(days_held / 365.0, 6)  # Convert days to years
-			
-			# Calculate portfolio dividend yield (weighted average)
-			portfolio_dividend_yield = 0
-			if total_current_value > 0:
-				for holding in holdings:
-					weight = flt((holding.current_value or 0) / total_current_value, 6)
-					portfolio_dividend_yield += weight * flt(holding.dividend_yield or 0, 6)
-			
-			# Use linear growth model with quarterly dividends to estimate total dividends received
-			total_dividends = 0
-			quarters = int(years_held * 4)
-			
-			if quarters > 0:
-				# Calculate average quarter-to-quarter growth rate
-				quarterly_step = (total_current_value - total_cost) / quarters
-				
-				# For each quarter, calculate the portfolio value and apply dividend yield
-				for q in range(quarters):
-					# Estimated portfolio value for this quarter
-					quarter_value = total_cost + (quarterly_step * q)
-					
-					# Calculate quarterly dividend (annual yield divided by 4)
-					quarter_dividend = quarter_value * (portfolio_dividend_yield / 100) / 4
-					total_dividends += quarter_dividend
-			
-			# Add partial quarter if needed
-			if years_held * 4 > quarters:
-				fraction_remaining = (years_held * 4) - quarters
-				last_quarter_value = total_cost + (quarterly_step * quarters)
-				partial_quarter_dividend = last_quarter_value * (portfolio_dividend_yield / 100) / 4 * fraction_remaining
-				total_dividends += partial_quarter_dividend
-			
-			# Store actual dividend income received
-			self.returns_dividends = flt(total_dividends, 2)
+			# Use actual total dividend income received since portfolio start
+			self.returns_dividends = flt(total_dividend_income, 2)
 			
 			# Calculate dividend returns percentage
 			if total_cost > 0:
@@ -653,11 +618,20 @@ class CFPortfolio(Document):
 			else:
 				self.returns_percentage_total = 0
 			
+			# Calculate portfolio dividend yield (weighted average)
+			portfolio_dividend_yield = 0
+			if total_current_value > 0:
+				for holding in holdings:
+					weight = flt((holding.current_value or 0) / total_current_value, 6)
+					portfolio_dividend_yield += weight * flt(holding.dividend_yield or 0, 6)
+			
 			# Calculate annualized metrics if we have a start date
 			if self.start_date:
 				days_held = date_diff(frappe.utils.now_datetime().strftime('%Y-%m-%d'), self.start_date)
 				
 				if days_held > 0:
+					years_held = flt(days_held / 365.0, 6)
+					
 					# Annualized price returns
 					price_return_rate = self.returns_percentage_price / 100
 					self.annualized_percentage_price = flt(
@@ -668,12 +642,18 @@ class CFPortfolio(Document):
 					# Convert annualized percentage to currency amount
 					self.annualized_price = flt((total_cost * self.annualized_percentage_price / 100), 2)
 					
-					# For dividend yield, we use the current yield for annualized values
-					self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
-					self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
+					# Annualized dividend returns based on actual dividends received
+					if years_held > 0:
+						annualized_dividend_rate = (self.returns_dividends / total_cost) / years_held if total_cost > 0 else 0
+						self.annualized_percentage_dividends = flt(annualized_dividend_rate * 100, 2)
+						self.annualized_dividends = flt(total_cost * annualized_dividend_rate, 2)
+					else:
+						# For very short periods, use current dividend yield
+						self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
+						self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
 					
-					# For annualized total, we combine the annualized price return with the current dividend yield
-					self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+					# Total annualized returns
+					self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 					self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 					
 				else:
@@ -682,7 +662,7 @@ class CFPortfolio(Document):
 					self.annualized_price = self.returns_price
 					self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
 					self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
-					self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+					self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 					self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 			else:
 				# If no start date
@@ -690,7 +670,7 @@ class CFPortfolio(Document):
 				self.annualized_price = self.returns_price
 				self.annualized_percentage_dividends = flt(portfolio_dividend_yield, 2)
 				self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
-				self.annualized_percentage_total = flt(self.annualized_percentage_price + portfolio_dividend_yield, 2)
+				self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 				self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 	
 			self.save()
