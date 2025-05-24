@@ -19,9 +19,6 @@ frappe.ui.form.on("CF Portfolio", {
                 frm.call({
                     method: 'fetch_all_prices',
                     doc: frm.doc,
-                    args: {
-						type: "prices",
-					},
                     callback: function(r) {
                         if (r.message) {
                             frappe.show_alert({
@@ -38,13 +35,10 @@ frappe.ui.form.on("CF Portfolio", {
                 });
             }, __('Holdings'));
 
-            frm.add_custom_button(__('Fetch Fundamendals'), function() {
+            frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frm.call({
-                    method: 'fetch_all_prices',
+                    method: 'fetch_all_fundamentals',
                     doc: frm.doc,
-                    args: {
-						type: "fundamentals",
-					},
                     callback: function(r) {
                         if (r.message) {
                             frappe.show_alert({
