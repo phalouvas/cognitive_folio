@@ -246,7 +246,7 @@ class CFSecurity(Document):
 		return "\n".join(markdown)
 
 	def set_alert(self):
-		"""Set AI-focused alerts for high-confidence buy/sell signals"""
+		"""Set alerts only for AI buy/sell signals, but provide comprehensive research details"""
 		self.is_alert = 0
 		self.alert_details = ""
 		
@@ -262,64 +262,102 @@ class CFSecurity(Document):
 		currency = self.currency or ""
 		
 		alert_messages = []
-		alert_triggered = False
+		research_summary = []
 		
-		# AI-based alerts (primary focus for actionable signals)
+		# ACTIONABLE ALERTS (only these trigger is_alert = 1)
 		if ai_buy_price > 0 and current_price <= ai_buy_price:
-			alert_triggered = True
+			self.is_alert = 1  # TRIGGER ALERT
 			discount_pct = ((ai_buy_price - current_price) / ai_buy_price) * 100
 			
 			# Add confidence level based on fundamental support
 			confidence_indicator = ""
 			if intrinsic_value > 0:
-				if current_price <= intrinsic_value * 0.85:  # Fundamental support
+				if current_price <= intrinsic_value * 0.85:
 					confidence_indicator = " 🎯 **HIGH CONFIDENCE** (Fundamental support)"
-				elif current_price <= intrinsic_value * 1.1:  # Neutral fundamental
+				elif current_price <= intrinsic_value * 1.1:
 					confidence_indicator = " ⚖️ **MEDIUM CONFIDENCE** (Fair fundamental value)"
-				else:  # Fundamental disagrees
+				else:
 					confidence_indicator = " ⚠️ **LOW CONFIDENCE** (Above fundamental value)"
 			
 			alert_messages.append(f"🟢 **AI BUY SIGNAL**: Current price {currency} {current_price:.2f} is {discount_pct:.1f}% below AI buy target of {currency} {ai_buy_price:.2f}{confidence_indicator}")
 		
 		if ai_sell_price > 0 and current_price >= ai_sell_price:
-			alert_triggered = True
+			self.is_alert = 1  # TRIGGER ALERT
 			premium_pct = ((current_price - ai_sell_price) / ai_sell_price) * 100
 			
 			# Add confidence level based on fundamental support
 			confidence_indicator = ""
 			if intrinsic_value > 0:
-				if current_price >= intrinsic_value * 1.2:  # Fundamental support for sell
+				if current_price >= intrinsic_value * 1.2:
 					confidence_indicator = " 🎯 **HIGH CONFIDENCE** (Above fundamental value)"
-				elif current_price >= intrinsic_value * 0.9:  # Neutral fundamental
+				elif current_price >= intrinsic_value * 0.9:
 					confidence_indicator = " ⚖️ **MEDIUM CONFIDENCE** (Near fundamental value)"
-				else:  # Fundamental disagrees
+				else:
 					confidence_indicator = " ⚠️ **LOW CONFIDENCE** (Below fundamental value)"
 			
 			alert_messages.append(f"🔴 **AI SELL SIGNAL**: Current price {currency} {current_price:.2f} is {premium_pct:.1f}% above AI sell target of {currency} {ai_sell_price:.2f}{confidence_indicator}")
 		
-		# Extreme fundamental value alerts (only for very high confidence signals)
-		if intrinsic_value > 0 and not alert_triggered:
-			intrinsic_ratio = current_price / intrinsic_value
-			
-			# Only alert on extreme fundamental deviations when AI signals absent
-			if intrinsic_ratio <= 0.6:  # 40%+ discount - extremely undervalued
-				alert_triggered = True
-				discount_pct = ((intrinsic_value - current_price) / intrinsic_value) * 100
-				alert_messages.append(f"💎 **EXTREME UNDERVALUATION**: Price {currency} {current_price:.2f} is {discount_pct:.1f}% below intrinsic value of {currency} {intrinsic_value:.2f} (Consider manual review)")
-			
-			elif intrinsic_ratio >= 2.0:  # 100%+ premium - extremely overvalued
-				alert_triggered = True
-				premium_pct = ((current_price - intrinsic_value) / intrinsic_value) * 100
-				alert_messages.append(f"🚨 **EXTREME OVERVALUATION**: Price {currency} {current_price:.2f} is {premium_pct:.1f}% above intrinsic value of {currency} {intrinsic_value:.2f} (Consider manual review)")
+		# RESEARCH INFORMATION (always shown, never triggers alerts)
 		
-		# Set final alert status and details
-		self.is_alert = 1 if alert_triggered else 0
+		# AI Target Analysis
+		if ai_buy_price > 0:
+			buy_variance = ((current_price - ai_buy_price) / ai_buy_price) * 100
+			if buy_variance <= -5:
+				research_summary.append(f"📊 At {-buy_variance:.1f}% discount to AI buy target ({currency} {ai_buy_price:.2f})")
+			elif buy_variance >= 5:
+				research_summary.append(f"📊 At {buy_variance:.1f}% premium to AI buy target ({currency} {ai_buy_price:.2f})")
+			else:
+				research_summary.append(f"📊 Near AI buy target ({currency} {ai_buy_price:.2f})")
+		
+		if ai_sell_price > 0:
+			sell_variance = ((current_price - ai_sell_price) / ai_sell_price) * 100
+			if sell_variance >= 5:
+				research_summary.append(f"📊 At {sell_variance:.1f}% above AI sell target ({currency} {ai_sell_price:.2f})")
+			elif sell_variance <= -5:
+				research_summary.append(f"📊 At {-sell_variance:.1f}% below AI sell target ({currency} {ai_sell_price:.2f})")
+			else:
+				research_summary.append(f"📊 Near AI sell target ({currency} {ai_sell_price:.2f})")
+		
+		# Fundamental Analysis Research
+		if intrinsic_value > 0:
+			intrinsic_ratio = current_price / intrinsic_value
+			iv_variance = ((current_price - intrinsic_value) / intrinsic_value) * 100
+			
+			if intrinsic_ratio <= 0.6:  # Extreme undervaluation
+				discount_pct = ((intrinsic_value - current_price) / intrinsic_value) * 100
+				research_summary.append(f"💎 **EXTREME UNDERVALUATION**: {discount_pct:.1f}% below intrinsic value ({currency} {intrinsic_value:.2f}) - Consider manual review")
+			elif intrinsic_ratio >= 2.0:  # Extreme overvaluation
+				premium_pct = ((current_price - intrinsic_value) / intrinsic_value) * 100
+				research_summary.append(f"🚨 **EXTREME OVERVALUATION**: {premium_pct:.1f}% above intrinsic value ({currency} {intrinsic_value:.2f}) - Consider manual review")
+			elif abs(iv_variance) <= 15:
+				research_summary.append(f"📈 Fairly valued vs intrinsic value ({currency} {intrinsic_value:.2f}, {iv_variance:+.1f}%)")
+			elif iv_variance < -15:
+				research_summary.append(f"📈 Below intrinsic value ({currency} {intrinsic_value:.2f}, {iv_variance:+.1f}%)")
+			else:
+				research_summary.append(f"📈 Above intrinsic value ({currency} {intrinsic_value:.2f}, {iv_variance:+.1f}%)")
+		
+		if fair_value > 0:
+			fv_variance = ((current_price - fair_value) / fair_value) * 100
+			if abs(fv_variance) <= 10:
+				research_summary.append(f"🎯 Near fair value ({currency} {fair_value:.2f}, {fv_variance:+.1f}%)")
+			elif fv_variance < -10:
+				research_summary.append(f"🎯 Below fair value ({currency} {fair_value:.2f}, {fv_variance:+.1f}%)")
+			else:
+				research_summary.append(f"🎯 Above fair value ({currency} {fair_value:.2f}, {fv_variance:+.1f}%)")
+		
+		# Combine alerts and research into alert_details
+		all_details = []
 		
 		if alert_messages:
-			self.alert_details = "\n\n".join(alert_messages)
+			all_details.extend(alert_messages)
+			all_details.append("---")  # Separator
+		
+		if research_summary:
+			all_details.extend(research_summary)
 		else:
-			# No actionable alerts - provide research summary only
-			self._set_research_summary(current_price, intrinsic_value, fair_value, ai_buy_price, ai_sell_price, currency)
+			all_details.append(f"📊 Current price: {currency} {current_price:.2f} (No analysis data available)")
+		
+		self.alert_details = "\n".join(all_details)
 	
 	def _set_research_summary(self, current_price, intrinsic_value, fair_value, ai_buy_price, ai_sell_price, currency):
 		"""Provide non-alerting research summary for informational purposes"""
