@@ -105,7 +105,7 @@ frappe.ui.form.on("CF Portfolio", {
                                         message: __('Portfolio analysis generated successfully'),
                                         indicator: 'green'
                                     });
-                                    frm.refresh();
+                                    frm.reload_doc();
                                 } else {
                                     frappe.msgprint({
                                         title: __('Error'),
@@ -177,7 +177,7 @@ frappe.ui.form.on("CF Portfolio", {
                                 message: __('Portfolio performance metrics calculated successfully'),
                                 indicator: 'green'
                             });
-                            frm.refresh();
+                            frm.reload_doc();
                         } else {
                             frappe.msgprint({
                                 title: __('Error'),
