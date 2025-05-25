@@ -888,35 +888,27 @@ class CFSecurity(Document):
 			return True  # Conservative assumption
 
 	def _get_current_risk_free_rate(self, country='United States'):
-		"""Get current risk-free rate from Yahoo Finance treasury data"""
+		"""Get current risk-free rate from cached treasury securities"""
 		try:
-			# Map countries to their treasury bond symbols on Yahoo Finance
+			# Map countries to their treasury security symbols
 			treasury_symbols = {
-				'United States': '^TNX',      # 10-Year Treasury Yield
-				'Germany': '^TNX-DE',         # 10-Year German Bund (if available)
-				'United Kingdom': '^TNXUK',   # 10-Year UK Gilt
-				'Japan': '^TNX-JP',           # 10-Year Japanese Government Bond
-				'Canada': '^TNX-CA',          # 10-Year Canadian Government Bond
-				'Australia': '^TNX-AU',       # 10-Year Australian Government Bond
-				'France': '^TNX-FR',          # 10-Year French Government Bond
-				'Switzerland': '^TNX-CH',     # 10-Year Swiss Government Bond
+				'United States': '^TNX-US',
+				'Germany': '^TNX-DE', 
+				'United Kingdom': '^TNX-UK',
+				'Japan': '^TNX-JP',
+				'Canada': '^TNX-CA',
+				'Australia': '^TNX-AU',
+				'France': '^TNX-FR',
+				'Switzerland': '^TNX-CH',
 			}
 			
-			symbol = treasury_symbols.get(country)
-			if not symbol:
-				# For unsupported countries, use US treasury as proxy with country risk adjustment
-				symbol = '^TNX'
+			symbol = treasury_symbols.get(country, '^TNX-US')
 			
-			# Fetch live treasury rate from Yahoo Finance
-			treasury_ticker = yf.Ticker(symbol)
-			treasury_info = treasury_ticker.get_info()
-			
-			# Get the current yield (usually in the 'regularMarketPrice' field for bond yields)
-			current_yield = treasury_info.get('regularMarketPrice') or treasury_info.get('previousClose')
-			
-			if current_yield and current_yield > 0:
-				# Convert percentage to decimal (Yahoo returns yields as percentages)
-				risk_free_rate = current_yield / 100
+			# Try to get cached treasury rate from CF Security
+			treasury_security = frappe.get_doc("CF Security", symbol)
+			if treasury_security and treasury_security.current_price:
+				# Convert percentage to decimal (stored as percentage)
+				risk_free_rate = treasury_security.current_price / 100
 				
 				# Apply country risk premium for non-major economies
 				if country not in ['United States', 'Germany', 'United Kingdom', 'Japan', 'Canada']:
@@ -925,13 +917,13 @@ class CFSecurity(Document):
 				
 				return risk_free_rate
 			
-			# Fallback if live data is not available
-			raise Exception("Live treasury data not available")
+			# Fallback if treasury security doesn't exist
+			raise Exception(f"Treasury security {symbol} not found or has no current price")
 			
 		except Exception as e:
-			frappe.log_error(f"Error fetching live risk-free rate for {country}: {str(e)}", "Risk-Free Rate Fetch Error")
+			frappe.log_error(f"Error getting cached risk-free rate for {country}: {str(e)}", "Risk-Free Rate Cache Error")
 			
-			# Fallback to reasonable estimates if live data fails
+			# Fallback to reasonable estimates if cache fails
 			fallback_rates = {
 				'United States': 0.045,
 				'Germany': 0.025,
