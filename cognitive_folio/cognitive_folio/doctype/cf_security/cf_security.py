@@ -305,12 +305,16 @@ class CFSecurity(Document):
 			self.intrinsic_value = 0
 
 	def _select_best_valuation_methods(self):
-		"""Intelligently select the most appropriate valuation methods based on company characteristics"""
+		"""Intelligently select the most appropriate valuation methods based on sector/industry and company characteristics"""
 		try:
 			if not self.ticker_info:
 				return ['Book']  # Fallback to book value if no data
 			
 			ticker_info = json.loads(self.ticker_info)
+			
+			# Get sector and industry information
+			sector = ticker_info.get('sector', '').lower()
+			industry = ticker_info.get('industry', '').lower()
 			
 			# Analyze company characteristics
 			has_dividends = self._has_consistent_dividends()
@@ -318,61 +322,216 @@ class CFSecurity(Document):
 			has_positive_fcf = self._has_positive_free_cash_flow()
 			is_asset_heavy = self._is_asset_heavy_business()
 			is_growth_company = self._is_growth_company()
-			is_financial = self._is_financial_company()
 			
-			selected_methods = []
+			# Sector-specific valuation method selection
+			selected_methods = self._get_sector_specific_methods(sector, industry, {
+				'has_dividends': has_dividends,
+				'has_stable_earnings': has_stable_earnings,
+				'has_positive_fcf': has_positive_fcf,
+				'is_asset_heavy': is_asset_heavy,
+				'is_growth_company': is_growth_company
+			})
 			
-			# Financial companies (banks, insurance, REITs)
-			if is_financial:
-				selected_methods = ['Book', 'P/E']
-				if has_dividends:
-					selected_methods.append('DDM')
+			if selected_methods:
 				return selected_methods
 			
-			# Growth companies with positive FCF
-			if is_growth_company and has_positive_fcf:
-				selected_methods = ['DCF']
-				if has_stable_earnings:
-					selected_methods.append('P/E')
-				return selected_methods
-			
-			# Dividend aristocrats (mature dividend-paying companies)
-			if has_dividends and has_stable_earnings:
-				selected_methods = ['DDM', 'P/E']
-				if has_positive_fcf:
-					selected_methods.append('DCF')
-				return selected_methods
-			
-			# Asset-heavy businesses
-			if is_asset_heavy:
-				selected_methods = ['Book']
-				if has_stable_earnings:
-					selected_methods.append('P/E')
-				if ticker_info.get('returnOnEquity', 0) > 0.1:
-					selected_methods.append('Residual')
-				return selected_methods
-			
-			# Value stocks with stable earnings
-			if has_stable_earnings and not is_growth_company:
-				selected_methods = ['P/E', 'Graham']
-				if has_positive_fcf:
-					selected_methods.append('DCF')
-				return selected_methods
-			
-			# Companies with positive FCF but irregular earnings
-			if has_positive_fcf and not has_stable_earnings:
-				return ['DCF']
-			
-			# Profitable companies (fallback)
-			if has_stable_earnings:
-				return ['P/E']
-			
-			# Last resort - use book value
-			return ['Book']
+			# Fallback to generic logic if sector not recognized
+			return self._get_generic_valuation_methods(has_dividends, has_stable_earnings, 
+													 has_positive_fcf, is_asset_heavy, is_growth_company)
 			
 		except Exception as e:
 			frappe.log_error(f"Error selecting valuation methods: {str(e)}", "Method Selection Error")
 			return ['Book']  # Safe fallback
+	
+	def _get_sector_specific_methods(self, sector, industry, characteristics):
+		"""Select valuation methods based on specific sector/industry characteristics"""
+		
+		# Technology Sector
+		if 'technology' in sector or any(tech in industry for tech in ['software', 'semiconductor', 'computer', 'internet']):
+			if characteristics['has_positive_fcf']:
+				methods = ['DCF']
+				if characteristics['is_growth_company']:
+					# Growth tech companies - focus on DCF and growth-adjusted P/E
+					if characteristics['has_stable_earnings']:
+						methods.append('P/E')
+				else:
+					# Mature tech companies
+					methods.extend(['P/E'])
+					if characteristics['has_dividends']:
+						methods.append('DDM')
+				return methods
+			else:
+				# Tech companies without positive FCF - use P/E if profitable
+				return ['P/E'] if characteristics['has_stable_earnings'] else ['Book']
+		
+		# Financial Services
+		elif 'financial' in sector or any(fin in industry for fin in ['bank', 'insurance', 'reit', 'real estate investment trust']):
+			methods = ['Book']  # Book value is primary for financial companies
+			
+			# Banks and traditional financial institutions
+			if any(bank in industry for bank in ['bank', 'credit', 'lending']):
+				if characteristics['has_stable_earnings']:
+					methods.append('P/E')  # But use financial-adjusted P/E metrics
+				if characteristics['has_dividends']:
+					methods.append('DDM')
+			
+			# REITs and real estate
+			elif 'reit' in industry or 'real estate' in industry:
+				methods = ['DDM', 'Book']  # REITs must distribute dividends
+			
+			# Insurance companies
+			elif 'insurance' in industry:
+				methods = ['Book', 'Residual']  # Book value and residual income for insurers
+				if characteristics['has_dividends']:
+					methods.append('DDM')
+			
+			return methods
+		
+		# Utilities
+		elif 'utilities' in sector or 'utility' in industry:
+			methods = ['DDM']  # Utilities are dividend-focused
+			if characteristics['has_positive_fcf']:
+				methods.append('DCF')  # Stable, predictable cash flows
+			if characteristics['is_asset_heavy']:
+				methods.append('Book')  # Infrastructure assets
+			return methods
+		
+		# Energy & Oil/Gas
+		elif 'energy' in sector or any(energy in industry for energy in ['oil', 'gas', 'petroleum', 'mining']):
+			if characteristics['has_positive_fcf'] and not self._is_commodity_price_volatile():
+				methods = ['DCF']  # When commodity prices are stable
+			else:
+				methods = ['Book']  # Asset replacement value during volatile periods
+			
+			if characteristics['has_stable_earnings']:
+				methods.append('P/E')  # Normalized P/E during stable periods
+			
+			return methods
+		
+		# Healthcare & Pharmaceuticals
+		elif 'healthcare' in sector or any(health in industry for health in ['pharmaceutical', 'biotechnology', 'medical', 'drug']):
+			methods = []
+			if characteristics['has_positive_fcf']:
+				methods.append('DCF')
+			if characteristics['has_stable_earnings']:
+				methods.append('P/E')  # Adjusted for R&D expenses
+			
+			# Mature pharma companies often pay dividends
+			if characteristics['has_dividends'] and not characteristics['is_growth_company']:
+				methods.append('DDM')
+			
+			return methods if methods else ['P/E']
+		
+		# Consumer Staples
+		elif 'consumer defensive' in sector or 'consumer staples' in sector:
+			methods = ['P/E']  # Stable earnings make P/E reliable
+			if characteristics['has_dividends']:
+				methods.append('DDM')  # Many staples pay consistent dividends
+			methods.append('Graham')  # Graham formula works well for stable companies
+			return methods
+		
+		# Consumer Discretionary/Cyclical
+		elif 'consumer cyclical' in sector or 'consumer discretionary' in sector:
+			if characteristics['has_stable_earnings']:
+				methods = ['P/E']
+			else:
+				methods = ['Book']  # During cyclical downturns
+			
+			if characteristics['has_positive_fcf']:
+				methods.append('DCF')
+			
+			return methods
+		
+		# Materials & Mining
+		elif 'materials' in sector or 'basic materials' in sector or any(material in industry for material in ['mining', 'steel', 'aluminum', 'chemicals']):
+			methods = ['Book']  # Asset replacement cost is important
+			
+			# During stable periods, earnings-based methods work
+			if characteristics['has_stable_earnings']:
+				methods.append('P/E')
+			
+			if characteristics['has_positive_fcf'] and not self._is_commodity_price_volatile():
+				methods.append('DCF')
+			
+			return methods
+		
+		# Industrials
+		elif 'industrials' in sector:
+			methods = []
+			if characteristics['has_positive_fcf']:
+				methods.append('DCF')
+			if characteristics['has_stable_earnings']:
+				methods.append('P/E')
+			if characteristics['is_asset_heavy']:
+				methods.append('Book')
+			
+			return methods if methods else ['P/E']
+		
+		# Communication Services
+		elif 'communication' in sector or 'telecommunications' in sector:
+			methods = []
+			if characteristics['has_positive_fcf']:
+				methods.append('DCF')  # Predictable subscription revenue
+			if characteristics['has_dividends']:
+				methods.append('DDM')  # Many telcos pay dividends
+			if characteristics['has_stable_earnings']:
+				methods.append('P/E')
+			
+			return methods if methods else ['Book']
+		
+		# Real Estate (non-REIT)
+		elif 'real estate' in sector and 'reit' not in industry:
+			methods = ['Book']  # Property asset value
+			if characteristics['has_positive_fcf']:
+				methods.append('DCF')
+			if characteristics['has_dividends']:
+				methods.append('DDM')
+			return methods
+		
+		# If sector not specifically handled, return empty to use generic logic
+		return []
+	
+	def _get_generic_valuation_methods(self, has_dividends, has_stable_earnings, has_positive_fcf, is_asset_heavy, is_growth_company):
+		"""Fallback generic valuation method selection"""
+		
+		# Growth companies with positive FCF
+		if is_growth_company and has_positive_fcf:
+			selected_methods = ['DCF']
+			if has_stable_earnings:
+				selected_methods.append('P/E')
+			return selected_methods
+		
+		# Dividend aristocrats (mature dividend-paying companies)
+		if has_dividends and has_stable_earnings:
+			selected_methods = ['DDM', 'P/E']
+			if has_positive_fcf:
+				selected_methods.append('DCF')
+			return selected_methods
+		
+		# Asset-heavy businesses
+		if is_asset_heavy:
+			selected_methods = ['Book']
+			if has_stable_earnings:
+				selected_methods.append('P/E')
+			return selected_methods
+		
+		# Value stocks with stable earnings
+		if has_stable_earnings and not is_growth_company:
+			selected_methods = ['P/E', 'Graham']
+			if has_positive_fcf:
+				selected_methods.append('DCF')
+			return selected_methods
+		
+		# Companies with positive FCF but irregular earnings
+		if has_positive_fcf and not has_stable_earnings:
+			return ['DCF']
+		
+		# Profitable companies (fallback)
+		if has_stable_earnings:
+			return ['P/E']
+		
+		# Last resort - use book value
+		return ['Book']
 	
 	def _has_consistent_dividends(self):
 		"""Check if company has paid consistent dividends"""
@@ -548,6 +707,35 @@ class CFSecurity(Document):
 			
 		except Exception:
 			return False
+
+	def _is_commodity_price_volatile(self):
+		"""Check if commodity prices are currently volatile for energy/materials companies"""
+		try:
+			# This is a simplified heuristic - in production, you might want to check:
+			# - Oil price volatility (VIX for oil)
+			# - Commodity indices volatility
+			# - Company's revenue/earnings volatility
+			
+			if not self.ticker_info:
+				return True  # Assume volatile if no data
+			
+			ticker_info = json.loads(self.ticker_info)
+			
+			# Check earnings volatility as a proxy for commodity price impact
+			earnings_growth = ticker_info.get('earningsGrowth')
+			if earnings_growth and abs(earnings_growth) > 0.5:  # >50% earnings volatility
+				return True
+			
+			# Check profit margin volatility
+			profit_margin = ticker_info.get('profitMargins', 0)
+			if profit_margin < 0.05:  # Very low margins suggest commodity pressure
+				return True
+			
+			# Default to assuming some volatility for commodity-dependent sectors
+			return True
+			
+		except Exception:
+			return True  # Conservative assumption
 
 	def _get_current_risk_free_rate(self, country='United States'):
 		"""Get current risk-free rate from Yahoo Finance treasury data"""
