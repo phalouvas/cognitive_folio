@@ -15,9 +15,17 @@
   "stock_exchange",
   "currency",
   "current_price",
-  "alert_section",
   "is_alert",
+  "alert_section",
   "alert_details",
+  "suggestion_section",
+  "suggestion_action",
+  "suggestion_buy_price",
+  "intrinsic_value",
+  "column_break_rfgw",
+  "suggestion_rating",
+  "suggestion_sell_price",
+  "fair_value",
   "section_break_8",
   "country",
   "region",
@@ -25,12 +33,6 @@
   "column_break_bpmj",
   "sector",
   "industry",
-  "suggestion_section",
-  "suggestion_action",
-  "suggestion_rating",
-  "column_break_rfgw",
-  "suggestion_buy_price",
-  "suggestion_sell_price",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
@@ -200,7 +202,6 @@
    "collapsible": 1,
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
-   "hidden": 1,
    "label": "Evaluation"
   },
   {
@@ -344,6 +345,7 @@
    "read_only": 1
   },
   {
+   "collapsible": 1,
    "fieldname": "alert_section",
    "fieldtype": "Section Break",
    "label": "Alert"
@@ -359,6 +361,22 @@
    "fieldname": "alert_details",
    "fieldtype": "Markdown Editor",
    "label": "Alert Details"
+  },
+  {
+   "description": "The true, fundamental worth of a stock based on its underlying business performance, cash flows, and assets.",
+   "fieldname": "intrinsic_value",
+   "fieldtype": "Currency",
+   "label": "Intrinsic Value",
+   "options": "currency",
+   "read_only": 1
+  },
+  {
+   "description": "The market-implied value of a stock, considering both fundamentals and market conditions.",
+   "fieldname": "fair_value",
+   "fieldtype": "Currency",
+   "label": "Fair Value",
+   "options": "currency",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -376,7 +394,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-24 19:44:25.257240",
+ "modified": "2025-05-25 07:52:10.596150",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

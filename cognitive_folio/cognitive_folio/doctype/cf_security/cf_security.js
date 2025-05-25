@@ -61,7 +61,7 @@ frappe.ui.form.on('CF Security', {
                             message: __('Security data refreshed'),
                             indicator: 'green'
                         });
-                        frm.refresh();
+                        frm.reload_doc();
                     },
                     error: function(r) {
                         // Make sure to unfreeze even if there's an error
@@ -84,7 +84,7 @@ frappe.ui.form.on('CF Security', {
                             message: __('Security data refreshed'),
                             indicator: 'green'
                         });
-                        frm.refresh();
+                        frm.reload_doc();
                     },
                     error: function(r) {
                         // Make sure to unfreeze even if there's an error
@@ -118,7 +118,7 @@ frappe.ui.form.on('CF Security', {
                                 message: __('AI suggestion generated successfully'),
                                 indicator: 'green'
                             });
-                            frm.refresh();
+                            frm.reload_doc();
                         } else {
                             frappe.msgprint({
                                 title: __('Error'),

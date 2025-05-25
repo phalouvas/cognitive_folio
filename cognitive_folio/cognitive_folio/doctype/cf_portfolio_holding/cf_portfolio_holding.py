@@ -134,7 +134,6 @@ class CFPortfolioHolding(Document):
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
             security.fetch_current_price()
-            self.save()
 
             return {"success": True}
         except Exception as e:
@@ -155,7 +154,6 @@ class CFPortfolioHolding(Document):
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
             security.fetch_fundamentals()
-            self.save()
             
             return {"success": True}
         except Exception as e:
