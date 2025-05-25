@@ -16,6 +16,10 @@ except ImportError:
 
 class CFSecurity(Document):
 	def validate(self):
+		# Auto-detect security type if missing
+		if not self.security_type:
+			self._detect_security_type()
+			
 		if self.security_type == "Cash":
 			self.symbol = self.security_name
 			self.current_price = 1.0
@@ -1493,6 +1497,223 @@ class CFSecurity(Document):
 			frappe.log_error(f"Error calculating fair value: {str(e)}", "Fair Value Calculation Error")
 			self.fair_value = 0
 
+	def _detect_security_type(self):
+		"""Auto-detect security type based on symbol, name, and characteristics"""
+		if not self.symbol:
+			return
+			
+		symbol = self.symbol.upper()
+		name = (self.security_name or '').upper()
+		
+		# Treasury Rate detection
+		if (symbol.startswith('^TNX') or 
+			'TREASURY' in name or 
+			'YIELD' in name or
+			symbol in ['^TNX', '^FVX', '^TYX', '^IRX']):
+			self.security_type = 'Treasury Rate'
+			return
+			
+		# Cash detection
+		if (symbol in ['USD', 'EUR', 'GBP', 'JPY', 'CAD', 'AUD', 'CHF', 'CNY'] or
+			'CASH' in name or
+			'MONEY MARKET' in name):
+			self.security_type = 'Cash'
+			return
+			
+		# ETF detection
+		if (symbol.endswith('.TO') and 'ETF' in name or
+			'EXCHANGE TRADED' in name or
+			'ETF' in name or
+			symbol.startswith('SPY') or
+			symbol.startswith('QQQ') or
+			symbol.startswith('VTI')):
+			self.security_type = 'ETF'
+			return
+			
+		# Mutual Fund detection
+		if ('FUND' in name and 'ETF' not in name or
+			'MUTUAL' in name or
+			symbol.endswith('.MF')):
+			self.security_type = 'Mutual Fund'
+			return
+			
+		# Bond detection
+		if ('BOND' in name or
+			'TREASURY' in name or
+			'CORPORATE BOND' in name or
+			symbol.endswith('.BOND')):
+			self.security_type = 'Bond'
+			return
+			
+		# Cryptocurrency detection
+		if (symbol.endswith('-USD') or
+			symbol.endswith('-EUR') or
+			symbol in ['BTC-USD', 'ETH-USD', 'ADA-USD', 'DOT-USD'] or
+			'BITCOIN' in name or
+			'ETHEREUM' in name or
+			'CRYPTO' in name):
+			self.security_type = 'Cryptocurrency'
+			return
+			
+		# Index detection
+		if (symbol.startswith('^') or
+			'INDEX' in name or
+			'DOW JONES' in name or
+			'S&P' in name or
+			'NASDAQ' in name):
+			self.security_type = 'Index'
+			return
+			
+		# Commodity detection
+		if ('GOLD' in name or
+			'SILVER' in name or
+			'OIL' in name or
+			'COMMODITY' in name or
+			symbol in ['GC=F', 'SI=F', 'CL=F']):
+			self.security_type = 'Commodity'
+			return
+			
+		# Default to Stock for everything else
+		self.security_type = 'Stock'
+
+	def create_treasury_securities(self, force_update=False):
+		"""Create treasury securities for major countries if they don't exist"""
+		treasury_securities = [
+			{
+				'symbol': '^TNX-US',
+				'name': 'US 10-Year Treasury Yield',
+				'country': 'United States',
+				'currency': 'USD'
+			},
+			{
+				'symbol': '^TNX-DE', 
+				'name': 'German 10-Year Bund Yield',
+				'country': 'Germany',
+				'currency': 'EUR'
+			},
+			{
+				'symbol': '^TNX-UK',
+				'name': 'UK 10-Year Gilt Yield', 
+				'country': 'United Kingdom',
+				'currency': 'GBP'
+			},
+			{
+				'symbol': '^TNX-JP',
+				'name': 'Japan 10-Year Bond Yield',
+				'country': 'Japan', 
+				'currency': 'JPY'
+			},
+			{
+				'symbol': '^TNX-CA',
+				'name': 'Canada 10-Year Bond Yield',
+				'country': 'Canada',
+				'currency': 'CAD'
+			},
+			{
+				'symbol': '^TNX-AU',
+				'name': 'Australia 10-Year Bond Yield',
+				'country': 'Australia',
+				'currency': 'AUD'
+			},
+			{
+				'symbol': '^TNX-FR',
+				'name': 'France 10-Year Bond Yield',
+				'country': 'France',
+				'currency': 'EUR'
+			},
+			{
+				'symbol': '^TNX-CH',
+				'name': 'Switzerland 10-Year Bond Yield',
+				'country': 'Switzerland',
+				'currency': 'CHF'
+			}
+		]
+		
+		created_count = 0
+		for treasury in treasury_securities:
+			try:
+				# Check if security already exists
+				if frappe.db.exists("CF Security", treasury['symbol']):
+					if not force_update:
+						continue
+				else:
+					# Create new treasury security
+					doc = frappe.new_doc("CF Security")
+					doc.symbol = treasury['symbol']
+					doc.security_name = treasury['name']
+					doc.security_type = 'Treasury Rate'
+					doc.currency = treasury['currency']
+					doc.country = treasury['country']
+					doc.current_price = 0.0  # Will be updated by refresh_treasury_rates
+					doc.insert(ignore_permissions=True)
+					created_count += 1
+					
+			except Exception as e:
+				frappe.log_error(f"Error creating treasury security {treasury['symbol']}: {str(e)}", "Treasury Creation Error")
+				
+		return created_count
+
+	def refresh_treasury_rates(self, force_update=False):
+		"""Update treasury rates from Yahoo Finance API with time-based logic"""
+		if not YFINANCE_INSTALLED:
+			frappe.log_error("YFinance not installed, cannot refresh treasury rates", "Treasury Refresh Error")
+			return 0
+			
+		# Get all treasury rate securities
+		treasury_securities = frappe.get_all("CF Security", 
+			filters={"security_type": "Treasury Rate"},
+			fields=["name", "symbol", "modified"])
+			
+		updated_count = 0
+		one_year_ago = frappe.utils.add_days(frappe.utils.now(), -365)
+		
+		for security in treasury_securities:
+			try:
+				# Check if update is needed (modified more than one year ago or force_update)
+				if not force_update and security.modified > one_year_ago:
+					continue
+					
+				# Fetch current rate from Yahoo Finance
+				ticker = yf.Ticker(security.symbol)
+				info = ticker.info
+				
+				# Try to get current price/yield
+				current_rate = None
+				if 'regularMarketPrice' in info:
+					current_rate = info['regularMarketPrice']
+				elif 'previousClose' in info:
+					current_rate = info['previousClose']
+				elif 'bid' in info and info['bid'] > 0:
+					current_rate = info['bid']
+					
+				if current_rate and current_rate > 0:
+					# Update the security
+					doc = frappe.get_doc("CF Security", security.name)
+					doc.current_price = current_rate
+					doc.save(ignore_permissions=True)
+					updated_count += 1
+					
+			except Exception as e:
+				frappe.log_error(f"Error updating treasury rate for {security.symbol}: {str(e)}", "Treasury Refresh Error")
+				
+		return updated_count
+
+	def setup_treasury_cache(self, force_update=False):
+		"""Setup treasury rate cache by creating securities and refreshing rates"""
+		try:
+			# Create missing treasury securities
+			created_count = self.create_treasury_securities(force_update=force_update)
+			
+			# Refresh treasury rates
+			updated_count = self.refresh_treasury_rates(force_update=force_update)
+			
+			frappe.msgprint(f"Treasury cache setup complete. Created: {created_count}, Updated: {updated_count}")
+			return {"created": created_count, "updated": updated_count}
+			
+		except Exception as e:
+			frappe.log_error(f"Error setting up treasury cache: {str(e)}", "Treasury Cache Setup Error")
+			frappe.throw(f"Failed to setup treasury cache: {str(e)}")
+
 @frappe.whitelist()
 def search_stock_symbols(search_term):
 	"""Search for stock symbols based on company name or symbol"""
@@ -1502,6 +1723,7 @@ def search_stock_symbols(search_term):
 	try:
 		# Use Yahoo Finance API for searching
 		url = f"https://query2.finance.yahoo.com/v1/finance/search?q={search_term}&quotesCount=10"
+
 		headers = {'User-Agent': 'Mozilla/5.0'}
 		response = requests.get(url, headers=headers)
 		data = response.json()
