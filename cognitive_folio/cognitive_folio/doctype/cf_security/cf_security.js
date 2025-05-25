@@ -6,7 +6,13 @@ frappe.ui.form.on('CF Security', {
         }
     },
     refresh: function(frm) {
-        if (!frm.is_new()) {
+        // Set current_price field read_only based on security_type
+        if(frm.doc.security_type === "Treasury Rate") {
+            frm.set_df_property('current_price', 'read_only', 0);
+            frm.set_df_property('country', 'read_only', 0);
+        }
+        
+        if (!frm.is_new() && frm.doc.security_type == "Stock") {
             // Process news data and render it in the news_html field
             if(frm.doc.news) {
                 try {
@@ -258,6 +264,17 @@ frappe.ui.form.on('CF Security', {
         // If security type is changed to Cash, update symbol
         if(frm.doc.security_type === "Cash" && frm.doc.security_name) {
             frm.set_value('symbol', frm.doc.security_name);
+        }
+        
+        // Make current_price editable for Treasury Rate securities
+        if(frm.doc.security_type === "Treasury Rate") {
+            frm.set_df_property('current_price', 'read_only', 0);
+            frappe.show_alert({
+                message: __('Current price is now editable for Treasury Rate securities'),
+                indicator: 'blue'
+            });
+        } else {
+            frm.set_df_property('current_price', 'read_only', 1);
         }
     }
 });

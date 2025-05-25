@@ -91,7 +91,8 @@
    "in_list_view": 1,
    "label": "Security Type",
    "options": "Stock\nETF\nBond\nMutual Fund\nIndex\nCommodity\nCryptocurrency\nCash\nTreasury Rate\nOther",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "fieldname": "column_break_5",
@@ -111,7 +112,7 @@
    "in_list_view": 1,
    "label": "Currency",
    "options": "Currency",
-   "read_only_depends_on": "eval:doc.security_type !== 'Cash'"
+   "read_only_depends_on": "eval:doc.security_type === 'Stock'"
   },
   {
    "collapsible": 1,
@@ -394,7 +395,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-25 11:53:14.836452",
+ "modified": "2025-05-25 15:19:39.851245",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
