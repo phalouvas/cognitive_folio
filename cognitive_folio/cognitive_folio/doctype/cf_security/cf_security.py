@@ -549,8 +549,93 @@ class CFSecurity(Document):
 		except Exception:
 			return False
 
+	def _get_current_risk_free_rate(self, country='United States'):
+		"""Get current risk-free rate based on country (fallback to reasonable estimates)"""
+		try:
+			# In production, this should fetch from a financial API
+			# For now, use reasonable estimates as of May 2025
+			risk_free_rates = {
+				'United States': 0.045,  # 10-year Treasury
+				'Germany': 0.025,        # 10-year Bund
+				'United Kingdom': 0.040, # 10-year Gilt
+				'Japan': 0.015,          # 10-year JGB
+				'Canada': 0.040,         # 10-year Government Bond
+				'Australia': 0.042,      # 10-year ACGB
+				'France': 0.028,         # 10-year OAT
+				'Switzerland': 0.018,    # 10-year Confederation Bond
+			}
+			
+			return risk_free_rates.get(country, 0.035)  # Default 3.5% for other countries
+			
+		except Exception:
+			return 0.04  # Conservative fallback
+	
+	def _analyze_fcf_quality(self, cash_flow_data, profit_loss_data):
+		"""Analyze the quality and sustainability of free cash flows"""
+		try:
+			if not cash_flow_data or not profit_loss_data:
+				return 1.0  # Neutral quality score
+			
+			quality_score = 1.0
+			
+			# Check FCF vs Net Income consistency
+			fcf_values = []
+			net_income_values = []
+			
+			for date_key in cash_flow_data.keys():
+				fcf = cash_flow_data[date_key].get('Free Cash Flow')
+				if fcf is not None:
+					fcf_values.append(fcf)
+				
+				# Get corresponding net income
+				if date_key in profit_loss_data:
+					net_income = profit_loss_data[date_key].get('Net Income')
+					if net_income is not None:
+						net_income_values.append(net_income)
+			
+			if len(fcf_values) >= 3 and len(net_income_values) >= 3:
+				# FCF should generally track with net income over time
+				avg_fcf = sum(fcf_values) / len(fcf_values)
+				avg_net_income = sum(net_income_values) / len(net_income_values)
+				
+				if avg_net_income > 0:
+					fcf_conversion_ratio = avg_fcf / avg_net_income
+					
+					# Good FCF conversion (80-120% of net income)
+					if 0.8 <= fcf_conversion_ratio <= 1.2:
+						quality_score *= 1.0  # Neutral
+					elif fcf_conversion_ratio > 1.2:
+						quality_score *= 1.1  # High quality (generating more cash than earnings)
+					elif fcf_conversion_ratio < 0.5:
+						quality_score *= 0.8  # Poor quality (much lower cash than earnings)
+			
+			# Check FCF volatility
+			if len(fcf_values) >= 3:
+				fcf_mean = sum(fcf_values) / len(fcf_values)
+				if fcf_mean != 0:
+					fcf_volatility = sum([(fcf - fcf_mean) ** 2 for fcf in fcf_values]) / len(fcf_values)
+					fcf_cv = (fcf_volatility ** 0.5) / abs(fcf_mean)  # Coefficient of variation
+					
+					# Lower volatility is better
+					if fcf_cv < 0.3:  # Low volatility
+						quality_score *= 1.05
+					elif fcf_cv > 0.8:  # High volatility
+						quality_score *= 0.9
+			
+			# Check for negative FCF years
+			negative_fcf_years = sum(1 for fcf in fcf_values if fcf < 0)
+			if len(fcf_values) > 0:
+				negative_ratio = negative_fcf_years / len(fcf_values)
+				if negative_ratio > 0.3:  # More than 30% negative years
+					quality_score *= 0.85
+			
+			return max(0.5, min(1.3, quality_score))  # Cap between 0.5 and 1.3
+			
+		except Exception:
+			return 1.0  # Neutral score on error
+
 	def _calculate_dcf_value(self):
-		"""Calculate Discounted Cash Flow (DCF) value"""
+		"""Calculate Discounted Cash Flow (DCF) value with improved assumptions"""
 		try:
 			if not self.cash_flow:
 				return None
@@ -558,52 +643,142 @@ class CFSecurity(Document):
 			cash_flow_data = json.loads(self.cash_flow)
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
 			
-			# Extract historical free cash flows
+			# Extract historical free cash flows (need minimum 3 years for reliability)
 			fcf_values = []
 			years = []
 			for date_key, data in cash_flow_data.items():
-				if data.get('Free Cash Flow') and data['Free Cash Flow'] > 0:
-					fcf_values.append(data['Free Cash Flow'])
+				fcf = data.get('Free Cash Flow')
+				if fcf is not None:  # Include negative FCF for realistic analysis
+					fcf_values.append(fcf)
 					years.append(date_key[:4])
 			
-			if len(fcf_values) < 2:
+			if len(fcf_values) < 3:  # Require minimum 3 years
 				return None
 			
-			# Calculate average growth rate from historical data
+			# Sort by year to ensure chronological order
+			fcf_year_pairs = list(zip(years, fcf_values))
+			fcf_year_pairs.sort(key=lambda x: x[0])
+			sorted_years, sorted_fcf = zip(*fcf_year_pairs)
+			
+			# Calculate growth rate with outlier filtering
 			growth_rates = []
-			for i in range(1, len(fcf_values)):
-				if fcf_values[i-1] > 0:
-					growth_rate = (fcf_values[i] - fcf_values[i-1]) / fcf_values[i-1]
-					growth_rates.append(growth_rate)
+			for i in range(1, len(sorted_fcf)):
+				if sorted_fcf[i-1] != 0:  # Avoid division by zero
+					growth_rate = (sorted_fcf[i] - sorted_fcf[i-1]) / abs(sorted_fcf[i-1])
+					# Filter extreme outliers (beyond -90% to +200%)
+					if -0.9 <= growth_rate <= 2.0:
+						growth_rates.append(growth_rate)
 			
 			if not growth_rates:
 				return None
 			
-			avg_growth_rate = sum(growth_rates) / len(growth_rates)
-			# Cap growth rate to reasonable bounds
-			avg_growth_rate = max(-0.5, min(0.5, avg_growth_rate))
+			# Use median instead of mean to reduce outlier impact
+			growth_rates.sort()
+			n = len(growth_rates)
+			if n % 2 == 0:
+				median_growth = (growth_rates[n//2-1] + growth_rates[n//2]) / 2
+			else:
+				median_growth = growth_rates[n//2]
 			
-			# Use WACC or estimated discount rate
+			# Apply industry and company-specific growth constraints
+			sector = ticker_info.get('sector', '').lower()
+			market_cap = ticker_info.get('marketCap', 0)
+			
+			# Industry-specific growth caps
+			if 'utility' in sector or 'financial' in sector:
+				growth_cap = 0.15  # Mature industries
+			elif 'technology' in sector or 'healthcare' in sector:
+				growth_cap = 0.40  # High-growth potential
+			else:
+				growth_cap = 0.25  # General industries
+			
+			# Size-based adjustments (larger companies typically grow slower)
+			if market_cap > 100_000_000_000:  # >$100B
+				growth_cap *= 0.7
+			elif market_cap < 2_000_000_000:  # <$2B
+				growth_cap *= 1.3
+			
+			# Final growth rate with conservative bounds
+			avg_growth_rate = max(-0.20, min(growth_cap, median_growth))
+			
+			# Dynamic discount rate calculation
 			beta = ticker_info.get('beta', 1.0)
-			risk_free_rate = 0.04  # Assume 4% risk-free rate
-			market_premium = 0.08  # Assume 8% market risk premium
-			discount_rate = risk_free_rate + beta * market_premium
+			beta = max(0.5, min(2.5, beta))  # Cap beta at reasonable bounds
 			
-			# Project FCF for next 5 years
-			current_fcf = fcf_values[-1]
+			# Use dynamic risk-free rate based on country
+			country = ticker_info.get('country', 'United States')
+			risk_free_rate = self._get_current_risk_free_rate(country)
+			market_premium = 0.065  # More conservative market premium
+			
+			# Add size premium for smaller companies
+			size_premium = 0
+			if market_cap < 2_000_000_000:  # Small cap
+				size_premium = 0.02
+			elif market_cap < 10_000_000_000:  # Mid cap
+				size_premium = 0.01
+			
+			# Add financial risk premium based on debt levels
+			debt_premium = 0
+			debt_to_equity = ticker_info.get('debtToEquity', 0)
+			if debt_to_equity > 1.0:  # High debt
+				debt_premium = 0.015
+			elif debt_to_equity > 0.5:  # Moderate debt
+				debt_premium = 0.005
+			
+			discount_rate = risk_free_rate + beta * market_premium + size_premium + debt_premium
+			
+			# Improved FCF projection with declining growth rates
+			current_fcf = sorted_fcf[-1]
 			projected_fcf = []
-			for year in range(1, 6):
-				projected_fcf.append(current_fcf * ((1 + avg_growth_rate) ** year))
 			
-			# Terminal value (assume 2% perpetual growth)
-			terminal_growth = 0.02
-			terminal_value = projected_fcf[-1] * (1 + terminal_growth) / (discount_rate - terminal_growth)
+			# Use declining growth rate model (high growth in early years, declining to mature rate)
+			for year in range(1, 6):
+				# Decline growth rate over time (fade to long-term growth)
+				declining_factor = 1 - (year - 1) * 0.2  # Decline by 20% each year
+				year_growth = avg_growth_rate * declining_factor
+				
+				# Apply minimum mature growth rate in later years
+				mature_growth = min(0.03, avg_growth_rate)  # Max 3% mature growth
+				if year >= 4:  # Years 4-5 use mature growth
+					year_growth = mature_growth
+				
+				projected_fcf.append(current_fcf * ((1 + year_growth) ** year))
+			
+			# More conservative terminal value calculation
+			# Terminal growth should not exceed long-term GDP growth
+			country = ticker_info.get('country', 'United States')
+			if country in ['United States', 'Canada', 'Germany', 'France', 'United Kingdom']:
+				max_terminal_growth = 0.025  # 2.5% for developed markets
+			elif country in ['China', 'India', 'Brazil', 'Mexico']:
+				max_terminal_growth = 0.035  # 3.5% for emerging markets
+			else:
+				max_terminal_growth = 0.02  # 2% default
+			
+			# Terminal growth is the minimum of mature growth and economic growth cap
+			terminal_growth = min(max_terminal_growth, mature_growth)
+			
+			# Calculate terminal value using exit multiple as sanity check
+			terminal_fcf = projected_fcf[-1] * (1 + terminal_growth)
+			terminal_value_perpetuity = terminal_fcf / (discount_rate - terminal_growth)
+			
+			# Alternative: Terminal value using exit multiple (10-15x FCF)
+			exit_multiple = 12  # Conservative exit multiple
+			terminal_value_multiple = projected_fcf[-1] * exit_multiple
+			
+			# Use the lower of perpetuity and multiple methods for conservatism
+			terminal_value = min(terminal_value_perpetuity, terminal_value_multiple)
 			
 			# Discount all cash flows to present value
 			pv_fcf = sum([fcf / ((1 + discount_rate) ** (i + 1)) for i, fcf in enumerate(projected_fcf)])
 			pv_terminal = terminal_value / ((1 + discount_rate) ** 5)
 			
 			enterprise_value = pv_fcf + pv_terminal
+			
+			# Apply FCF quality adjustment
+			if self.profit_loss:
+				profit_loss_data = json.loads(self.profit_loss)
+				fcf_quality_score = self._analyze_fcf_quality(cash_flow_data, profit_loss_data)
+				enterprise_value *= fcf_quality_score
 			
 			# Subtract net debt and divide by shares outstanding
 			total_debt = 0
@@ -615,8 +790,14 @@ class CFSecurity(Document):
 				latest_balance = next(iter(balance_data.values())) if balance_data else {}
 				total_debt = latest_balance.get('Total Debt', 0) or 0
 				cash = latest_balance.get('Cash And Cash Equivalents', 0) or 0
+				
+				# Only subtract 50% of cash (assume rest is operational)
+				operational_cash_buffer = 0.5
+				excess_cash = cash * (1 - operational_cash_buffer)
+			else:
+				excess_cash = 0
 			
-			net_debt = total_debt - cash
+			net_debt = total_debt - excess_cash
 			equity_value = enterprise_value - net_debt
 			
 			# Convert to per-share value (assuming values are in company's reporting currency)
@@ -627,11 +808,44 @@ class CFSecurity(Document):
 			if shares_outstanding > 0:
 				per_share_value = equity_value / shares_outstanding
 				
-				# Simple currency conversion approximation
-				if financial_currency == 'TWD' and price_currency == 'USD':
-					per_share_value = per_share_value / 31.5  # Approximate TWD/USD rate
+				# Improved currency conversion (should use live rates in production)
+				if financial_currency != price_currency:
+					# Currency conversion rates (approximate as of May 2025)
+					conversion_rates = {
+						('TWD', 'USD'): 0.031,  # Taiwan Dollar to USD
+						('JPY', 'USD'): 0.0067,  # Japanese Yen to USD
+						('EUR', 'USD'): 1.08,    # Euro to USD
+						('GBP', 'USD'): 1.26,    # British Pound to USD
+						('CAD', 'USD'): 0.73,    # Canadian Dollar to USD
+						('CNY', 'USD'): 0.14,    # Chinese Yuan to USD
+						('KRW', 'USD'): 0.00074, # Korean Won to USD
+						('INR', 'USD'): 0.012,   # Indian Rupee to USD
+						('AUD', 'USD'): 0.66,    # Australian Dollar to USD
+						('CHF', 'USD'): 1.11,    # Swiss Franc to USD
+					}
+					
+					conversion_key = (financial_currency, price_currency)
+					if conversion_key in conversion_rates:
+						per_share_value = per_share_value * conversion_rates[conversion_key]
+					else:
+						# Log warning for unsupported currency conversion
+						frappe.log_error(f"Unsupported currency conversion: {financial_currency} to {price_currency}", "Currency Conversion Warning")
 				
-				return per_share_value
+				# Apply conservative discount for international stocks
+				if country and country not in ['United States']:
+					country_risk_discount = 0.95  # 5% discount for non-US stocks
+					per_share_value *= country_risk_discount
+				
+				# Sanity check: ensure result is reasonable
+				current_price = ticker_info.get('regularMarketPrice', 0) or self.current_price or 0
+				if current_price > 0:
+					# If DCF value is more than 5x or less than 0.2x current price, it's likely wrong
+					price_ratio = per_share_value / current_price
+					if price_ratio > 5.0 or price_ratio < 0.2:
+						frappe.log_error(f"DCF value {per_share_value} seems unreasonable vs current price {current_price} (ratio: {price_ratio})", "DCF Sanity Check Warning")
+						# Don't return None, but log the warning for investigation
+				
+				return max(0, per_share_value)  # Ensure non-negative value
 			
 			return None
 			
