@@ -550,25 +550,62 @@ class CFSecurity(Document):
 			return False
 
 	def _get_current_risk_free_rate(self, country='United States'):
-		"""Get current risk-free rate based on country (fallback to reasonable estimates)"""
+		"""Get current risk-free rate from Yahoo Finance treasury data"""
 		try:
-			# In production, this should fetch from a financial API
-			# For now, use reasonable estimates as of May 2025
-			risk_free_rates = {
-				'United States': 0.045,  # 10-year Treasury
-				'Germany': 0.025,        # 10-year Bund
-				'United Kingdom': 0.040, # 10-year Gilt
-				'Japan': 0.015,          # 10-year JGB
-				'Canada': 0.040,         # 10-year Government Bond
-				'Australia': 0.042,      # 10-year ACGB
-				'France': 0.028,         # 10-year OAT
-				'Switzerland': 0.018,    # 10-year Confederation Bond
+			# Map countries to their treasury bond symbols on Yahoo Finance
+			treasury_symbols = {
+				'United States': '^TNX',      # 10-Year Treasury Yield
+				'Germany': '^TNX-DE',         # 10-Year German Bund (if available)
+				'United Kingdom': '^TNXUK',   # 10-Year UK Gilt
+				'Japan': '^TNX-JP',           # 10-Year Japanese Government Bond
+				'Canada': '^TNX-CA',          # 10-Year Canadian Government Bond
+				'Australia': '^TNX-AU',       # 10-Year Australian Government Bond
+				'France': '^TNX-FR',          # 10-Year French Government Bond
+				'Switzerland': '^TNX-CH',     # 10-Year Swiss Government Bond
 			}
 			
-			return risk_free_rates.get(country, 0.035)  # Default 3.5% for other countries
+			symbol = treasury_symbols.get(country)
+			if not symbol:
+				# For unsupported countries, use US treasury as proxy with country risk adjustment
+				symbol = '^TNX'
 			
-		except Exception:
-			return 0.04  # Conservative fallback
+			# Fetch live treasury rate from Yahoo Finance
+			treasury_ticker = yf.Ticker(symbol)
+			treasury_info = treasury_ticker.get_info()
+			
+			# Get the current yield (usually in the 'regularMarketPrice' field for bond yields)
+			current_yield = treasury_info.get('regularMarketPrice') or treasury_info.get('previousClose')
+			
+			if current_yield and current_yield > 0:
+				# Convert percentage to decimal (Yahoo returns yields as percentages)
+				risk_free_rate = current_yield / 100
+				
+				# Apply country risk premium for non-major economies
+				if country not in ['United States', 'Germany', 'United Kingdom', 'Japan', 'Canada']:
+					country_risk_premium = 0.005  # Add 0.5% country risk premium
+					risk_free_rate += country_risk_premium
+				
+				return risk_free_rate
+			
+			# Fallback if live data is not available
+			raise Exception("Live treasury data not available")
+			
+		except Exception as e:
+			frappe.log_error(f"Error fetching live risk-free rate for {country}: {str(e)}", "Risk-Free Rate Fetch Error")
+			
+			# Fallback to reasonable estimates if live data fails
+			fallback_rates = {
+				'United States': 0.045,
+				'Germany': 0.025,
+				'United Kingdom': 0.040,
+				'Japan': 0.015,
+				'Canada': 0.040,
+				'Australia': 0.042,
+				'France': 0.028,
+				'Switzerland': 0.018,
+			}
+			
+			return fallback_rates.get(country, 0.035)
 	
 	def _analyze_fcf_quality(self, cash_flow_data, profit_loss_data):
 		"""Analyze the quality and sustainability of free cash flows"""
