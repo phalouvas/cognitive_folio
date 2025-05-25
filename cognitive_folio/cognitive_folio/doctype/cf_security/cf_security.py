@@ -21,6 +21,8 @@ class CFSecurity(Document):
 			self.current_price = 1.0
 
 		self.validate_isin()
+		self.calculate_fair_value()
+		self.calculate_intrinsic_value()
 		self.set_alert()
 	
 	def validate_isin(self):
@@ -254,6 +256,16 @@ class CFSecurity(Document):
 		if self.current_price > self.suggestion_sell_price:
 			self.alert_details = f"Current price is above **SELL** price target of {self.suggestion_sell_price}."
 			self.is_alert = 1
+
+	def calculate_intrinsic_value(self):
+		"""Calculate intrinsic value"""
+		"""The true, fundamental worth of a stock based on its underlying business performance, cash flows, and assets."""
+		pass
+
+	def calculate_fair_value(self):
+		"""Calculate fair value"""
+		"""The market-implied value of a stock, considering both fundamentals and market conditions."""
+		pass
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):
