@@ -21,8 +21,8 @@ class CFSecurity(Document):
 			self.current_price = 1.0
 
 		self.validate_isin()
-		self.calculate_fair_value()
 		self.calculate_intrinsic_value()
+		self.calculate_fair_value()
 		self.set_alert()
 	
 	def validate_isin(self):
@@ -837,41 +837,9 @@ class CFSecurity(Document):
 			net_debt = total_debt - excess_cash
 			equity_value = enterprise_value - net_debt
 			
-			# Convert to per-share value (assuming values are in company's reporting currency)
-			# Need to convert from company currency to USD if different
-			financial_currency = ticker_info.get('financialCurrency', 'USD')
-			price_currency = ticker_info.get('currency', 'USD')
-			
+			# Convert to per-share value
 			if shares_outstanding > 0:
 				per_share_value = equity_value / shares_outstanding
-				
-				# Improved currency conversion (should use live rates in production)
-				if financial_currency != price_currency:
-					# Currency conversion rates (approximate as of May 2025)
-					conversion_rates = {
-						('TWD', 'USD'): 0.031,  # Taiwan Dollar to USD
-						('JPY', 'USD'): 0.0067,  # Japanese Yen to USD
-						('EUR', 'USD'): 1.08,    # Euro to USD
-						('GBP', 'USD'): 1.26,    # British Pound to USD
-						('CAD', 'USD'): 0.73,    # Canadian Dollar to USD
-						('CNY', 'USD'): 0.14,    # Chinese Yuan to USD
-						('KRW', 'USD'): 0.00074, # Korean Won to USD
-						('INR', 'USD'): 0.012,   # Indian Rupee to USD
-						('AUD', 'USD'): 0.66,    # Australian Dollar to USD
-						('CHF', 'USD'): 1.11,    # Swiss Franc to USD
-					}
-					
-					conversion_key = (financial_currency, price_currency)
-					if conversion_key in conversion_rates:
-						per_share_value = per_share_value * conversion_rates[conversion_key]
-					else:
-						# Log warning for unsupported currency conversion
-						frappe.log_error(f"Unsupported currency conversion: {financial_currency} to {price_currency}", "Currency Conversion Warning")
-				
-				# Apply conservative discount for international stocks
-				if country and country not in ['United States']:
-					country_risk_discount = 0.95  # 5% discount for non-US stocks
-					per_share_value *= country_risk_discount
 				
 				# Sanity check: ensure result is reasonable
 				current_price = ticker_info.get('regularMarketPrice', 0) or self.current_price or 0
@@ -1130,9 +1098,6 @@ class CFSecurity(Document):
 		
 		try:
 			# Fair value combines intrinsic value with market sentiment and technical factors
-			if not self.intrinsic_value:
-				self.calculate_intrinsic_value()
-			
 			if not self.intrinsic_value:
 				self.fair_value = 0
 				return
