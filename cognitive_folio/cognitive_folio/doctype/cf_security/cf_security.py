@@ -258,63 +258,296 @@ class CFSecurity(Document):
 			self.is_alert = 1
 
 	def calculate_intrinsic_value(self):
-		"""Calculate intrinsic value using multiple valuation methods"""
+		"""Calculate intrinsic value using intelligently selected valuation methods"""
 		"""The true, fundamental worth of a stock based on its underlying business performance, cash flows, and assets."""
 		if self.security_type == "Cash":
 			self.intrinsic_value = 1.0
 			return
 		
 		try:
+			# Intelligently select the best valuation methods for this company
+			best_methods = self._select_best_valuation_methods()
+			
+			if not best_methods:
+				self.intrinsic_value = 0
+				return
+			
 			valuations = {}
 			
-			# Method 1: Discounted Cash Flow (DCF)
-			dcf_value = self._calculate_dcf_value()
-			if dcf_value:
-				valuations['DCF'] = dcf_value
+			# Calculate only the selected methods
+			for method in best_methods:
+				if method == 'DCF':
+					value = self._calculate_dcf_value()
+				elif method == 'DDM':
+					value = self._calculate_ddm_value()
+				elif method == 'P/E':
+					value = self._calculate_pe_value()
+				elif method == 'Book':
+					value = self._calculate_book_value()
+				elif method == 'Graham':
+					value = self._calculate_graham_formula()
+				elif method == 'Residual':
+					value = self._calculate_residual_income()
+				else:
+					continue
+				
+				if value and value > 0:
+					valuations[method] = value
 			
-			# Method 2: Dividend Discount Model (DDM)
-			ddm_value = self._calculate_ddm_value()
-			if ddm_value:
-				valuations['DDM'] = ddm_value
-			
-			# Method 3: Earnings-Based Valuation (P/E)
-			pe_value = self._calculate_pe_value()
-			if pe_value:
-				valuations['P/E'] = pe_value
-			
-			# Method 4: Book Value / Asset-Based
-			book_value = self._calculate_book_value()
-			if book_value:
-				valuations['Book'] = book_value
-			
-			# Method 5: Graham Formula
-			graham_value = self._calculate_graham_formula()
-			if graham_value:
-				valuations['Graham'] = graham_value
-			
-			# Method 6: Residual Income Model
-			residual_value = self._calculate_residual_income()
-			if residual_value:
-				valuations['Residual'] = residual_value
-			
-			# Calculate weighted average (DCF gets highest weight)
+			# Calculate average of valid methods (equal weighting for selected methods)
 			if valuations:
-				weights = {'DCF': 0.3, 'DDM': 0.2, 'P/E': 0.2, 'Book': 0.1, 'Graham': 0.15, 'Residual': 0.05}
-				weighted_sum = 0
-				total_weight = 0
-				
-				for method, value in valuations.items():
-					weight = weights.get(method, 0.1)
-					weighted_sum += value * weight
-					total_weight += weight
-				
-				self.intrinsic_value = weighted_sum / total_weight if total_weight > 0 else 0
+				self.intrinsic_value = sum(valuations.values()) / len(valuations)
 			else:
 				self.intrinsic_value = 0
 				
 		except Exception as e:
 			frappe.log_error(f"Error calculating intrinsic value: {str(e)}", "Intrinsic Value Calculation Error")
 			self.intrinsic_value = 0
+
+	def _select_best_valuation_methods(self):
+		"""Intelligently select the most appropriate valuation methods based on company characteristics"""
+		try:
+			if not self.ticker_info:
+				return ['Book']  # Fallback to book value if no data
+			
+			ticker_info = json.loads(self.ticker_info)
+			
+			# Analyze company characteristics
+			has_dividends = self._has_consistent_dividends()
+			has_stable_earnings = self._has_stable_earnings()
+			has_positive_fcf = self._has_positive_free_cash_flow()
+			is_asset_heavy = self._is_asset_heavy_business()
+			is_growth_company = self._is_growth_company()
+			is_financial = self._is_financial_company()
+			
+			selected_methods = []
+			
+			# Financial companies (banks, insurance, REITs)
+			if is_financial:
+				selected_methods = ['Book', 'P/E']
+				if has_dividends:
+					selected_methods.append('DDM')
+				return selected_methods
+			
+			# Growth companies with positive FCF
+			if is_growth_company and has_positive_fcf:
+				selected_methods = ['DCF']
+				if has_stable_earnings:
+					selected_methods.append('P/E')
+				return selected_methods
+			
+			# Dividend aristocrats (mature dividend-paying companies)
+			if has_dividends and has_stable_earnings:
+				selected_methods = ['DDM', 'P/E']
+				if has_positive_fcf:
+					selected_methods.append('DCF')
+				return selected_methods
+			
+			# Asset-heavy businesses
+			if is_asset_heavy:
+				selected_methods = ['Book']
+				if has_stable_earnings:
+					selected_methods.append('P/E')
+				if ticker_info.get('returnOnEquity', 0) > 0.1:
+					selected_methods.append('Residual')
+				return selected_methods
+			
+			# Value stocks with stable earnings
+			if has_stable_earnings and not is_growth_company:
+				selected_methods = ['P/E', 'Graham']
+				if has_positive_fcf:
+					selected_methods.append('DCF')
+				return selected_methods
+			
+			# Companies with positive FCF but irregular earnings
+			if has_positive_fcf and not has_stable_earnings:
+				return ['DCF']
+			
+			# Profitable companies (fallback)
+			if has_stable_earnings:
+				return ['P/E']
+			
+			# Last resort - use book value
+			return ['Book']
+			
+		except Exception as e:
+			frappe.log_error(f"Error selecting valuation methods: {str(e)}", "Method Selection Error")
+			return ['Book']  # Safe fallback
+	
+	def _has_consistent_dividends(self):
+		"""Check if company has paid consistent dividends"""
+		try:
+			if not self.dividends:
+				return False
+			
+			dividends_data = json.loads(self.dividends)
+			if len(dividends_data) < 3:  # Need at least 3 years
+				return False
+			
+			# Group by year and check consistency
+			annual_dividends = {}
+			for date_str, dividend in dividends_data.items():
+				year = date_str[:4]
+				if year not in annual_dividends:
+					annual_dividends[year] = 0
+				annual_dividends[year] += dividend
+			
+			# Check if dividends were paid in recent years
+			years = sorted(annual_dividends.keys())
+			recent_years = years[-3:]  # Last 3 years
+			
+			for year in recent_years:
+				if annual_dividends[year] <= 0:
+					return False
+			
+			return True
+			
+		except Exception:
+			return False
+	
+	def _has_stable_earnings(self):
+		"""Check if company has stable positive earnings"""
+		try:
+			if not self.ticker_info:
+				return False
+			
+			ticker_info = json.loads(self.ticker_info)
+			
+			# Check current profitability
+			trailing_eps = ticker_info.get('trailingEps') or ticker_info.get('epsTrailingTwelveMonths')
+			if not trailing_eps or trailing_eps <= 0:
+				return False
+			
+			# Check if profit margins are reasonable
+			profit_margin = ticker_info.get('profitMargins', 0)
+			if profit_margin < 0.02:  # Less than 2% margin
+				return False
+			
+			# Check earnings volatility if available
+			earnings_growth = ticker_info.get('earningsGrowth')
+			if earnings_growth and abs(earnings_growth) > 0.5:  # Very volatile earnings
+				return False
+			
+			return True
+			
+		except Exception:
+			return False
+	
+	def _has_positive_free_cash_flow(self):
+		"""Check if company generates consistent positive free cash flow"""
+		try:
+			if not self.cash_flow:
+				return False
+			
+			cash_flow_data = json.loads(self.cash_flow)
+			
+			# Check recent FCF values
+			positive_fcf_count = 0
+			total_periods = 0
+			
+			for date_key, data in cash_flow_data.items():
+				fcf = data.get('Free Cash Flow')
+				if fcf is not None:
+					total_periods += 1
+					if fcf > 0:
+						positive_fcf_count += 1
+			
+			# Require at least 70% of periods to have positive FCF
+			return total_periods >= 2 and (positive_fcf_count / total_periods) >= 0.7
+			
+		except Exception:
+			return False
+	
+	def _is_asset_heavy_business(self):
+		"""Determine if this is an asset-heavy business"""
+		try:
+			if not self.ticker_info:
+				return False
+			
+			ticker_info = json.loads(self.ticker_info)
+			
+			# Check sector
+			sector = ticker_info.get('sector', '').lower()
+			asset_heavy_sectors = [
+				'utilities', 'energy', 'materials', 'real estate',
+				'financial services', 'basic materials'
+			]
+			
+			if any(heavy_sector in sector for heavy_sector in asset_heavy_sectors):
+				return True
+			
+			# Check asset turnover ratio (if available)
+			# Lower asset turnover indicates asset-heavy business
+			# This would require balance sheet analysis
+			if self.balance_sheet:
+				try:
+					balance_data = json.loads(self.balance_sheet)
+					latest_balance = next(iter(balance_data.values())) if balance_data else {}
+					total_assets = latest_balance.get('Total Assets', 0)
+					
+					# If we have revenue data, calculate asset turnover
+					revenue = ticker_info.get('totalRevenue', 0)
+					if total_assets > 0 and revenue > 0:
+						asset_turnover = revenue / total_assets
+						return asset_turnover < 0.5  # Low asset turnover
+				except Exception:
+					pass
+			
+			return False
+			
+		except Exception:
+			return False
+	
+	def _is_growth_company(self):
+		"""Determine if this is a growth company"""
+		try:
+			if not self.ticker_info:
+				return False
+			
+			ticker_info = json.loads(self.ticker_info)
+			
+			# Check growth metrics
+			revenue_growth = ticker_info.get('revenueGrowth', 0)
+			earnings_growth = ticker_info.get('earningsGrowth', 0)
+			
+			# High growth thresholds
+			if revenue_growth > 0.15 or earnings_growth > 0.15:  # 15%+ growth
+				return True
+			
+			# Check P/E ratio (growth companies typically have higher P/E)
+			pe_ratio = ticker_info.get('trailingPE', 0)
+			if pe_ratio > 25:  # High P/E suggests growth expectations
+				return True
+			
+			# Check sector (tech companies are often growth-oriented)
+			sector = ticker_info.get('sector', '').lower()
+			if 'technology' in sector:
+				return True
+			
+			return False
+			
+		except Exception:
+			return False
+	
+	def _is_financial_company(self):
+		"""Check if this is a financial services company"""
+		try:
+			if not self.ticker_info:
+				return False
+			
+			ticker_info = json.loads(self.ticker_info)
+			sector = ticker_info.get('sector', '').lower()
+			industry = ticker_info.get('industry', '').lower()
+			
+			financial_keywords = [
+				'financial', 'bank', 'insurance', 'reit', 'real estate investment trust',
+				'asset management', 'investment', 'credit'
+			]
+			
+			return any(keyword in sector or keyword in industry for keyword in financial_keywords)
+			
+		except Exception:
+			return False
 
 	def _calculate_dcf_value(self):
 		"""Calculate Discounted Cash Flow (DCF) value"""

@@ -261,7 +261,6 @@
    "collapsible": 1,
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
-   "hidden": 1,
    "label": "Evaluation"
   },
   {
@@ -386,7 +385,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-25 07:54:10.592555",
+ "modified": "2025-05-25 09:52:46.183699",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
