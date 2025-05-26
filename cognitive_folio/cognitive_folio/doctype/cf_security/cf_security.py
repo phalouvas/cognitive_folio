@@ -45,8 +45,8 @@ class CFSecurity(Document):
 
 	@frappe.whitelist()
 	def fetch_current_price(self):
-		if self.security_type == "Cash":
-			return {'success': False, 'error': _('Price is only for non-cash securities')}
+		if self.security_type != "Stock":
+			return {'success': False, 'error': _('Not a stock security')}
 		
 		"""Fetch the current price from Yahoo Finance"""
 		try:
@@ -54,7 +54,6 @@ class CFSecurity(Document):
 			
 			# Using fast_info which is more efficient for basic price data
 			self.current_price = ticker.fast_info['last_price']
-			self.currency = ticker.fast_info['currency']
 			self.save()
 			# Get all portfolio holdings of this security
 			holdings = frappe.get_all(
@@ -73,9 +72,37 @@ class CFSecurity(Document):
 			frappe.throw("Error fetching current price. Please check the symbol.")
 
 	@frappe.whitelist()
+	def fetch_news(self):
+		if self.security_type != "Stock":
+			return {'success': False, 'error': _('Not a stock security')}
+		
+		"""Fetch the news from Yahoo Finance"""
+		try:
+			ticker = yf.Ticker(self.symbol)
+			
+			# Using fast_info which is more efficient for basic price data
+			self.news = frappe.as_json(ticker.get_news())
+			self.save()
+			# Get all portfolio holdings of this security
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"security": self.name},
+				fields=["name"]
+			)
+			
+			# Update each holding with the new price
+			for holding in holdings:
+				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
+				portfolio_holding.save()
+			return {'success': True, 'price': self.current_price, 'currency': self.currency}
+		except Exception as e:
+			frappe.log_error(f"Error fetching news: {str(e)}", "Fetch News Error")
+			frappe.throw("Error fetching news. Please check the symbol.")
+
+	@frappe.whitelist()
 	def fetch_fundamentals(self):
-		if self.security_type == "Cash":
-			return {'success': False, 'error': _('Price is only for non-cash securities')}
+		if self.security_type != "Stock":
+			return {'success': False, 'error': _('Not a stock security')}
 		
 		"""Fetch the current price from Yahoo Finance"""
 		try:
