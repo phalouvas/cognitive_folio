@@ -123,7 +123,7 @@ class CFPortfolioHolding(Document):
     @frappe.whitelist()
     def fetch_current_price(self):
 
-        if self.security_type == "Cash":
+        if self.security_type != "Stock":
             return {"success": True}
         
         """Fetch the current price from the related security"""
@@ -141,9 +141,29 @@ class CFPortfolioHolding(Document):
             frappe.throw("Error fetching current price. Please check the security.")
 
     @frappe.whitelist()
+    def fetch_news(self):
+
+        if self.security_type != "Stock":
+            return {"success": True}
+        
+        """Fetch the news from the related security"""
+        if not self.security:
+            frappe.throw("Security must be specified to fetch news.")
+            
+        try:
+            # Get the security document
+            security = frappe.get_doc("CF Security", self.security)
+            security.fetch_news()
+
+            return {"success": True}
+        except Exception as e:
+            frappe.log_error(f"Error fetching news: {str(e)}", "Portfolio Holding Error")
+            frappe.throw("Error fetching news. Please check the security.")
+
+    @frappe.whitelist()
     def fetch_fundamentals(self):
 
-        if self.security_type == "Cash":
+        if self.security_type != "Stock":
             return {"success": True}
         
         """Fetch the current price from the related security"""

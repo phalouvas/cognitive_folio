@@ -101,6 +101,37 @@ class CFPortfolio(Document):
 		return total_steps
 	
 	@frappe.whitelist()
+	def fetch_all_news(self):
+		"""Update news for all holdings in this portfolio using batch requests"""
+		
+		# Get all holdings for this portfolio (excluding Cash type securities)
+		holdings = frappe.get_all(
+			"CF Portfolio Holding",
+			filters=[
+				["portfolio", "=", self.name],
+				["security_type", "!=", "Cash"]
+			],
+			fields=["name", "security"]
+		)
+		
+		if not holdings:
+			frappe.msgprint("No holdings found in this portfolio")
+			return 0
+		
+		# Use enumerate to get a counter in the for loop
+		total_steps = len(holdings)
+		for counter, holding in enumerate(holdings, 1):
+			frappe.publish_progress(
+				percent=(counter)/total_steps * 100,
+				title="Processing",
+				description=f"Processing item {counter} of {total_steps} ({holding.security})"
+			)
+			security = frappe.get_doc("CF Security", holding.security)
+			security.fetch_news()
+			
+		return total_steps
+	
+	@frappe.whitelist()
 	def fetch_all_fundamentals(self):
 		"""Update prices for all holdings in this portfolio using batch requests"""
 		

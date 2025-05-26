@@ -52,6 +52,29 @@ frappe.ui.form.on("CF Portfolio Holding", {
                 });
             }, __('Actions'));
 
+            frm.add_custom_button(__('Fetch News'), function() {
+                frappe.dom.freeze(__('Fetching news...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'fetch_news',
+                    callback: function(r) {
+                        // Unfreeze the GUI when operation completes
+                        frappe.dom.unfreeze();
+                        
+                        frappe.show_alert({
+                            message: __('Security data refreshed'),
+                            indicator: 'green'
+                        });
+                        frm.reload_doc();
+                    },
+                    error: function(r) {
+                        // Make sure to unfreeze even if there's an error
+                        frappe.dom.unfreeze();
+                    }
+                });
+            }, __('Actions'));
+
             frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frappe.dom.freeze(__('Fetching security data...'));
                 
