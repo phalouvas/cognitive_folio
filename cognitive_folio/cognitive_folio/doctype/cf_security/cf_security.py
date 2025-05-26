@@ -268,7 +268,6 @@ class CFSecurity(Document):
 		
 		# ACTIONABLE ALERTS (only these trigger is_alert = 1)
 		if ai_buy_price > 0 and current_price <= ai_buy_price:
-			self.is_alert = 1  # TRIGGER ALERT
 			discount_pct = ((ai_buy_price - current_price) / ai_buy_price) * 100
 			
 			# Add confidence level based on fundamental support
