@@ -97,8 +97,12 @@ class CFChatMessage(Document):
 			return 0
 		
 		chat = frappe.get_doc("CF Chat", self.chat)
-		portfolio = frappe.get_doc("CF Portfolio", chat.portfolio)
-		security = frappe.get_doc("CF Security", chat.security)
+		portfolio = None
+		if chat.portfolio:
+			portfolio = frappe.get_doc("CF Portfolio", chat.portfolio)
+		security = None
+		if chat.security:
+			security = frappe.get_doc("CF Security", chat.security)
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 
