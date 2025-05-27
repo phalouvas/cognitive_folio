@@ -8,6 +8,7 @@
   "chat",
   "column_break_cbjh",
   "model",
+  "status",
   "system_prompt",
   "section_break_nyal",
   "prompt",
@@ -61,6 +62,15 @@
   {
    "fieldname": "column_break_cbjh",
    "fieldtype": "Column Break"
+  },
+  {
+   "default": "Draft",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Status",
+   "options": "Draft\nProcessing\nSuccess\nFailed",
+   "read_only": 1
   },
   {
    "fieldname": "section_break_nyal",
