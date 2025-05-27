@@ -10,7 +10,9 @@
   "model",
   "section_break_nyal",
   "prompt",
+  "response_html",
   "response",
+  "tokens_section",
   "tokens"
  ],
  "fields": [
@@ -33,13 +35,16 @@
   {
    "fieldname": "response",
    "fieldtype": "Long Text",
+   "hidden": 1,
    "label": "Response",
+   "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "tokens",
    "fieldtype": "JSON",
    "label": "Tokens",
+   "no_copy": 1,
    "read_only": 1
   },
   {
@@ -56,12 +61,25 @@
   {
    "fieldname": "section_break_nyal",
    "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "response_html",
+   "fieldtype": "Long Text",
+   "label": "Response Html",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "tokens_section",
+   "fieldtype": "Section Break",
+   "label": "Tokens"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-27 08:19:35.697705",
+ "modified": "2025-05-27 09:18:33.954252",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
