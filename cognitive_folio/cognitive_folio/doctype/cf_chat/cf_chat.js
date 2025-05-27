@@ -27,7 +27,7 @@ function render_chat_timeline(frm) {
             filters: {
                 chat: frm.doc.name
             },
-            fields: ['name', 'prompt', 'response', 'creation', 'modified'],
+            fields: ['name', 'prompt', 'model', 'response_html', 'creation', 'modified'],
             order_by: 'creation asc',
             limit_page_length: 0
         },
@@ -47,8 +47,6 @@ function display_timeline(frm, messages) {
 
     messages.forEach(function(message) {
         let creation_time = frappe.datetime.comment_when(message.creation);
-        let prompt_content = message.prompt ? frappe.utils.escape_html(message.prompt.substring(0, 200)) : '';
-        let response_content = message.response ? frappe.utils.escape_html(message.response.substring(0, 300)) : '';
         
         timeline_html += `
             <div class="timeline-item">
@@ -73,8 +71,8 @@ function display_timeline(frm, messages) {
                             </span>
                         </span>
                         <div class="content">
-                            ${prompt_content ? `<div class="chat-prompt"><strong>Prompt:</strong><br>${prompt_content}${message.prompt.length > 200 ? '...' : ''}</div>` : ''}
-                            ${response_content ? `<div class="chat-response mt-2"><strong>Response:</strong><br>${response_content}${message.response.length > 300 ? '...' : ''}</div>` : ''}
+                            ${message.prompt ? `<div class="chat-prompt">${message.prompt}</div>` : ''}
+                            ${message.response_html ? `<div class="chat-response mt-2"><strong>${message.model}:</strong><br>${message.response_html}</div>` : ''}
                         </div>
                     </div>
                 </div>
@@ -134,7 +132,6 @@ function display_timeline(frm, messages) {
                 border-left: 3px solid var(--primary-color);
             }
             .chat-response {
-                background-color: var(--bg-light-gray);
                 padding: 8px;
                 border-radius: 4px;
                 border-left: 3px solid var(--green);
