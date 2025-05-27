@@ -165,6 +165,11 @@ class CFPortfolio(Document):
 	@frappe.whitelist()
 	def generate_portfolio_ai_analysis(self):
 		"""Queue AI analysis generation for the portfolio as a background job"""
+
+		self.ai_suggestion = "Processing your request..."
+		self.ai_suggestion_html = frappe.utils.markdown(self.ai_suggestion)
+		self.save()
+
 		try:
 			from frappe.utils.background_jobs import enqueue
 			
