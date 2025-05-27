@@ -12,6 +12,10 @@ class CFChatMessage(Document):
 				self.system_prompt = chat.system_prompt
 
 	def before_save(self):
+		# Set initial status
+		if not self.status:
+			self.status = "Processing"
+		
 		# Save a placeholder message
 		self.response = "Processing your request..."
 		self.response_html = frappe.utils.markdown(self.response)
@@ -31,10 +35,15 @@ class CFChatMessage(Document):
 			# Reload the document from the database
 			message_doc = frappe.get_doc("CF Chat Message", self.name)
 			
+			# Update status to processing
+			message_doc.db_set("status", "Processing", update_modified=False)
+			frappe.db.commit()
+			
 			# Process the message (use the reloaded document)
 			message_doc.send()
 			
-			# Save the document with the updated response (use update_db directly)
+			# Update status to success and save the response
+			message_doc.db_set("status", "Success", update_modified=False)
 			message_doc.db_update()
 			frappe.db.commit()
 			
@@ -57,12 +66,19 @@ class CFChatMessage(Document):
 				message_doc = frappe.get_doc("CF Chat Message", self.name)
 				message_doc.response = f"Error processing request: {error_message}"
 				message_doc.response_html = frappe.utils.markdown(message_doc.response)
+				message_doc.db_set("status", "Failed", update_modified=False)
 				message_doc.db_update()
 				frappe.db.commit()
 			except Exception as inner_e:
 				# Log the inner exception but continue to notification
 				frappe.log_error(title=f"Failed to update chat message with error: {self.name}", 
 							   message=f"Original error: {error_message}\nUpdate error: {str(inner_e)}")
+				# Set status to failed even if update fails
+				try:
+					frappe.db.set_value("CF Chat Message", self.name, "status", "Failed", update_modified=False)
+					frappe.db.commit()
+				except:
+					pass
 			
 			# Always try to notify user about the error - moved outside the inner try block
 			try:

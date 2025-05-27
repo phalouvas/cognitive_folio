@@ -16,6 +16,37 @@ frappe.ui.form.on("CF Chat", {
         if (!frm.is_new()) {
             render_chat_timeline(frm);
         }
+    },
+
+    onload(frm) {
+        // Listen for realtime updates from chat messages
+        frappe.realtime.on('chat_message_completed', (data) => {
+            if (data.chat_id === frm.doc.name) {
+                // Refresh the timeline when a message is completed
+                render_chat_timeline(frm);
+                
+                // Show notification
+                if (data.status === 'success') {
+                    frappe.show_alert({
+                        message: __("Chat message processed successfully"),
+                        indicator: "green"
+                    });
+                } else if (data.status === 'error') {
+                    frappe.show_alert({
+                        message: __("Chat message processing failed"),
+                        indicator: "red"
+                    });
+                }
+            }
+        });
+    },
+
+    before_unload(frm) {
+        // Clean up interval when form is closed
+        if (frm.chat_refresh_interval) {
+            clearInterval(frm.chat_refresh_interval);
+            frm.chat_refresh_interval = null;
+        }
     }
 });
 
@@ -27,7 +58,7 @@ function render_chat_timeline(frm) {
             filters: {
                 chat: frm.doc.name
             },
-            fields: ['name', 'prompt', 'model', 'response_html', 'creation', 'modified', 'owner'],
+            fields: ['name', 'prompt', 'model', 'response_html', 'status', 'creation', 'modified', 'owner'],
             order_by: 'creation desc',
             limit_page_length: 0
         },
@@ -45,12 +76,36 @@ function display_timeline(frm, messages) {
             <div class="timeline-items">
     `;
 
+    let hasProcessing = false;
+
     messages.forEach(function(message) {
         let creation_time = frappe.datetime.comment_when(message.creation);
+        let status_indicator = "";
+        let status_class = "";
+        let dot_class = "timeline-dot";
+        
+        // Check if any message is processing
+        if (message.status === "Processing") {
+            hasProcessing = true;
+            status_indicator = `<span class="indicator blue">Processing...</span>`;
+            status_class = "processing";
+            dot_class = "timeline-dot processing-dot";
+        } else if (message.status === "Success") {
+            status_indicator = `<span class="indicator green">Completed</span>`;
+            status_class = "success";
+            dot_class = "timeline-dot success-dot";
+        } else if (message.status === "Failed") {
+            status_indicator = `<span class="indicator red">Failed</span>`;
+            status_class = "failed";
+            dot_class = "timeline-dot failed-dot";
+        } else {
+            status_indicator = `<span class="indicator gray">Draft</span>`;
+            status_class = "draft";
+        }
         
         timeline_html += `
-            <div class="timeline-item">
-                <div class="timeline-dot"></div>
+            <div class="timeline-item ${status_class}">
+                <div class="${dot_class}"></div>
                 <div class="timeline-content frappe-card">
                     <div class="timeline-message-box">
                         <span class="flex justify-between m-1 mb-3">
@@ -60,6 +115,7 @@ function display_timeline(frm, messages) {
                                 </span>
                                 <div>
                                     <span class="text-muted">${creation_time}</span>
+                                    ${status_indicator}
                                 </div>
                             </span>
                             <span class="actions">
@@ -77,6 +133,16 @@ function display_timeline(frm, messages) {
             </div>
         `;
     });
+
+    // Auto-refresh if any message is processing
+    if (hasProcessing && !frm.chat_refresh_interval) {
+        frm.chat_refresh_interval = setInterval(() => {
+            render_chat_timeline(frm);
+        }, 5000);
+    } else if (!hasProcessing && frm.chat_refresh_interval) {
+        clearInterval(frm.chat_refresh_interval);
+        frm.chat_refresh_interval = null;
+    }
 
     timeline_html += `
             </div>
@@ -111,6 +177,33 @@ function display_timeline(frm, messages) {
                 left: calc(-1.25 * var(--timeline-item-left-margin) / 2);
                 background: var(--bg-color);
                 border: 2px solid var(--primary-color);
+            }
+            .chat-timeline .processing-dot {
+                background: var(--blue-100);
+                border: 2px solid var(--blue-500);
+                animation: pulse 2s infinite;
+            }
+            .chat-timeline .success-dot {
+                background: var(--green-100);
+                border: 2px solid var(--green-500);
+            }
+            .chat-timeline .failed-dot {
+                background: var(--red-100);
+                border: 2px solid var(--red-500);
+            }
+            @keyframes pulse {
+                0% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
+                50% {
+                    transform: scale(1.1);
+                    opacity: 0.7;
+                }
+                100% {
+                    transform: scale(1);
+                    opacity: 1;
+                }
             }
             .chat-timeline .add-message-dot {
                 background: var(--primary-color);
