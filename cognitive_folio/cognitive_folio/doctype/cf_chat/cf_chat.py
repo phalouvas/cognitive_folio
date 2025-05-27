@@ -6,4 +6,10 @@ from frappe.model.document import Document
 
 
 class CFChat(Document):
-	pass
+    def on_trash(self):
+        """Delete all related chat messages before deleting the chat"""
+        # Delete all cf_chat_messages linked to this chat
+        frappe.db.delete("CF Chat Message", {"chat": self.name})
+        
+        # Commit the deletion of child records
+        frappe.db.commit()

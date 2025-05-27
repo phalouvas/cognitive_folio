@@ -97,7 +97,12 @@ class CFChatMessage(Document):
 			return 0
 		
 		chat = frappe.get_doc("CF Chat", self.chat)
-		security = frappe.get_doc("CF Security", chat.security)
+		portfolio = None
+		if chat.portfolio:
+			portfolio = frappe.get_doc("CF Portfolio", chat.portfolio)
+		security = None
+		if chat.security:
+			security = frappe.get_doc("CF Security", chat.security)
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 
@@ -123,7 +128,28 @@ class CFChatMessage(Document):
 			variable_name = match.group(1)
 			try:
 				# Get the actual field value from the document
-				field_value = getattr(security, variable_name, None)
+				if security:
+					field_value = getattr(security, variable_name, None)
+				elif portfolio:
+					securities = frappe.get_all(
+						"CF Portfolio Holding",
+						filters={"portfolio": portfolio.name},
+						fields=["security"]
+					)
+					# Get the actual security documents
+					security_docs = []
+					for holding in securities:
+						sec_doc = frappe.get_doc("CF Security", holding.security)
+						security_docs.append(sec_doc)
+					securities = security_docs
+					if securities:
+						# If multiple securities, return them separated by newlines
+						if len(securities) > 1:
+							field_value = "\n\n".join(str(getattr(sec, variable_name, "")) for sec in securities)
+					else:
+						field_value = None
+				else:
+					field_value = None
 				if field_value is not None:
 					return str(field_value)
 				else:

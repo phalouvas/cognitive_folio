@@ -254,9 +254,13 @@
   {
    "link_doctype": "CF Dividend",
    "link_fieldname": "portfolio"
+  },
+  {
+   "link_doctype": "CF Chat",
+   "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-22 06:29:47.125694",
+ "modified": "2025-05-27 15:16:22.099304",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",

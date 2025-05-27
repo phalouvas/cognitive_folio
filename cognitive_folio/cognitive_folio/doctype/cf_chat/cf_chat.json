@@ -5,6 +5,7 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "portfolio",
   "security",
   "title",
   "column_break_zqji",
@@ -26,7 +27,7 @@
    "in_standard_filter": 1,
    "label": "Security",
    "options": "CF Security",
-   "reqd": 1,
+   "read_only": 1,
    "search_index": 1
   },
   {
@@ -55,6 +56,16 @@
    "label": "Model",
    "options": "deepseek-chat\ndeepseek-reasoner",
    "reqd": 1
+  },
+  {
+   "fieldname": "portfolio",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Portfolio",
+   "options": "CF Portfolio",
+   "read_only": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
@@ -65,7 +76,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 11:16:44.818288",
+ "modified": "2025-05-27 15:14:05.145108",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",
