@@ -143,10 +143,6 @@ frappe.ui.form.on('CF Security', {
                         frappe.dom.unfreeze();
                         
                         if (r.message && r.message.success) {
-                            frappe.show_alert({
-                                message: __('AI suggestion generated successfully'),
-                                indicator: 'green'
-                            });
                             frm.reload_doc();
                         } else {
                             frappe.msgprint({

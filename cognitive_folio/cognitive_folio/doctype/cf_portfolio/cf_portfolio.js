@@ -121,10 +121,6 @@ frappe.ui.form.on("CF Portfolio", {
                                 frappe.dom.unfreeze();
                                 
                                 if (r.message && r.message.success) {
-                                    frappe.show_alert({
-                                        message: __('Portfolio analysis generated successfully'),
-                                        indicator: 'green'
-                                    });
                                     frm.reload_doc();
                                 } else {
                                     frappe.msgprint({
