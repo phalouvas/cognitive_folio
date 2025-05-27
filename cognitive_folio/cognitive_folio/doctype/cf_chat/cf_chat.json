@@ -8,6 +8,7 @@
   "security",
   "title",
   "column_break_zqji",
+  "model",
   "system_prompt",
   "messages_section",
   "messages"
@@ -47,6 +48,13 @@
    "fieldname": "system_prompt",
    "fieldtype": "Data",
    "label": "System Prompt"
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Select",
+   "label": "Model",
+   "options": "deepseek-chat\ndeepseek-reasoner",
+   "reqd": 1
   }
  ],
  "grid_page_length": 50,
@@ -57,7 +65,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 09:26:26.732820",
+ "modified": "2025-05-27 11:16:44.818288",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",

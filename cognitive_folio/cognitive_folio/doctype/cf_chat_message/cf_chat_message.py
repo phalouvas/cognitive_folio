@@ -25,7 +25,7 @@ class CFChatMessage(Document):
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 
 		messages = [
-			{"role": "system", "content": self.system_prompt if self.system_prompt else settings.system_prompt}
+			{"role": "system", "content": self.system_prompt if self.system_prompt else settings.system_content}
 		]
 
 		# Add previous messages from the chat
