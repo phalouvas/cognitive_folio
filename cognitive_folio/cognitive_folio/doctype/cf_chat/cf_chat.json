@@ -7,7 +7,10 @@
  "field_order": [
   "security",
   "title",
-  "system_content"
+  "column_break_zqji",
+  "system_content",
+  "messages_section",
+  "messages"
  ],
  "fields": [
   {
@@ -29,6 +32,20 @@
    "options": "CF Security",
    "reqd": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "column_break_zqji",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "messages_section",
+   "fieldtype": "Section Break",
+   "label": "Messages"
+  },
+  {
+   "fieldname": "messages",
+   "fieldtype": "HTML",
+   "label": "Messages"
   }
  ],
  "grid_page_length": 50,
@@ -39,7 +56,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 07:05:02.588209",
+ "modified": "2025-05-27 08:08:01.376976",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",
