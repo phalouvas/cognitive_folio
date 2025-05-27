@@ -39,30 +39,17 @@ class CFPortfolio(Document):
 				return {'success': False, 'error': _('No non-cash holdings found in this portfolio')}
 			
 			# Queue a job for each holding
-			job_count = 0
 			for holding in holdings:
 				if not holding.security:
 					continue
 					
-				# Calculate a unique job name to prevent duplicates
-				job_name = f"holding_ai_suggestion_{holding.name}_{frappe.utils.now()}"
-				
-				# Enqueue individual job for this holding
-				enqueue(
-					method="cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio.generate_single_holding_ai_suggestion",
-					queue="long",
-					timeout=1800,  # 30 minutes per holding
-					job_name=job_name,
-					now=False,
-					holding_name=holding.name,
-					security_name=holding.security
-				)
-				job_count += 1
-			
+				security_obj = frappe.get_doc("CF Security", holding.security)
+				security_obj.generate_ai_suggestion()
+
 			return {
 				'success': True, 
-				'message': _('Queued AI suggestion generation for {0} holdings').format(job_count),
-				'count': job_count
+				'message': _('Queued AI suggestion generation for {0} holdings').format(len(holdings)),
+				'count': len(holdings)
 			}
 				
 		except Exception as e:
@@ -457,37 +444,6 @@ class CFPortfolio(Document):
 			frappe.log_error(f"Error calculating portfolio performance: {str(e)}", 
 							"Portfolio Performance Error")
 			return {'success': False, 'error': str(e)}
-
-@frappe.whitelist()
-def generate_single_holding_ai_suggestion(holding_name, security_name):
-	"""Generate AI suggestion for a single holding (meant to be run as a background job)"""
-	try:
-		# Log start of process
-		frappe.logger().info(f"Starting AI suggestion generation for holding {holding_name}, security {security_name}")
-		
-		# Skip if no security
-		if not security_name:
-			return
-			
-		# Get the security document
-		security = frappe.get_doc("CF Security", security_name)
-
-		# Only generate if needed
-		if not security.ai_suggestion:
-			security.generate_ai_suggestion()
-			frappe.db.commit()  # Important to commit in background jobs
-			frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
-		else:
-			frappe.logger().info(f"Skipping AI suggestion - already exists and is recent for {security_name}")
-			
-		return True
-				
-	except Exception as e:
-		frappe.log_error(
-			f"Error generating AI suggestion for holding {holding_name}, security {security_name}: {str(e)}",
-			"Portfolio Holding AI Generation Error"
-		)
-		return False
 
 @frappe.whitelist()
 def process_portfolio_ai_analysis(portfolio_name, user):
