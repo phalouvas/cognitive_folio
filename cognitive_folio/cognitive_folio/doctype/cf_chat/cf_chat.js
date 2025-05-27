@@ -28,7 +28,7 @@ function render_chat_timeline(frm) {
                 chat: frm.doc.name
             },
             fields: ['name', 'prompt', 'model', 'response_html', 'creation', 'modified'],
-            order_by: 'creation asc',
+            order_by: 'creation desc',
             limit_page_length: 0
         },
         callback: function(r) {
