@@ -1,0 +1,76 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-27 06:38:28.441806",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "cf_chat",
+  "model",
+  "prompt",
+  "response",
+  "tokens"
+ ],
+ "fields": [
+  {
+   "fieldname": "cf_chat",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "CF Chat",
+   "options": "CF Chat",
+   "reqd": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Select",
+   "in_list_view": 1,
+   "label": "Model",
+   "options": "deepseek-reasoner\ndeepseek-chat",
+   "reqd": 1
+  },
+  {
+   "description": "{{isin}}\n  {{security_name}}\n  {{symbol}}\n  {{security_type}}\n  {{stock_exchange}}\n  {{currency}}\n  {{current_price}}\n  {{is_alert}}\n  {{alert_details}}\n  {{suggestion_action}}\n  {{suggestion_buy_price}}\n  {{intrinsic_value}}\n  {{suggestion_rating}}\n  {{suggestion_sell_price}}\n  {{fair_value}}\n  {{country}}\n  {{region}}\n  {{subregion}}\n  {{sector}}\n  {{industry}}\n  {{analysis_section}}\n  {{ai_suggestion_html}}\n  {{ai_suggestion}}\n  {{ai_response}}\n  {{news_html}}\n  {{news}}\n  {{ticker_info}}\n  {{news_urls_section}}\n  {{news_urls}}\n  {{profit_loss}}\n  {{balance_sheet}}\n  {{cash_flow}}\n  {{dividends}}",
+   "fieldname": "prompt",
+   "fieldtype": "Markdown Editor",
+   "label": "Prompt"
+  },
+  {
+   "fieldname": "response",
+   "fieldtype": "Long Text",
+   "label": "Response",
+   "read_only": 1
+  },
+  {
+   "fieldname": "tokens",
+   "fieldtype": "JSON",
+   "label": "Tokens",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2025-05-27 06:49:12.192459",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Chat Message",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

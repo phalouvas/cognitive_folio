@@ -1,0 +1,66 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2025-05-27 06:30:29.817619",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "cf_security",
+  "title",
+  "system_content"
+ ],
+ "fields": [
+  {
+   "fieldname": "cf_security",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Security",
+   "options": "CF Security",
+   "reqd": 1
+  },
+  {
+   "fieldname": "title",
+   "fieldtype": "Data",
+   "label": "Title"
+  },
+  {
+   "fieldname": "system_content",
+   "fieldtype": "Small Text",
+   "label": "System Content"
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [
+  {
+   "link_doctype": "CF Chat Message",
+   "link_fieldname": "cf_chat"
+  }
+ ],
+ "modified": "2025-05-27 06:49:00.215476",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Chat",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "show_title_field_in_link": 1,
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": [],
+ "title_field": "title"
+}
