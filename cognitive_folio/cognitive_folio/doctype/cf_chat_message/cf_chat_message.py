@@ -97,6 +97,7 @@ class CFChatMessage(Document):
 			return 0
 		
 		chat = frappe.get_doc("CF Chat", self.chat)
+		portfolio = frappe.get_doc("CF Portfolio", chat.portfolio)
 		security = frappe.get_doc("CF Security", chat.security)
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
@@ -123,7 +124,12 @@ class CFChatMessage(Document):
 			variable_name = match.group(1)
 			try:
 				# Get the actual field value from the document
-				field_value = getattr(security, variable_name, None)
+				if security:
+					field_value = getattr(security, variable_name, None)
+				elif portfolio:
+					field_value = getattr(portfolio, variable_name, None)
+				else:
+					field_value = None
 				if field_value is not None:
 					return str(field_value)
 				else:
