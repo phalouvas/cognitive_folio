@@ -117,7 +117,7 @@ function display_timeline(frm, messages) {
                 border: 2px solid var(--primary-color);
             }
             .chat-timeline .timeline-content {
-                max-width: var(--timeline-content-max-width);
+                #max-width: var(--timeline-content-max-width);
                 padding: var(--padding-sm);
                 margin-left: var(--margin-md);
                 color: var(--text-neutral);
@@ -132,11 +132,15 @@ function display_timeline(frm, messages) {
                 padding: 8px;
                 border-radius: 4px;
                 border-left: 3px solid var(--primary-color);
+                max-height: 200px;
+                overflow-y: auto;
             }
             .chat-response {
                 padding: 8px;
                 border-radius: 4px;
                 border-left: 3px solid var(--green);
+                max-height: 500px;
+                overflow-y: auto;
             }
         </style>
     `;
