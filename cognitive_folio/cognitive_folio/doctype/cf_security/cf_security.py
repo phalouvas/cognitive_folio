@@ -141,107 +141,40 @@ class CFSecurity(Document):
 	
 	@frappe.whitelist()
 	def generate_ai_suggestion(self):
-		if self.security_type == "Cash":
-			return {'success': False, 'error': _('AI suggestion is only for non-cash securities')}
+		"""Queue AI suggestion generation for the security as a background job"""
+		if self.security_type != "Stock":
+			return {'success': False, 'error': _('AI suggestion is only for non-stock securities')}
+		
+		self.ai_suggestion = "Processing your request..."
+		self.ai_suggestion_html = frappe.utils.markdown(self.ai_suggestion)
+		self.save()
 		
 		try:
-			from openai import OpenAI			
-		except ImportError:
-			frappe.msgprint("OpenAI package is not installed. Please run 'bench pip install openai'")
-			return 0
-		
-		try:
-			# Get OpenWebUI settings
-			settings = frappe.get_single("CF Settings")
-			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-			model = settings.default_ai_model
-			if not model:
-				frappe.throw(_('Default AI model is not configured in CF Settings'))
-
-			news_json = json.loads(self.news) if self.news else []
-			# Extract URLs from news data and format with # prefix
-			news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
-							for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
-			news = "\n".join(news_urls)
+			from frappe.utils.background_jobs import enqueue
 			
-			# Create base prompt with security data
-			prompt = f"""
-			You own stocks of below company and you must decide whether you will buy more, hold, or sell.
+			# Create a unique job name to prevent duplicates
+			job_name = f"security_ai_suggestion_{self.name}_{frappe.utils.now()}"
 			
-			Profit and Loss Statement:
-			{self.profit_loss}
-
-			Balance Sheet:
-			{self.balance_sheet}
-
-			Cash Flow Statement:
-			{self.cash_flow}	
-
-			"""                        
-			
-			# Add final instructions to the prompt
-			prompt += """
-			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
-			State your recommendation Buy, Hold, or Sell.
-			State the price target that you would think for buying and selling.
-			Output in JSON format but give titles to each column so I am able to render them in markdown format.
-			
-			EXAMPLE JSON OUTPUT:
-			{
-				"Summary": "Your summary here in markdown format",
-				"Analysis": "Your evaluation analysis here in markdown format",
-				"Risks": "The identified risks here in markdown format",
-				"Evaluation": {
-					"Rating": 4,
-					"Recommendation": "Buy",
-					"Price Target Buy Below": 156.01,
-					"Price Target Sell Above": 185.18
-				}
-			}
-			"""
-			
-			messages = [
-					{"role": "system", "content": settings.system_content},
-					{"role": "user", "content": prompt},
-			]
-			response = client.chat.completions.create(
-				model=model,
-				messages=messages,
-				stream=False,
-				temperature=0.2
+			# Enqueue the job
+			enqueue(
+				method="cognitive_folio.cognitive_folio.doctype.cf_security.cf_security.process_security_ai_suggestion",
+				queue="long",
+				timeout=1800,  # 30 minutes
+				job_name=job_name,
+				now=False,
+				security_name=self.name,
+				user=frappe.session.user
 			)
-
-			 # Parse the JSON from the content string, removing any Markdown formatting
-			content_string = response.choices[0].message.content
-			# Remove Markdown code blocks if present
-			if content_string.startswith('```') and '```' in content_string[3:]:
-				# Extract content between the first and last backtick markers
-				content_string = content_string.split('```', 2)[1]
-				# Remove the language identifier if present (e.g., 'json\n')
-				if '\n' in content_string:
-					content_string = content_string.split('\n', 1)[1]
-				# Remove trailing backticks if any remain
-				if '```' in content_string:
-					content_string = content_string.split('```')[0]
-			suggestion = json.loads(content_string)
-
-			# Convert JSON to markdown for better display
-			markdown_content = self.convert_json_to_markdown(suggestion)
 			
-			self.ai_response = content_string
-			self.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
-			self.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
-			self.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
-			self.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
-			self.ai_suggestion = markdown_content
-			self.ai_prompt = prompt
-			self.save()
-			return {'success': True}
-		except requests.exceptions.RequestException as e:
-			frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
-			return {'success': False, 'error': str(e)}
+			frappe.msgprint(
+				_("Security AI suggestion generation has been queued. You will be notified when it's complete."),
+				alert=True
+			)
+			
+			return {'success': True, 'message': _('Security AI suggestion generation has been queued')}
+		
 		except Exception as e:
-			frappe.log_error(f"Error generating AI suggestion: {str(e)}", "AI Suggestion Error")
+			frappe.log_error(f"Error queueing security AI suggestion: {str(e)}", "Security AI Suggestion Error")
 			return {'success': False, 'error': str(e)}
 			
 	def convert_json_to_markdown(self, data):
@@ -1574,3 +1507,162 @@ def get_country_region_from_api(country):
 	except Exception as e:
 		frappe.log_error(f"Error fetching country region: {str(e)}")
 		return 'Unknown'
+	
+@frappe.whitelist()
+def process_security_ai_suggestion(security_name, user):
+    """Process AI suggestion for the security (meant to be run as a background job)"""
+    try:
+        # Log start of process
+        frappe.logger().info(f"Starting AI suggestion generation for security {security_name}")
+        
+        # Get the security document
+        security = frappe.get_doc("CF Security", security_name)
+        
+        if security.security_type == "Cash":
+            frappe.logger().info(f"Skipping AI suggestion for cash security {security_name}")
+            return False
+        
+        try:
+            from openai import OpenAI            
+        except ImportError:
+            frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Suggestion Error")
+            return False
+        
+        try:
+            # Get OpenWebUI settings
+            settings = frappe.get_single("CF Settings")
+            client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+            model = settings.default_ai_model
+            if not model:
+                raise ValueError(_('Default AI model is not configured in CF Settings'))
+
+            news_json = json.loads(security.news) if security.news else []
+            # Extract URLs from news data and format with # prefix
+            news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
+                         for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
+            news = "\n".join(news_urls)
+            
+            # Create base prompt with security data
+            prompt = f"""
+            You own stocks of below company and you must decide whether you will buy more, hold, or sell.
+            
+            Profit and Loss Statement:
+            {security.profit_loss}
+
+            Balance Sheet:
+            {security.balance_sheet}
+
+            Cash Flow Statement:
+            {security.cash_flow}    
+
+            """                        
+            
+            # Add final instructions to the prompt
+            prompt += """
+            Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
+            State your recommendation Buy, Hold, or Sell.
+            State the price target that you would think for buying and selling.
+            Output in JSON format but give titles to each column so I am able to render them in markdown format.
+            
+            EXAMPLE JSON OUTPUT:
+            {
+                "Summary": "Your summary here in markdown format",
+                "Analysis": "Your evaluation analysis here in markdown format",
+                "Risks": "The identified risks here in markdown format",
+                "Evaluation": {
+                    "Rating": 4,
+                    "Recommendation": "Buy",
+                    "Price Target Buy Below": 156.01,
+                    "Price Target Sell Above": 185.18
+                }
+            }
+            """
+            
+            messages = [
+                {"role": "system", "content": settings.system_content},
+                {"role": "user", "content": prompt},
+            ]
+            response = client.chat.completions.create(
+                model=model,
+                messages=messages,
+                stream=False,
+                temperature=0.2
+            )
+
+            # Parse the JSON from the content string, removing any Markdown formatting
+            content_string = response.choices[0].message.content
+            # Remove Markdown code blocks if present
+            if content_string.startswith('```') and '```' in content_string[3:]:
+                # Extract content between the first and last backtick markers
+                content_string = content_string.split('```', 2)[1]
+                # Remove the language identifier if present (e.g., 'json\n')
+                if '\n' in content_string:
+                    content_string = content_string.split('\n', 1)[1]
+                # Remove trailing backticks if any remain
+                if '```' in content_string:
+                    content_string = content_string.split('```')[0]
+            suggestion = json.loads(content_string)
+
+            # Convert JSON to markdown for better display
+            markdown_content = security.convert_json_to_markdown(suggestion)
+            
+            security.ai_response = content_string
+            security.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
+            security.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
+            security.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
+            security.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
+            security.ai_suggestion = markdown_content
+            security.ai_prompt = prompt
+            security.save()
+            frappe.db.commit()  # Add explicit commit for background job
+            
+            # Notify the user that the analysis is complete
+            frappe.publish_realtime(
+                "security_ai_suggestion_complete", 
+                {"security": security_name, "message": _("AI suggestion for '{0}' is complete").format(security.security_name or security.name)},
+                user=user
+            )
+            
+            frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
+            
+            return True
+            
+        except requests.exceptions.RequestException as e:
+            frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
+            
+            # Notify user of failure
+            frappe.publish_realtime(
+                "security_ai_suggestion_error", 
+                {"security": security_name, "error": _("API request error: {0}").format(str(e))},
+                user=user
+            )
+            
+            return False
+            
+        except Exception as e:
+            frappe.log_error(f"Error generating AI suggestion: {str(e)}", "AI Suggestion Error")
+            
+            # Notify user of failure
+            frappe.publish_realtime(
+                "security_ai_suggestion_error", 
+                {"security": security_name, "error": _("Error generating AI suggestion: {0}").format(str(e))},
+                user=user
+            )
+            
+            return False
+    
+    except Exception as e:
+        error_msg = str(e)
+        frappe.log_error(
+            f"Error generating AI suggestion for security {security_name}: {error_msg}",
+            "Security AI Suggestion Error"
+        )
+        
+        # Notify user of failure
+        frappe.publish_realtime(
+            "security_ai_suggestion_error", 
+            {"security": security_name, "error": _("Failed to generate AI suggestion: {0}").format(error_msg)},
+            user=user
+        )
+        
+        return False
