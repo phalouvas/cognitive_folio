@@ -145,7 +145,7 @@ class CFChatMessage(Document):
 					if securities:
 						# If multiple securities, return them separated by newlines
 						if len(securities) > 1:
-							field_value = "\n".join(str(getattr(sec, variable_name, "")) for sec in securities)
+							field_value = "\n\n".join(str(getattr(sec, variable_name, "")) for sec in securities)
 					else:
 						field_value = None
 				else:
