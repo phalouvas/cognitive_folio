@@ -5,6 +5,12 @@ import re
 
 class CFChatMessage(Document):
 
+	def validate(self):
+		if not self.system_prompt:
+			chat = frappe.get_doc("CF Chat", self.chat)
+			if chat.system_prompt:
+				self.system_prompt = chat.system_prompt
+
 	def before_save(self):
 		
 		try:
@@ -19,7 +25,7 @@ class CFChatMessage(Document):
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 
 		messages = [
-			{"role": "system", "content": chat.system_content if chat.system_content else settings.system_content}
+			{"role": "system", "content": self.system_prompt if self.system_prompt else settings.system_prompt}
 		]
 
 		# Add previous messages from the chat

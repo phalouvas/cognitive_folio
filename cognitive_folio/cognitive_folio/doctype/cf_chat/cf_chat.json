@@ -8,7 +8,7 @@
   "security",
   "title",
   "column_break_zqji",
-  "system_content",
+  "system_prompt",
   "messages_section",
   "messages"
  ],
@@ -17,11 +17,6 @@
    "fieldname": "title",
    "fieldtype": "Data",
    "label": "Title"
-  },
-  {
-   "fieldname": "system_content",
-   "fieldtype": "Small Text",
-   "label": "System Content"
   },
   {
    "fieldname": "security",
@@ -46,6 +41,12 @@
    "fieldname": "messages",
    "fieldtype": "HTML",
    "label": "Messages"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fieldname": "system_prompt",
+   "fieldtype": "Data",
+   "label": "System Prompt"
   }
  ],
  "grid_page_length": 50,
@@ -56,7 +57,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 08:08:01.376976",
+ "modified": "2025-05-27 09:26:26.732820",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",

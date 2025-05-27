@@ -8,6 +8,7 @@
   "chat",
   "column_break_cbjh",
   "model",
+  "system_prompt",
   "section_break_nyal",
   "prompt",
   "response_html",
@@ -22,7 +23,8 @@
    "in_list_view": 1,
    "label": "Chat",
    "options": "CF Chat",
-   "reqd": 1
+   "reqd": 1,
+   "search_index": 1
   },
   {
    "description": "{{isin}}\n  {{security_name}}\n  {{symbol}}\n  {{security_type}}\n  {{stock_exchange}}\n  {{currency}}\n  {{current_price}}\n  {{is_alert}}\n  {{alert_details}}\n  {{suggestion_action}}\n  {{suggestion_buy_price}}\n  {{intrinsic_value}}\n  {{suggestion_rating}}\n  {{suggestion_sell_price}}\n  {{fair_value}}\n  {{country}}\n  {{region}}\n  {{subregion}}\n  {{sector}}\n  {{industry}}\n  {{analysis_section}}\n  {{ai_suggestion_html}}\n  {{ai_suggestion}}\n  {{ai_response}}\n  {{news_html}}\n  {{news}}\n  {{ticker_info}}\n  {{news_urls_section}}\n  {{news_urls}}\n  {{profit_loss}}\n  {{balance_sheet}}\n  {{cash_flow}}\n  {{dividends}}",
@@ -74,12 +76,19 @@
    "fieldname": "tokens_section",
    "fieldtype": "Section Break",
    "label": "Tokens"
+  },
+  {
+   "allow_in_quick_entry": 1,
+   "fetch_from": "chat.system_prompt",
+   "fieldname": "system_prompt",
+   "fieldtype": "Data",
+   "label": "System Prompt"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-27 09:18:33.954252",
+ "modified": "2025-05-27 09:26:20.789897",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
