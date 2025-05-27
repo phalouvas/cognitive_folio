@@ -39,7 +39,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 06:59:25.423082",
+ "modified": "2025-05-27 07:05:02.588209",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",
@@ -58,6 +58,7 @@
    "write": 1
   }
  ],
+ "quick_entry": 1,
  "row_format": "Dynamic",
  "search_fields": "security",
  "show_title_field_in_link": 1,
