@@ -83,6 +83,9 @@ function display_timeline(frm, messages) {
     timeline_html += `
             </div>
         </div>
+        <button data-label="Add%20Message" class="btn btn-default ellipsis add-message-btn">
+            Add Message
+        </button></div>
     `;
 
     // Add some custom CSS for better styling
@@ -114,6 +117,10 @@ function display_timeline(frm, messages) {
                 background: var(--bg-color);
                 border: 2px solid var(--primary-color);
             }
+            .chat-timeline .add-message-dot {
+                background: var(--primary-color);
+                border: 2px solid var(--primary-color);
+            }
             .chat-timeline .timeline-content {
                 max-width: var(--timeline-content-max-width);
                 padding: var(--padding-sm);
@@ -136,8 +143,21 @@ function display_timeline(frm, messages) {
                 border-radius: 4px;
                 border-left: 3px solid var(--green);
             }
+            .add-message-btn {
+                display: flex;
+                align-items: center;
+                gap: 4px;
+            }
         </style>
     `;
 
     frm.fields_dict.messages.$wrapper.html(custom_css + timeline_html);
+    
+    // Add click handler for the add message button
+    frm.fields_dict.messages.$wrapper.find('.add-message-btn').on('click', function() {
+        let chat_name = $(this).data('chat');
+        frappe.new_doc('CF Chat Message', {
+            chat: chat_name
+        });
+    });
 }
