@@ -6,6 +6,9 @@
  "engine": "InnoDB",
  "field_order": [
   "chat",
+  "column_break_cbjh",
+  "model",
+  "section_break_nyal",
   "prompt",
   "response",
   "tokens"
@@ -38,12 +41,27 @@
    "fieldtype": "JSON",
    "label": "Tokens",
    "read_only": 1
+  },
+  {
+   "fieldname": "model",
+   "fieldtype": "Select",
+   "label": "Model",
+   "options": "deepseek-reasoner\ndeepseek-chat",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_cbjh",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "section_break_nyal",
+   "fieldtype": "Section Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-27 08:16:29.752092",
+ "modified": "2025-05-27 08:19:35.697705",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
