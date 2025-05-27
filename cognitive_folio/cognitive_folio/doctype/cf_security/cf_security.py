@@ -23,9 +23,22 @@ class CFSecurity(Document):
 
 		if self.security_type == "Stock":
 			self.validate_isin()
+			self.set_news_urls()
 			self.calculate_intrinsic_value()
 			self.calculate_fair_value()
 			self.set_alert()
+
+	def set_news_urls(self):
+		news_urls = []
+		if self.news:
+			try:
+				news_data = json.loads(self.news)
+				for item in news_data:
+					if 'link' in item:
+						news_urls.append(item['link'])
+				self.news_html = "\n".join([url for url in news_urls])
+			except json.JSONDecodeError:
+				frappe.log_error("Invalid JSON format in news data", "CFSecurity News URLs")
 	
 	def validate_isin(self):
 		"""Validate ISIN format if provided"""
