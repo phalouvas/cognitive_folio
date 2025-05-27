@@ -27,7 +27,7 @@ function render_chat_timeline(frm) {
             filters: {
                 chat: frm.doc.name
             },
-            fields: ['name', 'prompt', 'model', 'response_html', 'creation', 'modified'],
+            fields: ['name', 'prompt', 'model', 'response_html', 'creation', 'modified', 'owner'],
             order_by: 'creation desc',
             limit_page_length: 0
         },
@@ -59,8 +59,6 @@ function display_timeline(frm, messages) {
                                     ${frappe.utils.icon('es-line-chat-alt', 'md')}
                                 </span>
                                 <div>
-                                    <strong>Chat Message</strong>
-                                    <span> · </span>
                                     <span class="text-muted">${creation_time}</span>
                                 </div>
                             </span>
@@ -71,7 +69,7 @@ function display_timeline(frm, messages) {
                             </span>
                         </span>
                         <div class="content">
-                            ${message.prompt ? `<div class="chat-prompt">${message.prompt}</div>` : ''}
+                            ${message.prompt ? `<div class="chat-prompt"><strong>${message.owner}:<br></strong>${message.prompt}</div>` : ''}
                             ${message.response_html ? `<div class="chat-response mt-2"><strong>${message.model}:</strong><br>${message.response_html}</div>` : ''}
                         </div>
                     </div>
