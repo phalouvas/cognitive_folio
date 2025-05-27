@@ -393,9 +393,13 @@
   {
    "link_doctype": "CF Dividend",
    "link_fieldname": "security"
+  },
+  {
+   "link_doctype": "CF Chat",
+   "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-25 15:19:39.851245",
+ "modified": "2025-05-27 06:52:30.482491",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
