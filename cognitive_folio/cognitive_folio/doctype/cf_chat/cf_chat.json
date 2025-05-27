@@ -5,20 +5,11 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "cf_security",
+  "security",
   "title",
   "system_content"
  ],
  "fields": [
-  {
-   "fieldname": "cf_security",
-   "fieldtype": "Link",
-   "in_list_view": 1,
-   "in_standard_filter": 1,
-   "label": "Security",
-   "options": "CF Security",
-   "reqd": 1
-  },
   {
    "fieldname": "title",
    "fieldtype": "Data",
@@ -28,6 +19,16 @@
    "fieldname": "system_content",
    "fieldtype": "Small Text",
    "label": "System Content"
+  },
+  {
+   "fieldname": "security",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Security",
+   "options": "CF Security",
+   "reqd": 1,
+   "search_index": 1
   }
  ],
  "grid_page_length": 50,
@@ -35,10 +36,10 @@
  "links": [
   {
    "link_doctype": "CF Chat Message",
-   "link_fieldname": "cf_chat"
+   "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 06:49:00.215476",
+ "modified": "2025-05-27 06:59:25.423082",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",
@@ -58,6 +59,7 @@
   }
  ],
  "row_format": "Dynamic",
+ "search_fields": "security",
  "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
