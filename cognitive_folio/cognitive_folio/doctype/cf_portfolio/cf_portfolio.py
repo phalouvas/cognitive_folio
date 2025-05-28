@@ -447,221 +447,328 @@ class CFPortfolio(Document):
 
 @frappe.whitelist()
 def process_portfolio_ai_analysis(portfolio_name, user):
-    """Process AI analysis for the portfolio (meant to be run as a background job)"""
-    try:
-        # Log start of process
-        frappe.logger().info(f"Starting AI analysis generation for portfolio {portfolio_name}")
-        
-        # Get the portfolio document
-        portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
-        
-        # Import required libraries
-        from openai import OpenAI
-        
-        # Get OpenWebUI settings
-        settings = frappe.get_single("CF Settings")
-        model = settings.default_ai_model
-        if not model:
-            raise ValueError(_('Default AI model is not configured in CF Settings'))
-        client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-        
-        # Get all holdings for this portfolio
-        holdings = frappe.get_all(
-            "CF Portfolio Holding",
-            filters=[
-                ["portfolio", "=", portfolio_name],
-            ],
-            fields=["*"]
-        )
-        
-        if not holdings:
-            raise ValueError(_('No holdings found in this portfolio'))
-        
-        # Calculate total portfolio value and other metrics
-        total_value = sum(holding.current_value for holding in holdings if holding.current_value)
-        total_profit_loss = sum(holding.profit_loss for holding in holdings if holding.profit_loss)
-        
-        # Group holdings by various categories for analysis
-        sector_allocation = {}
-        industry_allocation = {}
-        country_allocation = {}
-        region_allocation = {}
-        subregion_allocation = {}
-        security_type_allocation = {}
-        
-        for holding in holdings:
-            # Sector allocation
-            if holding.sector:
-                if holding.sector not in sector_allocation:
-                    sector_allocation[holding.sector] = 0
-                sector_allocation[holding.sector] += holding.current_value or 0
-            
-            # Industry allocation
-            if holding.industry:
-                if holding.industry not in industry_allocation:
-                    industry_allocation[holding.industry] = 0
-                industry_allocation[holding.industry] += holding.current_value or 0
-            
-            # Country allocation
-            if holding.country:
-                if holding.country not in country_allocation:
-                    country_allocation[holding.country] = 0
-                country_allocation[holding.country] += holding.current_value or 0
-            
-            # Region allocation
-            if holding.region:
-                if holding.region not in region_allocation:
-                    region_allocation[holding.region] = 0
-                region_allocation[holding.region] += holding.current_value or 0
-            
-            # Subregion allocation
-            if holding.subregion:
-                if holding.subregion not in subregion_allocation:
-                    subregion_allocation[holding.subregion] = 0
-                subregion_allocation[holding.subregion] += holding.current_value or 0
-            
-            # Security type allocation
-            if holding.security_type:
-                if holding.security_type not in security_type_allocation:
-                    security_type_allocation[holding.security_type] = 0
-                security_type_allocation[holding.security_type] += holding.current_value or 0
-        
-        # Convert raw values to percentages
-        if total_value > 0:
-            sector_allocation = {k: (v/total_value*100) for k, v in sector_allocation.items()}
-            industry_allocation = {k: (v/total_value*100) for k, v in industry_allocation.items()}
-            country_allocation = {k: (v/total_value*100) for k, v in country_allocation.items()}
-            region_allocation = {k: (v/total_value*100) for k, v in region_allocation.items()}
-            subregion_allocation = {k: (v/total_value*100) for k, v in subregion_allocation.items()}
-            security_type_allocation = {k: (v/total_value*100) for k, v in security_type_allocation.items()}
-        
-        # Get target allocations from CF Asset Allocation
-        target_allocations = frappe.get_all(
-            "CF Asset Allocation",
-            filters={"portfolio": portfolio_name},
-            fields=["allocation_type", "asset_class", "target_percentage", "current_percentage", "difference"]
-        )
-        
-        # Group target allocations by type
-        grouped_targets = {}
-        for alloc in target_allocations:
-            alloc_type = alloc.allocation_type
-            if alloc_type not in grouped_targets:
-                grouped_targets[alloc_type] = []
-            grouped_targets[alloc_type].append(alloc)
-        
-        # Build the prompt with portfolio data
-        prompt = f"""
-        Portfolio Name: {portfolio.portfolio_name}
-        Risk Profile: {portfolio.risk_profile or "Not specified"}
-        Currency: {portfolio.currency or "Not specified"}
-        Total Value: {total_value} {portfolio.currency}
-        Total Profit/Loss: {total_profit_loss} {portfolio.currency} ({(total_profit_loss/total_value*100) if total_value else 0:.2f}%)
-        
-        Holdings:
-        """
-        
-        # Add holdings data
-        for holding in holdings:
-            prompt += f"""
-            - {holding.security_name or holding.security} ({holding.security_type or "Unknown type"})
-              Quantity: {holding.quantity}
-              Current Value: {holding.current_value} {portfolio.currency} ({holding.allocation_percentage or 0:.2f}% of portfolio)
-              Profit/Loss: {holding.profit_loss or 0} {portfolio.currency} ({holding.profit_loss_percentage or 0:.2f}%)
-              Sector: {holding.sector or "Unknown"}
-              Industry: {holding.industry or "Unknown"}
-              Country: {holding.country or "Unknown"}
-              Region: {holding.region or "Unknown"}
-              Subregion: {holding.subregion or "Unknown"}
-            """
-        
-        # Add current allocation data
-        prompt += "\nSector Allocation:\n"
-        for sector, percentage in sorted(sector_allocation.items(), key=lambda x: x[1], reverse=True):
-            prompt += f"- {sector}: {percentage:.2f}%\n"
-        
-        prompt += "\nIndustry Allocation:\n"
-        for industry, percentage in sorted(industry_allocation.items(), key=lambda x: x[1], reverse=True):
-            prompt += f"- {industry}: {percentage:.2f}%\n"
-        
-        prompt += "\nCountry Allocation:\n"
-        for country, percentage in sorted(country_allocation.items(), key=lambda x: x[1], reverse=True):
-            prompt += f"- {country}: {percentage:.2f}%\n"
-        
-        prompt += "\nRegion Allocation:\n"
-        for region, percentage in sorted(region_allocation.items(), key=lambda x: x[1], reverse=True):
-            prompt += f"- {region}: {percentage:.2f}%\n"
-        
-        prompt += "\nSubregion Allocation:\n"
-        for subregion, percentage in sorted(subregion_allocation.items(), key=lambda x: x[1], reverse=True):
-            prompt += f"- {subregion}: {percentage:.2f}%\n"
-        
-        prompt += "\nSecurity Type Allocation:\n"
-        for security_type, percentage in sorted(security_type_allocation.items(), key=lambda x: x[1], reverse=True):
-            prompt += f"- {security_type}: {percentage:.2f}%\n"
+	"""Process AI analysis for the portfolio (meant to be run as a background job)"""
+	try:
+		# Log start of process
+		frappe.logger().info(f"Starting AI analysis generation for portfolio {portfolio_name}")
+		
+		# Get the portfolio document
+		portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
+		
+		try:
+			from openai import OpenAI            
+		except ImportError:
+			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Analysis Error")
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='portfolio_ai_analysis_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': 'OpenAI package is not installed'
+				},
+				user=user
+			)
+			return False
+		
+		try:
+			# Get OpenWebUI settings
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			model = settings.default_ai_model
+			if not model:
+				raise ValueError(_('Default AI model is not configured in CF Settings'))
+			
+			# Get all holdings for this portfolio
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters=[
+					["portfolio", "=", portfolio_name],
+				],
+				fields=["*"]
+			)
+			
+			if not holdings:
+				raise ValueError(_('No holdings found in this portfolio'))
+			
+			# Calculate total portfolio value and other metrics
+			total_value = sum(holding.current_value for holding in holdings if holding.current_value)
+			total_profit_loss = sum(holding.profit_loss for holding in holdings if holding.profit_loss)
+			
+			# Group holdings by various categories for analysis
+			sector_allocation = {}
+			industry_allocation = {}
+			country_allocation = {}
+			region_allocation = {}
+			subregion_allocation = {}
+			security_type_allocation = {}
+			
+			for holding in holdings:
+				# Sector allocation
+				if holding.sector:
+					if holding.sector not in sector_allocation:
+						sector_allocation[holding.sector] = 0
+					sector_allocation[holding.sector] += holding.current_value or 0
+				
+				# Industry allocation
+				if holding.industry:
+					if holding.industry not in industry_allocation:
+						industry_allocation[holding.industry] = 0
+					industry_allocation[holding.industry] += holding.current_value or 0
+				
+				# Country allocation
+				if holding.country:
+					if holding.country not in country_allocation:
+						country_allocation[holding.country] = 0
+					country_allocation[holding.country] += holding.current_value or 0
+				
+				# Region allocation
+				if holding.region:
+					if holding.region not in region_allocation:
+						region_allocation[holding.region] = 0
+					region_allocation[holding.region] += holding.current_value or 0
+				
+				# Subregion allocation
+				if holding.subregion:
+					if holding.subregion not in subregion_allocation:
+						subregion_allocation[holding.subregion] = 0
+					subregion_allocation[holding.subregion] += holding.current_value or 0
+				
+				# Security type allocation
+				if holding.security_type:
+					if holding.security_type not in security_type_allocation:
+						security_type_allocation[holding.security_type] = 0
+					security_type_allocation[holding.security_type] += holding.current_value or 0
+			
+			# Convert raw values to percentages
+			if total_value > 0:
+				sector_allocation = {k: (v/total_value*100) for k, v in sector_allocation.items()}
+				industry_allocation = {k: (v/total_value*100) for k, v in industry_allocation.items()}
+				country_allocation = {k: (v/total_value*100) for k, v in country_allocation.items()}
+				region_allocation = {k: (v/total_value*100) for k, v in region_allocation.items()}
+				subregion_allocation = {k: (v/total_value*100) for k, v in subregion_allocation.items()}
+				security_type_allocation = {k: (v/total_value*100) for k, v in security_type_allocation.items()}
+			
+			# Get target allocations from CF Asset Allocation
+			target_allocations = frappe.get_all(
+				"CF Asset Allocation",
+				filters={"portfolio": portfolio_name},
+				fields=["allocation_type", "asset_class", "target_percentage", "current_percentage", "difference"]
+			)
+			
+			# Group target allocations by type
+			grouped_targets = {}
+			for alloc in target_allocations:
+				alloc_type = alloc.allocation_type
+				if alloc_type not in grouped_targets:
+					grouped_targets[alloc_type] = []
+				grouped_targets[alloc_type].append(alloc)
+			
+			# Build the prompt with portfolio data
+			prompt = f"""
+			Portfolio Name: {portfolio.portfolio_name}
+			Risk Profile: {portfolio.risk_profile or "Not specified"}
+			Currency: {portfolio.currency or "Not specified"}
+			Total Value: {total_value} {portfolio.currency}
+			Total Profit/Loss: {total_profit_loss} {portfolio.currency} ({(total_profit_loss/total_value*100) if total_value else 0:.2f}%)
+			
+			Holdings:
+			"""
+			
+			# Add holdings data
+			for holding in holdings:
+				prompt += f"""
+				- {holding.security_name or holding.security} ({holding.security_type or "Unknown type"})
+				  Quantity: {holding.quantity}
+				  Current Value: {holding.current_value} {portfolio.currency} ({holding.allocation_percentage or 0:.2f}% of portfolio)
+				  Profit/Loss: {holding.profit_loss or 0} {portfolio.currency} ({holding.profit_loss_percentage or 0:.2f}%)
+				  Sector: {holding.sector or "Unknown"}
+				  Industry: {holding.industry or "Unknown"}
+				  Country: {holding.country or "Unknown"}
+				  Region: {holding.region or "Unknown"}
+				  Subregion: {holding.subregion or "Unknown"}
+				"""
+			
+			# Add current allocation data
+			prompt += "\nSector Allocation:\n"
+			for sector, percentage in sorted(sector_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {sector}: {percentage:.2f}%\n"
+			
+			prompt += "\nIndustry Allocation:\n"
+			for industry, percentage in sorted(industry_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {industry}: {percentage:.2f}%\n"
+			
+			prompt += "\nCountry Allocation:\n"
+			for country, percentage in sorted(country_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {country}: {percentage:.2f}%\n"
+			
+			prompt += "\nRegion Allocation:\n"
+			for region, percentage in sorted(region_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {region}: {percentage:.2f}%\n"
+			
+			prompt += "\nSubregion Allocation:\n"
+			for subregion, percentage in sorted(subregion_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {subregion}: {percentage:.2f}%\n"
+			
+			prompt += "\nSecurity Type Allocation:\n"
+			for security_type, percentage in sorted(security_type_allocation.items(), key=lambda x: x[1], reverse=True):
+				prompt += f"- {security_type}: {percentage:.2f}%\n"
 
-        prompt += settings.user_content
+			prompt += settings.user_content
 
-        # Check if Target Allocations placeholder exists in user_content
-        target_allocations_text = ""
-        if grouped_targets:
-            target_allocations_text = "\nTarget Allocations:\n"
-            for alloc_type, allocations in grouped_targets.items():
-                target_allocations_text += f"\n{alloc_type} Targets:\n"
-                for alloc in sorted(allocations, key=lambda x: x.target_percentage, reverse=True):
-                    current = alloc.current_percentage or 0
-                    target = alloc.target_percentage or 0
-                    diff = alloc.difference or 0
-                    target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
-        
-        # Replace {Target Allocations} placeholder in prompt if it exists
-        if "{Target Allocations}" in prompt:
-            prompt = prompt.replace("{Target Allocations}", target_allocations_text)
+			# Check if Target Allocations placeholder exists in user_content
+			target_allocations_text = ""
+			if grouped_targets:
+				target_allocations_text = "\nTarget Allocations:\n"
+				for alloc_type, allocations in grouped_targets.items():
+					target_allocations_text += f"\n{alloc_type} Targets:\n"
+					for alloc in sorted(allocations, key=lambda x: x.target_percentage, reverse=True):
+						current = alloc.current_percentage or 0
+						target = alloc.target_percentage or 0
+						diff = alloc.difference or 0
+						target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
+			
+			# Replace {Target Allocations} placeholder in prompt if it exists
+			if "{Target Allocations}" in prompt:
+				prompt = prompt.replace("{Target Allocations}", target_allocations_text)
 
-        # Make the API call
-        messages = [
-            {"role": "system", "content": settings.system_content},
-            {"role": "user", "content": prompt},
-        ]
-        
-        response = client.chat.completions.create(
-            model=model,
-            messages=messages,
-            stream=False,
-            temperature=0.2
-        )
-        
-        # Get content from response
-        content = response.choices[0].message.content
-        
-        # Save to ai_suggestion field
-        portfolio.ai_prompt = prompt
-        portfolio.ai_suggestion = frappe.utils.markdown(content)
-        portfolio.save()
-        
-        # Notify the user that the analysis is complete - use only publish_realtime for background jobs
-        frappe.publish_realtime(
-            "portfolio_ai_analysis_complete", 
-            {"portfolio": portfolio_name, "message": _("Portfolio AI analysis for '{0}' is complete").format(portfolio.portfolio_name)},
-            user=user
-        )
-        
-        frappe.logger().info(f"Successfully generated AI analysis for portfolio {portfolio_name}")
-        
-        return True
-        
-    except Exception as e:
-        error_msg = str(e)
-        frappe.log_error(
-            f"Error generating AI analysis for portfolio {portfolio_name}: {error_msg}",
-            "Portfolio AI Analysis Error"
-        )
-        
-        # Notify user of failure - use only publish_realtime for background jobs
-        frappe.publish_realtime(
-            "portfolio_ai_analysis_error", 
-            {"portfolio": portfolio_name, "error": _("Failed to generate AI analysis for portfolio: {0}").format(error_msg)},
-            user=user
-        )
-        
-        return False
+			# Make the API call
+			messages = [
+				{"role": "system", "content": settings.system_content},
+				{"role": "user", "content": prompt},
+			]
+			
+			response = client.chat.completions.create(
+				model=model,
+				messages=messages,
+				stream=False,
+				temperature=0.2
+			)
+			
+			# Get content from response
+			content = response.choices[0].message.content
+			
+			# Convert to markdown for better display
+			markdown_content = frappe.utils.markdown(content)
+			
+			# Save to portfolio
+			portfolio.ai_prompt = prompt
+			portfolio.ai_suggestion = markdown_content
+			portfolio.save()
+			
+			# Create CF Chat and CF Chat Message
+			chat_doc = frappe.new_doc("CF Chat")
+			chat_doc.portfolio = portfolio_name
+			chat_doc.title = f"Portfolio Analysis for {portfolio.portfolio_name} - {frappe.utils.today()}"
+			chat_doc.system_prompt = settings.system_content
+			chat_doc.save()
+			
+			# Create the chat message
+			message_doc = frappe.new_doc("CF Chat Message")
+			message_doc.chat = chat_doc.name
+			message_doc.prompt = prompt
+			message_doc.response = markdown_content
+			message_doc.model = model
+			message_doc.status = "Success"
+			message_doc.system_prompt = settings.system_content
+			message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+			message_doc.save()
+			
+			frappe.db.commit()  # Single commit for all changes
+			
+			# Notify the user that the analysis is complete
+			frappe.publish_realtime(
+				event='portfolio_ai_analysis_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'success',
+					'chat_id': chat_doc.name
+				},
+				user=user
+			)
+			
+			# Also send a notification sound and alert similar to chat messages
+			frappe.publish_realtime(
+				event='eval_js',
+				message='frappe.show_alert({message: "Portfolio AI analysis completed successfully", indicator: "green"}); try { const audio = new Audio("/assets/cognitive_folio/sounds/notification.mp3"); audio.volume = 0.5; audio.play(); } catch(e) { console.log("Audio play failed:", e); }',
+				user=user
+			)
+			
+			frappe.logger().info(f"Successfully generated AI analysis for portfolio {portfolio_name}")
+			
+			return True
+			
+		except requests.exceptions.RequestException as e:
+			error_message = f"Request error: {str(e)}"
+			frappe.log_error(error_message, "OpenWebUI API Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='portfolio_ai_analysis_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': error_message
+				},
+				user=user
+			)
+			
+			# Also send error notification
+			frappe.publish_realtime(
+				event='eval_js',
+				message='frappe.show_alert({message: "Portfolio AI analysis failed. Please check the logs.", indicator: "red"});',
+				user=user
+			)
+			
+			return False
+			
+		except Exception as e:
+			error_message = f"Error generating AI analysis: {str(e)}"
+			frappe.log_error(error_message, "AI Analysis Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='portfolio_ai_analysis_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': error_message
+				},
+				user=user
+			)
+			
+			# Also send error notification
+			frappe.publish_realtime(
+				event='eval_js',
+				message='frappe.show_alert({message: "Portfolio AI analysis failed. Please check the logs.", indicator: "red"});',
+				user=user
+			)
+			
+			return False
+	
+	except Exception as e:
+		error_msg = str(e)
+		frappe.log_error(
+			f"Error generating AI analysis for portfolio {portfolio_name}: {error_msg}",
+			"Portfolio AI Analysis Error"
+		)
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='portfolio_ai_analysis_completed',
+			message={
+				'portfolio_id': portfolio_name,
+				'status': 'error',
+				'error': error_msg
+			},
+			user=user
+		)
+		
+		# Also send error notification
+		frappe.publish_realtime(
+			event='eval_js',
+			message='frappe.show_alert({message: "Portfolio AI analysis failed. Please check the logs.", indicator: "red"});',
+			user=user
+		)
+		
+		return False
