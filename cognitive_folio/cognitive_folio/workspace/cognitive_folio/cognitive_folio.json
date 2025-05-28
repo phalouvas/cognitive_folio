@@ -1,6 +1,6 @@
 {
  "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Portfolios\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Securities\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Holdings\",\"col\":3}},{\"id\":\"aMac4ITbaC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Asset Allocations\",\"col\":3}},{\"id\":\"Q1ZXaAS2RB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Chats\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Transactions\",\"col\":3}},{\"id\":\"bMac4ITbdC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dividends\",\"col\":3}},{\"id\":\"6byH4wpYHG\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Settings\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Portfolios\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Securities\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Holdings\",\"col\":3}},{\"id\":\"aMac4ITbaC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Asset Allocations\",\"col\":3}},{\"id\":\"Q1ZXaAS2RB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Chats\",\"col\":3}},{\"id\":\"2SX1QFv0ji\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Cf Prompt\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Transactions\",\"col\":3}},{\"id\":\"bMac4ITbdC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dividends\",\"col\":3}},{\"id\":\"6byH4wpYHG\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Settings\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Cognitive Folio",
  "links": [],
- "modified": "2025-05-27 09:28:40.352723",
+ "modified": "2025-05-28 14:51:25.226137",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
@@ -30,6 +30,14 @@
    "doc_view": "List",
    "label": "Chats",
    "link_to": "CF Chat",
+   "stats_filter": "[]",
+   "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Cf Prompt",
+   "link_to": "CF Prompt",
    "stats_filter": "[]",
    "type": "DocType"
   },

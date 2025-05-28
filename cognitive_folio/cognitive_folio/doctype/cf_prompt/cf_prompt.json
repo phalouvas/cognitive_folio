@@ -17,6 +17,7 @@
    "reqd": 1
   },
   {
+   "description": "{{isin}}\n  {{security_name}}\n  {{symbol}}\n  {{security_type}}\n  {{stock_exchange}}\n  {{currency}}\n  {{current_price}}\n  {{is_alert}}\n  {{alert_details}}\n  {{suggestion_action}}\n  {{suggestion_buy_price}}\n  {{intrinsic_value}}\n  {{suggestion_rating}}\n  {{suggestion_sell_price}}\n  {{fair_value}}\n  {{country}}\n  {{region}}\n  {{subregion}}\n  {{sector}}\n  {{industry}}\n  {{analysis_section}}\n  {{ai_suggestion_html}}\n  {{ai_suggestion}}\n  {{ai_response}}\n  {{news_html}}\n  {{news}}\n  {{ticker_info}}\n  {{news_urls_section}}\n  {{news_urls}}\n  {{profit_loss}}\n  {{balance_sheet}}\n  {{cash_flow}}\n  {{dividends}}",
    "fieldname": "content",
    "fieldtype": "Markdown Editor",
    "label": "Content"
@@ -25,7 +26,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-28 10:26:12.224026",
+ "modified": "2025-05-28 14:50:48.677746",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Prompt",
