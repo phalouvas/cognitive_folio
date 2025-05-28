@@ -1546,7 +1546,10 @@ def process_security_ai_suggestion(security_name, user):
 			{security.balance_sheet}
 
 			Cash Flow Statement:
-			{security.cash_flow}    
+			{security.cash_flow}
+
+			Dividends:
+			{security.dividends}
 
 			"""                        
 			
