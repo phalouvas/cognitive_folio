@@ -39,14 +39,6 @@ frappe.ui.form.on("CF Chat", {
                 }
             }
         });
-    },
-
-    before_unload(frm) {
-        // Clean up interval when form is closed
-        if (frm.chat_refresh_interval) {
-            clearInterval(frm.chat_refresh_interval);
-            frm.chat_refresh_interval = null;
-        }
     }
 });
 
@@ -76,17 +68,13 @@ function display_timeline(frm, messages) {
             <div class="timeline-items">
     `;
 
-    let hasProcessing = false;
-
     messages.forEach(function(message) {
         let creation_time = frappe.datetime.comment_when(message.creation);
         let status_indicator = "";
         let status_class = "";
         let dot_class = "timeline-dot";
         
-        // Check if any message is processing
         if (message.status === "Processing") {
-            hasProcessing = true;
             status_indicator = `<span class="indicator blue">Processing...</span>`;
             status_class = "processing";
             dot_class = "timeline-dot processing-dot";
@@ -133,16 +121,6 @@ function display_timeline(frm, messages) {
             </div>
         `;
     });
-
-    // Auto-refresh if any message is processing
-    if (hasProcessing && !frm.chat_refresh_interval) {
-        frm.chat_refresh_interval = setInterval(() => {
-            render_chat_timeline(frm);
-        }, 5000);
-    } else if (!hasProcessing && frm.chat_refresh_interval) {
-        clearInterval(frm.chat_refresh_interval);
-        frm.chat_refresh_interval = null;
-    }
 
     timeline_html += `
             </div>
