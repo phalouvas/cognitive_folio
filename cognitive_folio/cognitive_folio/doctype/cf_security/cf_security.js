@@ -319,6 +319,13 @@ frappe.ui.form.on('CF Security', {
                         message: __("Security AI analysis completed successfully"),
                         indicator: "green"
                     });
+                    
+                    // Optionally open the created chat
+                    if (data.chat_id) {
+                        setTimeout(() => {
+                            frappe.set_route('Form', 'CF Chat', data.chat_id);
+                        }, 2000); // Wait 2 seconds before redirecting
+                    }
                 } else if (data.status === 'error') {
                     frappe.show_alert({
                         message: __("Security AI analysis failed: " + data.error),

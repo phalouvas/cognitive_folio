@@ -239,6 +239,12 @@ frappe.ui.form.on("CF Portfolio", {
                         indicator: "green"
                     });
                     
+                    // Optionally open the created chat
+                    if (data.chat_id) {
+                        setTimeout(() => {
+                            frappe.set_route('Form', 'CF Chat', data.chat_id);
+                        }, 2000); // Wait 2 seconds before redirecting
+                    }
                 } else if (data.status === 'error') {
                     frappe.show_alert({
                         message: __("Portfolio AI analysis failed: " + data.error),
