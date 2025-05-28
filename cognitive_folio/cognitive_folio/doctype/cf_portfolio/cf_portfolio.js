@@ -15,9 +15,12 @@ frappe.ui.form.on("CF Portfolio", {
             }
             
             // Add "Fetch All Prices" button
-            frm.add_custom_button(__('Fetch Prices'), function() {
+            frm.add_custom_button(__('Fetch Latest Data'), function() {
                 frm.call({
-                    method: 'fetch_all_prices',
+                    method: 'fetch_holdings_data',
+                    args: {
+                        with_fundamentals: false
+                    },
                     doc: frm.doc,
                     callback: function(r) {
                         if (r.message) {
@@ -34,31 +37,14 @@ frappe.ui.form.on("CF Portfolio", {
                     }
                 });
             }, __('Holdings'));
-
-            frm.add_custom_button(__('Fetch News'), function() {
-                frm.call({
-                    method: 'fetch_all_news',
-                    doc: frm.doc,
-                    callback: function(r) {
-                        if (r.message) {
-                            frappe.show_alert({
-                                message: __('Updated news for ' + r.message + ' securities'),
-                                indicator: 'green'
-                            }, 5);
-                            frm.reload_doc();
-                        }
-                    },
-                    error: function() {
-                        // Unfreeze UI in case of an error
-                        frappe.msgprint(__('An error occurred while updating news.'));
-                    }
-                });
-            }, __('Holdings'));
-
+            
             frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frm.call({
-                    method: 'fetch_all_fundamentals',
+                    method: 'fetch_holdings_data',
                     doc: frm.doc,
+                    args: {
+                        with_fundamentals: true
+                    },
                     callback: function(r) {
                         if (r.message) {
                             frappe.show_alert({

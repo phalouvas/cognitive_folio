@@ -350,6 +350,7 @@
    "label": "Ticker Info"
   },
   {
+   "default": "0",
    "fieldname": "total_dividend_income",
    "fieldtype": "Currency",
    "label": "Total Dividend Income",
@@ -385,7 +386,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-25 09:52:46.183699",
+ "modified": "2025-05-28 09:12:04.520117",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

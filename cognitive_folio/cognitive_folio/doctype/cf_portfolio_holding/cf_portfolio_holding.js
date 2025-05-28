@@ -29,35 +29,15 @@ frappe.ui.form.on("CF Portfolio Holding", {
                     `<div class="markdown-preview">No AI suggestion available.</div>`);
             }
 
-            frm.add_custom_button(__('Fetch Current Price'), function() {
-                frappe.dom.freeze(__('Fetching current price...'));
+            frm.add_custom_button(__('Fetch Latest Data'), function() {
+                frappe.dom.freeze(__('Fetching latest data...'));
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_current_price',
-                    callback: function(r) {
-                        // Unfreeze the GUI when operation completes
-                        frappe.dom.unfreeze();
-                        
-                        frappe.show_alert({
-                            message: __('Security data refreshed'),
-                            indicator: 'green'
-                        });
-                        frm.reload_doc();
+                    method: 'fetch_data',
+                    args: {
+                        with_fundamentals: false
                     },
-                    error: function(r) {
-                        // Make sure to unfreeze even if there's an error
-                        frappe.dom.unfreeze();
-                    }
-                });
-            }, __('Actions'));
-
-            frm.add_custom_button(__('Fetch News'), function() {
-                frappe.dom.freeze(__('Fetching news...'));
-                
-                frm.call({
-                    doc: frm.doc,
-                    method: 'fetch_news',
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();
@@ -80,7 +60,10 @@ frappe.ui.form.on("CF Portfolio Holding", {
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_fundamentals',
+                    method: 'fetch_data',
+                    args: {
+                        with_fundamentals: true
+                    },
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();

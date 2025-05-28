@@ -54,66 +54,11 @@ class CFSecurity(Document):
 	def after_insert(self):
 		"""Fetch and set the current price after inserting the document"""
 		if YFINANCE_INSTALLED:
-			self.fetch_fundamentals()
-
+			self.fetch_data(with_fundamentals=True)
+			self.generate_ai_suggestion()
+	
 	@frappe.whitelist()
-	def fetch_current_price(self):
-		if self.security_type != "Stock":
-			return {'success': False, 'error': _('Not a stock security')}
-		
-		"""Fetch the current price from Yahoo Finance"""
-		try:
-			ticker = yf.Ticker(self.symbol)
-			
-			# Using fast_info which is more efficient for basic price data
-			self.current_price = ticker.fast_info['last_price']
-			self.save()
-			# Get all portfolio holdings of this security
-			holdings = frappe.get_all(
-				"CF Portfolio Holding",
-				filters={"security": self.name},
-				fields=["name"]
-			)
-			
-			# Update each holding with the new price
-			for holding in holdings:
-				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
-				portfolio_holding.save()
-			return {'success': True, 'price': self.current_price, 'currency': self.currency}
-		except Exception as e:
-			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
-			frappe.throw("Error fetching current price. Please check the symbol.")
-
-	@frappe.whitelist()
-	def fetch_news(self):
-		if self.security_type != "Stock":
-			return {'success': False, 'error': _('Not a stock security')}
-		
-		"""Fetch the news from Yahoo Finance"""
-		try:
-			ticker = yf.Ticker(self.symbol)
-			
-			# Using fast_info which is more efficient for basic price data
-			self.news = frappe.as_json(ticker.get_news())
-			self.save()
-			# Get all portfolio holdings of this security
-			holdings = frappe.get_all(
-				"CF Portfolio Holding",
-				filters={"security": self.name},
-				fields=["name"]
-			)
-			
-			# Update each holding with the new price
-			for holding in holdings:
-				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
-				portfolio_holding.save()
-			return {'success': True, 'price': self.current_price, 'currency': self.currency}
-		except Exception as e:
-			frappe.log_error(f"Error fetching news: {str(e)}", "Fetch News Error")
-			frappe.throw("Error fetching news. Please check the symbol.")
-
-	@frappe.whitelist()
-	def fetch_fundamentals(self):
+	def fetch_data(self, with_fundamentals=False):
 		if self.security_type != "Stock":
 			return {'success': False, 'error': _('Not a stock security')}
 		
@@ -121,15 +66,17 @@ class CFSecurity(Document):
 		try:
 			ticker = yf.Ticker(self.symbol)
 			ticker_info = ticker.get_info()
-			self.profit_loss = ticker.financials.to_json(date_format='iso')
-			self.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
-			self.cash_flow = ticker.cashflow.to_json(date_format='iso')
 			self.ticker_info = frappe.as_json(ticker_info)
 			self.currency = ticker_info['currency']
 			self.current_price = ticker_info['regularMarketPrice']
 			self.news = frappe.as_json(ticker.get_news())
+			self.news_html = "\n".join([item['link'] for item in json.loads(self.news)])
 			self.country = ticker_info.get('country', '')
-			self.dividends = ticker.dividends.to_json(date_format='iso')
+			if with_fundamentals:
+				self.profit_loss = ticker.financials.to_json(date_format='iso')
+				self.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
+				self.cash_flow = ticker.cashflow.to_json(date_format='iso')
+				self.dividends = ticker.dividends.to_json(date_format='iso')
 			if self.country == "South Korea":
 				self.country = "Korea, Republic of"
 			if not self.region:
@@ -1523,234 +1470,234 @@ def get_country_region_from_api(country):
 	
 @frappe.whitelist()
 def process_security_ai_suggestion(security_name, user):
-    """Process AI suggestion for the security (meant to be run as a background job)"""
-    try:
-        # Log start of process
-        frappe.logger().info(f"Starting AI suggestion generation for security {security_name}")
-        
-        # Get the security document
-        security = frappe.get_doc("CF Security", security_name)
-        
-        if security.security_type == "Cash":
-            frappe.logger().info(f"Skipping AI suggestion for cash security {security_name}")
-            return False
-        
-        try:
-            from openai import OpenAI            
-        except ImportError:
-            frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Suggestion Error")
-            # Notify user of failure
-            frappe.publish_realtime(
-                event='security_ai_suggestion_completed',
-                message={
-                    'security_id': security_name,
-                    'status': 'error',
-                    'error': 'OpenAI package is not installed'
-                },
-                user=user
-            )
-            return False
-        
-        try:
-            # Get OpenWebUI settings
-            settings = frappe.get_single("CF Settings")
-            client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-            model = settings.default_ai_model
-            if not model:
-                raise ValueError(_('Default AI model is not configured in CF Settings'))
+	"""Process AI suggestion for the security (meant to be run as a background job)"""
+	try:
+		# Log start of process
+		frappe.logger().info(f"Starting AI suggestion generation for security {security_name}")
+		
+		# Get the security document
+		security = frappe.get_doc("CF Security", security_name)
+		
+		if security.security_type == "Cash":
+			frappe.logger().info(f"Skipping AI suggestion for cash security {security_name}")
+			return False
+		
+		try:
+			from openai import OpenAI            
+		except ImportError:
+			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Suggestion Error")
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='security_ai_suggestion_completed',
+				message={
+					'security_id': security_name,
+					'status': 'error',
+					'error': 'OpenAI package is not installed'
+				},
+				user=user
+			)
+			return False
+		
+		try:
+			# Get OpenWebUI settings
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			model = settings.default_ai_model
+			if not model:
+				raise ValueError(_('Default AI model is not configured in CF Settings'))
 
-            news_json = json.loads(security.news) if security.news else []
-            # Extract URLs from news data and format with # prefix
-            news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
-                         for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
-            news = "\n".join(news_urls)
-            
-            # Create base prompt with security data
-            prompt = f"""
-            You own stocks of below company and you must decide whether you will buy more, hold, or sell.
-            
-            Profit and Loss Statement:
-            {security.profit_loss}
+			news_json = json.loads(security.news) if security.news else []
+			# Extract URLs from news data and format with # prefix
+			news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
+						 for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
+			news = "\n".join(news_urls)
+			
+			# Create base prompt with security data
+			prompt = f"""
+			You own stocks of below company and you must decide whether you will buy more, hold, or sell.
+			
+			Profit and Loss Statement:
+			{security.profit_loss}
 
-            Balance Sheet:
-            {security.balance_sheet}
+			Balance Sheet:
+			{security.balance_sheet}
 
-            Cash Flow Statement:
-            {security.cash_flow}    
+			Cash Flow Statement:
+			{security.cash_flow}    
 
-            """                        
-            
-            # Add final instructions to the prompt
-            prompt += """
-            Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
-            State your recommendation Buy, Hold, or Sell.
-            State the price target that you would think for buying and selling.
-            Output in JSON format but give titles to each column so I am able to render them in markdown format.
-            
-            EXAMPLE JSON OUTPUT:
-            {
-                "Summary": "Your summary here in markdown format",
-                "Analysis": "Your evaluation analysis here in markdown format",
-                "Risks": "The identified risks here in markdown format",
-                "Evaluation": {
-                    "Rating": 4,
-                    "Recommendation": "Buy",
-                    "Price Target Buy Below": 156.01,
-                    "Price Target Sell Above": 185.18
-                }
-            }
-            """
-            
-            messages = [
-                {"role": "system", "content": settings.system_content},
-                {"role": "user", "content": prompt},
-            ]
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                stream=False,
-                temperature=0.2
-            )
+			"""                        
+			
+			# Add final instructions to the prompt
+			prompt += """
+			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
+			State your recommendation Buy, Hold, or Sell.
+			State the price target that you would think for buying and selling.
+			Output in JSON format but give titles to each column so I am able to render them in markdown format.
+			
+			EXAMPLE JSON OUTPUT:
+			{
+				"Summary": "Your summary here in markdown format",
+				"Analysis": "Your evaluation analysis here in markdown format",
+				"Risks": "The identified risks here in markdown format",
+				"Evaluation": {
+					"Rating": 4,
+					"Recommendation": "Buy",
+					"Price Target Buy Below": 156.01,
+					"Price Target Sell Above": 185.18
+				}
+			}
+			"""
+			
+			messages = [
+				{"role": "system", "content": settings.system_content},
+				{"role": "user", "content": prompt},
+			]
+			response = client.chat.completions.create(
+				model=model,
+				messages=messages,
+				stream=False,
+				temperature=0.2
+			)
 
-            # Parse the JSON from the content string, removing any Markdown formatting
-            content_string = response.choices[0].message.content
-            # Remove Markdown code blocks if present
-            if content_string.startswith('```') and '```' in content_string[3:]:
-                # Extract content between the first and last backtick markers
-                content_string = content_string.split('```', 2)[1]
-                # Remove the language identifier if present (e.g., 'json\n')
-                if '\n' in content_string:
-                    content_string = content_string.split('\n', 1)[1]
-                # Remove trailing backticks if any remain
-                if '```' in content_string:
-                    content_string = content_string.split('```')[0]
-            suggestion = json.loads(content_string)
+			# Parse the JSON from the content string, removing any Markdown formatting
+			content_string = response.choices[0].message.content
+			# Remove Markdown code blocks if present
+			if content_string.startswith('```') and '```' in content_string[3:]:
+				# Extract content between the first and last backtick markers
+				content_string = content_string.split('```', 2)[1]
+				# Remove the language identifier if present (e.g., 'json\n')
+				if '\n' in content_string:
+					content_string = content_string.split('\n', 1)[1]
+				# Remove trailing backticks if any remain
+				if '```' in content_string:
+					content_string = content_string.split('```')[0]
+			suggestion = json.loads(content_string)
 
-            # Convert JSON to markdown for better display
-            markdown_content = security.convert_json_to_markdown(suggestion)
-            
-            security.ai_response = content_string
-            security.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
-            security.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
-            security.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
-            security.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
-            security.ai_suggestion = markdown_content
-            security.ai_prompt = prompt
-            security.save()
-            
-            # Create CF Chat and CF Chat Message
-            chat_doc = frappe.new_doc("CF Chat")
-            chat_doc.security = security_name
-            chat_doc.title = f"AI Analysis for {security.security_name or security.symbol} @ {frappe.utils.today()}"
-            chat_doc.system_prompt = settings.system_content
-            chat_doc.save()
-            
-            # Create the chat message
-            message_doc = frappe.new_doc("CF Chat Message")
-            message_doc.chat = chat_doc.name
-            message_doc.prompt = prompt
-            message_doc.response = markdown_content
-            message_doc.model = model
-            message_doc.status = "Success"
-            message_doc.system_prompt = settings.system_content
-            message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
-            message_doc.save()
-            
-            frappe.db.commit()  # Single commit for all changes
-            
-            # Notify the user that the analysis is complete
-            frappe.publish_realtime(
-                event='security_ai_suggestion_completed',
-                message={
-                    'security_id': security_name,
-                    'status': 'success',
-                    'chat_id': chat_doc.name
-                },
-                user=user
-            )
-            
-            # Also send a notification sound and alert similar to chat messages
-            frappe.publish_realtime(
-                event='eval_js',
-                message='frappe.show_alert({message: "Security AI analysis completed successfully", indicator: "green"}); try { const audio = new Audio("/assets/cognitive_folio/sounds/notification.mp3"); audio.volume = 0.5; audio.play(); } catch(e) { console.log("Audio play failed:", e); }',
-                user=user
-            )
-            
-            frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
-            
-            return True
-            
-        except requests.exceptions.RequestException as e:
-            error_message = f"Request error: {str(e)}"
-            frappe.log_error(error_message, "OpenWebUI API Error")
-            
-            # Notify user of failure
-            frappe.publish_realtime(
-                event='security_ai_suggestion_completed',
-                message={
-                    'security_id': security_name,
-                    'status': 'error',
-                    'error': error_message
-                },
-                user=user
-            )
-            
-            # Also send error notification
-            frappe.publish_realtime(
-                event='eval_js',
-                message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
-                user=user
-            )
-            
-            return False
-            
-        except Exception as e:
-            error_message = f"Error generating AI suggestion: {str(e)}"
-            frappe.log_error(error_message, "AI Suggestion Error")
-            
-            # Notify user of failure
-            frappe.publish_realtime(
-                event='security_ai_suggestion_completed',
-                message={
-                    'security_id': security_name,
-                    'status': 'error',
-                    'error': error_message
-                },
-                user=user
-            )
-            
-            # Also send error notification
-            frappe.publish_realtime(
-                event='eval_js',
-                message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
-                user=user
-            )
-            
-            return False
-    
-    except Exception as e:
-        error_msg = str(e)
-        frappe.log_error(
-            f"Error generating AI suggestion for security {security_name}: {error_msg}",
-            "Security AI Suggestion Error"
-        )
-        
-        # Notify user of failure
-        frappe.publish_realtime(
-            event='security_ai_suggestion_completed',
-            message={
-                'security_id': security_name,
-                'status': 'error',
-                'error': error_msg
-            },
-            user=user
-        )
-        
-        # Also send error notification
-        frappe.publish_realtime(
-            event='eval_js',
-            message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
-            user=user
-        )
-        
-        return False
+			# Convert JSON to markdown for better display
+			markdown_content = security.convert_json_to_markdown(suggestion)
+			
+			security.ai_response = content_string
+			security.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
+			security.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
+			security.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
+			security.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
+			security.ai_suggestion = markdown_content
+			security.ai_prompt = prompt
+			security.save()
+			
+			# Create CF Chat and CF Chat Message
+			chat_doc = frappe.new_doc("CF Chat")
+			chat_doc.security = security_name
+			chat_doc.title = f"AI Analysis for {security.security_name or security.symbol} @ {frappe.utils.today()}"
+			chat_doc.system_prompt = settings.system_content
+			chat_doc.save()
+			
+			# Create the chat message
+			message_doc = frappe.new_doc("CF Chat Message")
+			message_doc.chat = chat_doc.name
+			message_doc.prompt = prompt
+			message_doc.response = markdown_content
+			message_doc.model = model
+			message_doc.status = "Success"
+			message_doc.system_prompt = settings.system_content
+			message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+			message_doc.save()
+			
+			frappe.db.commit()  # Single commit for all changes
+			
+			# Notify the user that the analysis is complete
+			frappe.publish_realtime(
+				event='security_ai_suggestion_completed',
+				message={
+					'security_id': security_name,
+					'status': 'success',
+					'chat_id': chat_doc.name
+				},
+				user=user
+			)
+			
+			# Also send a notification sound and alert similar to chat messages
+			frappe.publish_realtime(
+				event='eval_js',
+				message='frappe.show_alert({message: "Security AI analysis completed successfully", indicator: "green"}); try { const audio = new Audio("/assets/cognitive_folio/sounds/notification.mp3"); audio.volume = 0.5; audio.play(); } catch(e) { console.log("Audio play failed:", e); }',
+				user=user
+			)
+			
+			frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
+			
+			return True
+			
+		except requests.exceptions.RequestException as e:
+			error_message = f"Request error: {str(e)}"
+			frappe.log_error(error_message, "OpenWebUI API Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='security_ai_suggestion_completed',
+				message={
+					'security_id': security_name,
+					'status': 'error',
+					'error': error_message
+				},
+				user=user
+			)
+			
+			# Also send error notification
+			frappe.publish_realtime(
+				event='eval_js',
+				message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
+				user=user
+			)
+			
+			return False
+			
+		except Exception as e:
+			error_message = f"Error generating AI suggestion: {str(e)}"
+			frappe.log_error(error_message, "AI Suggestion Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='security_ai_suggestion_completed',
+				message={
+					'security_id': security_name,
+					'status': 'error',
+					'error': error_message
+				},
+				user=user
+			)
+			
+			# Also send error notification
+			frappe.publish_realtime(
+				event='eval_js',
+				message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
+				user=user
+			)
+			
+			return False
+	
+	except Exception as e:
+		error_msg = str(e)
+		frappe.log_error(
+			f"Error generating AI suggestion for security {security_name}: {error_msg}",
+			"Security AI Suggestion Error"
+		)
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='security_ai_suggestion_completed',
+			message={
+				'security_id': security_name,
+				'status': 'error',
+				'error': error_msg
+			},
+			user=user
+		)
+		
+		# Also send error notification
+		frappe.publish_realtime(
+			event='eval_js',
+			message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
+			user=user
+		)
+		
+		return False
