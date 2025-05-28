@@ -1627,7 +1627,26 @@ def process_security_ai_suggestion(security_name, user):
             security.ai_suggestion = markdown_content
             security.ai_prompt = prompt
             security.save()
-            frappe.db.commit()  # Add explicit commit for background job
+            
+            # Create CF Chat and CF Chat Message
+            chat_doc = frappe.new_doc("CF Chat")
+            chat_doc.security = security_name
+            chat_doc.title = f"AI Analysis for {security.security_name or security.symbol}"
+            chat_doc.system_prompt = settings.system_content
+            chat_doc.save()
+            
+			# Create the chat message
+            message_doc = frappe.new_doc("CF Chat Message")
+            message_doc.chat = chat_doc.name
+            message_doc.prompt = prompt
+            message_doc.response = markdown_content
+            message_doc.model = model
+            message_doc.status = "Success"
+            message_doc.system_prompt = settings.system_content
+            message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+            message_doc.save()
+            
+            frappe.db.commit()  # Single commit for all changes
             
             # Notify the user that the analysis is complete
             frappe.publish_realtime(
