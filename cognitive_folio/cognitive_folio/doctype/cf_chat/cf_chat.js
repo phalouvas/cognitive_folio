@@ -24,6 +24,10 @@ frappe.ui.form.on("CF Chat", {
             if (data.chat_id === frm.doc.name) {
                 // Refresh the timeline when a message is completed
                 render_chat_timeline(frm);
+
+                const audio = new Audio('/assets/cognitive_folio/sounds/notification.mp3');
+                audio.volume = 0.5;
+                audio.play().catch(e => console.log('Audio play failed:', e));
                 
                 // Show notification
                 if (data.status === 'success') {
