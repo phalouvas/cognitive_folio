@@ -51,6 +51,29 @@ class CFSecurity(Document):
 			if not (self.isin[:2].isalpha() and self.isin[2:11].isalnum() and self.isin[11].isalnum()):
 				frappe.throw("ISIN format is invalid. It should be 2 letters country code followed by 9 alphanumeric characters and 1 check digit")
 
+	def on_trash(self):
+		"""Delete related chats when security is deleted"""
+		try:
+			# Get all chats related to this security
+			related_chats = frappe.get_all(
+				"CF Chat",
+				filters={"security": self.name},
+				fields=["name"]
+			)
+			
+			# Delete each related chat (this will also delete related CF Chat Messages due to cascade)
+			for chat in related_chats:
+				try:
+					frappe.delete_doc("CF Chat", chat.name, force=True)
+				except Exception as e:
+					frappe.log_error(f"Error deleting chat {chat.name}: {str(e)}", "CF Security Chat Deletion Error")
+			
+			if related_chats:
+				frappe.logger().info(f"Deleted {len(related_chats)} related chats for security {self.name}")
+			
+		except Exception as e:
+			frappe.log_error(f"Error deleting related chats for security {self.name}: {str(e)}", "CF Security On Trash Error")
+
 	def after_insert(self):
 		"""Fetch and set the current price after inserting the document"""
 		if YFINANCE_INSTALLED:
