@@ -55,7 +55,7 @@ class CFChatMessage(Document):
 					'chat_id': message_doc.chat,
 					'status': 'success'
 				},
-				user=frappe.session.user
+				user=message_doc.owner
 			)
 		except Exception as e:
 			error_message = str(e)
@@ -90,14 +90,14 @@ class CFChatMessage(Document):
 						'status': 'error',
 						'error': error_message
 					},
-					user=frappe.session.user
+					user=getattr(message_doc, 'owner', self.owner)  # Use message_doc owner if available, else self
 				)
 				
 				# Add a system notification as a backup method
 				frappe.publish_realtime(
 					event='eval_js',
 					message='frappe.show_alert({message: "Chat message processing failed. Please check the chat for details.", indicator: "red"});',
-					user=frappe.session.user
+					user=getattr(message_doc, 'owner', self.owner)  # Use message_doc owner if available, else self
 				)
 			except Exception as notify_e:
 				# Last resort - log that we couldn't even notify the user
