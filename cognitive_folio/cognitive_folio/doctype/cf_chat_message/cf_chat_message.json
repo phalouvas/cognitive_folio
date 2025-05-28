@@ -52,12 +52,13 @@
    "read_only": 1
   },
   {
+   "allow_in_quick_entry": 1,
    "fetch_from": "chat.model",
+   "fetch_if_empty": 1,
    "fieldname": "model",
    "fieldtype": "Select",
    "label": "Model",
-   "options": "deepseek-chat\ndeepseek-reasoner",
-   "reqd": 1
+   "options": "\ndeepseek-chat\ndeepseek-reasoner"
   },
   {
    "fieldname": "column_break_cbjh",
@@ -100,7 +101,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-27 11:17:03.661097",
+ "modified": "2025-05-28 10:12:45.150873",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
