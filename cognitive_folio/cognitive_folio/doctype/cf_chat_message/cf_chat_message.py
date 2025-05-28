@@ -40,7 +40,7 @@ class CFChatMessage(Document):
 			frappe.db.commit()
 			
 			# Process the message (use the reloaded document)
-			#message_doc.send()
+			message_doc.send()
 			
 			# Update status to success and save the response
 			message_doc.db_set("status", "Success", update_modified=False)
