@@ -1631,7 +1631,7 @@ def process_security_ai_suggestion(security_name, user):
             # Create CF Chat and CF Chat Message
             chat_doc = frappe.new_doc("CF Chat")
             chat_doc.security = security_name
-            chat_doc.title = f"AI Analysis for {security.security_name or security.symbol}"
+            chat_doc.title = f"AI Analysis for {security.security_name or security.symbol} - {frappe.utils.today()}"
             chat_doc.system_prompt = settings.system_content
             chat_doc.save()
             
