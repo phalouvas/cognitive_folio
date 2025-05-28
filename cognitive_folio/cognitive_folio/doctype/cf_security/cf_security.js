@@ -18,8 +18,7 @@ frappe.ui.form.on('CF Security', {
                 try {
                     const newsData = JSON.parse(frm.doc.news);
                     const htmlResultArray = formatNewsData(newsData);
-                    frm.set_df_property('news_html', 'options', htmlResultArray[0]);
-                    frm.set_value('news_urls', htmlResultArray[1]);
+                    frm.set_df_property('news_html', 'options', htmlResultArray);
                 } catch (error) {
                     console.error("Error parsing news data:", error);
                     frm.set_df_property('news_html', 'options', 
@@ -479,7 +478,7 @@ function formatNewsData(newsData) {
     
     htmlContent.push('</div>');
 
-    return [htmlContent.join(''), urls.join('\n')];
+    return htmlContent.join('');
 }
 
 /**

@@ -70,7 +70,7 @@ class CFSecurity(Document):
 			self.currency = ticker_info['currency']
 			self.current_price = ticker_info['regularMarketPrice']
 			self.news = frappe.as_json(ticker.get_news())
-			self.news_html = "\n".join([item['link'] for item in json.loads(self.news)])
+			self.news_urls = "\n".join([item['content']['clickThroughUrl']['url'] for item in json.loads(self.news) if item.get('content') and item['content'].get('clickThroughUrl') and item['content']['clickThroughUrl'].get('url')])
 			self.country = ticker_info.get('country', '')
 			if with_fundamentals:
 				self.profit_loss = ticker.financials.to_json(date_format='iso')
