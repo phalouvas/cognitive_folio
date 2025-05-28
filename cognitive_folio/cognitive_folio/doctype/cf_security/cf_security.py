@@ -1622,7 +1622,7 @@ def process_security_ai_suggestion(security_name, user):
 			message_doc = frappe.new_doc("CF Chat Message")
 			message_doc.chat = chat_doc.name
 			message_doc.prompt = prompt
-			message_doc.response = markdown_content
+			message_doc.response = frappe.utils.markdown(markdown_content)
 			message_doc.model = model
 			message_doc.status = "Success"
 			message_doc.system_prompt = settings.system_content
