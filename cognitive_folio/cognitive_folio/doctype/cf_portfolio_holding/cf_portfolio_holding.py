@@ -119,9 +119,9 @@ class CFPortfolioHolding(Document):
             allocation_percentage = holding_doc.calculate_allocation_percentage()
             # update the holding directly
             holding_doc.db_set("allocation_percentage", allocation_percentage)
-            
+
     @frappe.whitelist()
-    def fetch_current_price(self):
+    def fetch_data(self, with_fundamentals=False):
 
         if self.security_type != "Stock":
             return {"success": True}
@@ -133,47 +133,10 @@ class CFPortfolioHolding(Document):
         try:
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
-            security.fetch_current_price()
-
-            return {"success": True}
-        except Exception as e:
-            frappe.log_error(f"Error fetching current price: {str(e)}", "Portfolio Holding Error")
-            frappe.throw("Error fetching current price. Please check the security.")
-
-    @frappe.whitelist()
-    def fetch_news(self):
-
-        if self.security_type != "Stock":
-            return {"success": True}
-        
-        """Fetch the news from the related security"""
-        if not self.security:
-            frappe.throw("Security must be specified to fetch news.")
-            
-        try:
-            # Get the security document
-            security = frappe.get_doc("CF Security", self.security)
-            security.fetch_news()
-
-            return {"success": True}
-        except Exception as e:
-            frappe.log_error(f"Error fetching news: {str(e)}", "Portfolio Holding Error")
-            frappe.throw("Error fetching news. Please check the security.")
-
-    @frappe.whitelist()
-    def fetch_fundamentals(self):
-
-        if self.security_type != "Stock":
-            return {"success": True}
-        
-        """Fetch the current price from the related security"""
-        if not self.security:
-            frappe.throw("Security must be specified to fetch current price.")
-            
-        try:
-            # Get the security document
-            security = frappe.get_doc("CF Security", self.security)
-            security.fetch_fundamentals()
+            if with_fundamentals:
+                security.fetch_data(with_fundamentals=True)
+            else:
+                security.fetch_data(with_fundamentals=False)
             
             return {"success": True}
         except Exception as e:

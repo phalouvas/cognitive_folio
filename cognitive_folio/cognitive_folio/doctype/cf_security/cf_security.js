@@ -18,8 +18,7 @@ frappe.ui.form.on('CF Security', {
                 try {
                     const newsData = JSON.parse(frm.doc.news);
                     const htmlResultArray = formatNewsData(newsData);
-                    frm.set_df_property('news_html', 'options', htmlResultArray[0]);
-                    frm.set_value('news_urls', htmlResultArray[1]);
+                    frm.set_df_property('news_html', 'options', htmlResultArray);
                 } catch (error) {
                     console.error("Error parsing news data:", error);
                     frm.set_df_property('news_html', 'options', 
@@ -53,35 +52,15 @@ frappe.ui.form.on('CF Security', {
                     '<div class="text-muted">No ticker information available.</div>');
             }
 
-            frm.add_custom_button(__('Fetch Current Price'), function() {
-                frappe.dom.freeze(__('Fetching current price...'));
+            frm.add_custom_button(__('Fetch Latest Data'), function() {
+                frappe.dom.freeze(__('Fetching latest data...'));
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_current_price',
-                    callback: function(r) {
-                        // Unfreeze the GUI when operation completes
-                        frappe.dom.unfreeze();
-                        
-                        frappe.show_alert({
-                            message: __('Security data refreshed'),
-                            indicator: 'green'
-                        });
-                        frm.reload_doc();
+                    method: 'fetch_data',
+                    args: {
+                        with_fundamentals: false
                     },
-                    error: function(r) {
-                        // Make sure to unfreeze even if there's an error
-                        frappe.dom.unfreeze();
-                    }
-                });
-            }, __('Actions'));
-
-            frm.add_custom_button(__('Fetch News'), function() {
-                frappe.dom.freeze(__('Fetching news...'));
-                
-                frm.call({
-                    doc: frm.doc,
-                    method: 'fetch_news',
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();
@@ -100,11 +79,14 @@ frappe.ui.form.on('CF Security', {
             }, __('Actions'));
 
             frm.add_custom_button(__('Fetch Fundamentals'), function() {
-                frappe.dom.freeze(__('Fetching security data...'));
+                frappe.dom.freeze(__('Fetching fundamentals and latest data...'));
                 
                 frm.call({
                     doc: frm.doc,
-                    method: 'fetch_fundamentals',
+                    method: 'fetch_data',
+                    args: {
+                        with_fundamentals: true
+                    },
                     callback: function(r) {
                         // Unfreeze the GUI when operation completes
                         frappe.dom.unfreeze();
@@ -496,7 +478,7 @@ function formatNewsData(newsData) {
     
     htmlContent.push('</div>');
 
-    return [htmlContent.join(''), urls.join('\n')];
+    return htmlContent.join('');
 }
 
 /**

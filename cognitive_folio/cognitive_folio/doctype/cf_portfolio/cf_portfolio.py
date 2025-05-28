@@ -55,9 +55,9 @@ class CFPortfolio(Document):
 		except Exception as e:
 			frappe.log_error(f"Error queueing AI suggestions for holdings: {str(e)}", "Portfolio Error")
 			return {'success': False, 'error': str(e)}
-
+	
 	@frappe.whitelist()
-	def fetch_all_prices(self):
+	def fetch_holdings_data(self, with_fundamentals=False):
 		"""Update prices for all holdings in this portfolio using batch requests"""
 		
 		# Get all holdings for this portfolio (excluding Cash type securities)
@@ -65,7 +65,7 @@ class CFPortfolio(Document):
 			"CF Portfolio Holding",
 			filters=[
 				["portfolio", "=", self.name],
-				["security_type", "!=", "Cash"]
+				["security_type", "=", "Stock"]
 			],
 			fields=["name", "security"]
 		)
@@ -83,69 +83,10 @@ class CFPortfolio(Document):
 				description=f"Processing item {counter} of {total_steps} ({holding.security})"
 			)
 			security = frappe.get_doc("CF Security", holding.security)
-			security.fetch_current_price()
-			
-		return total_steps
-	
-	@frappe.whitelist()
-	def fetch_all_news(self):
-		"""Update news for all holdings in this portfolio using batch requests"""
-		
-		# Get all holdings for this portfolio (excluding Cash type securities)
-		holdings = frappe.get_all(
-			"CF Portfolio Holding",
-			filters=[
-				["portfolio", "=", self.name],
-				["security_type", "!=", "Cash"]
-			],
-			fields=["name", "security"]
-		)
-		
-		if not holdings:
-			frappe.msgprint("No holdings found in this portfolio")
-			return 0
-		
-		# Use enumerate to get a counter in the for loop
-		total_steps = len(holdings)
-		for counter, holding in enumerate(holdings, 1):
-			frappe.publish_progress(
-				percent=(counter)/total_steps * 100,
-				title="Processing",
-				description=f"Processing item {counter} of {total_steps} ({holding.security})"
-			)
-			security = frappe.get_doc("CF Security", holding.security)
-			security.fetch_news()
-			
-		return total_steps
-	
-	@frappe.whitelist()
-	def fetch_all_fundamentals(self):
-		"""Update prices for all holdings in this portfolio using batch requests"""
-		
-		# Get all holdings for this portfolio (excluding Cash type securities)
-		holdings = frappe.get_all(
-			"CF Portfolio Holding",
-			filters=[
-				["portfolio", "=", self.name],
-				["security_type", "!=", "Cash"]
-			],
-			fields=["name", "security"]
-		)
-		
-		if not holdings:
-			frappe.msgprint("No holdings found in this portfolio")
-			return 0
-		
-		# Use enumerate to get a counter in the for loop
-		total_steps = len(holdings)
-		for counter, holding in enumerate(holdings, 1):
-			frappe.publish_progress(
-				percent=(counter)/total_steps * 100,
-				title="Processing",
-				description=f"Processing item {counter} of {total_steps} ({holding.security})"
-			)
-			security = frappe.get_doc("CF Security", holding.security)
-			security.fetch_fundamentals()
+			if with_fundamentals:
+				security.fetch_data(with_fundamentals=True)
+			else:
+				security.fetch_data(with_fundamentals=False)
 			
 		return total_steps
 	
