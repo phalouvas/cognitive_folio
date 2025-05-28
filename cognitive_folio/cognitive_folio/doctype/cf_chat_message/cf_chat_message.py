@@ -12,25 +12,20 @@ class CFChatMessage(Document):
 				self.system_prompt = chat.system_prompt
 
 	def before_save(self):
-		# Set initial status
-		if not self.status:
-			self.status = "Processing"
+		self.status = "Processing"
 		
-		# Save a placeholder message
-		if not self.response:
-			self.response = "Processing your request..."
+		self.response = "Processing your request..."
 		self.response_html = frappe.utils.markdown(self.response)
 		
-		if self.tokens is None:
-			# Enqueue the job to run after the document is saved
-			frappe.db.commit()
-			frappe.enqueue(
-				method=self.process_in_background,
-				queue="long",
-				timeout=300,
-				is_async=True,
-				job_name=f"chat_message_{self.name}"
-			)
+		# Enqueue the job to run after the document is saved
+		frappe.db.commit()
+		frappe.enqueue(
+			method=self.process_in_background,
+			queue="long",
+			timeout=300,
+			is_async=True,
+			job_name=f"chat_message_{self.name}"
+		)
 
 	def process_in_background(self):
 		try:
@@ -131,7 +126,10 @@ class CFChatMessage(Document):
 		# Add previous messages from the chat
 		chat_messages = frappe.get_all(
 			"CF Chat Message",
-			filters={"chat": chat.name},
+			filters={
+				"chat": chat.name,
+				"name": ["!=", self.name]  # Exclude the current message
+			},
 			fields=["prompt", "response"]
 		)
 		for message in chat_messages:
