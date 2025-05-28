@@ -17,18 +17,20 @@ class CFChatMessage(Document):
 			self.status = "Processing"
 		
 		# Save a placeholder message
-		self.response = "Processing your request..."
+		if not self.response:
+			self.response = "Processing your request..."
 		self.response_html = frappe.utils.markdown(self.response)
 		
-		# Enqueue the job to run after the document is saved
-		frappe.db.commit()
-		frappe.enqueue(
-			method=self.process_in_background,
-			queue="long",
-			timeout=300,
-			is_async=True,
-			job_name=f"chat_message_{self.name}"
-		)
+		if self.tokens is None:
+			# Enqueue the job to run after the document is saved
+			frappe.db.commit()
+			frappe.enqueue(
+				method=self.process_in_background,
+				queue="long",
+				timeout=300,
+				is_async=True,
+				job_name=f"chat_message_{self.name}"
+			)
 
 	def process_in_background(self):
 		try:

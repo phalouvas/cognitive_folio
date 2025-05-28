@@ -1539,6 +1539,16 @@ def process_security_ai_suggestion(security_name, user):
             from openai import OpenAI            
         except ImportError:
             frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Suggestion Error")
+            # Notify user of failure
+            frappe.publish_realtime(
+                event='security_ai_suggestion_completed',
+                message={
+                    'security_id': security_name,
+                    'status': 'error',
+                    'error': 'OpenAI package is not installed'
+                },
+                user=user
+            )
             return False
         
         try:
@@ -1627,12 +1637,42 @@ def process_security_ai_suggestion(security_name, user):
             security.ai_suggestion = markdown_content
             security.ai_prompt = prompt
             security.save()
-            frappe.db.commit()  # Add explicit commit for background job
+            
+            # Create CF Chat and CF Chat Message
+            chat_doc = frappe.new_doc("CF Chat")
+            chat_doc.security = security_name
+            chat_doc.title = f"AI Analysis for {security.security_name or security.symbol} @ {frappe.utils.today()}"
+            chat_doc.system_prompt = settings.system_content
+            chat_doc.save()
+            
+            # Create the chat message
+            message_doc = frappe.new_doc("CF Chat Message")
+            message_doc.chat = chat_doc.name
+            message_doc.prompt = prompt
+            message_doc.response = markdown_content
+            message_doc.model = model
+            message_doc.status = "Success"
+            message_doc.system_prompt = settings.system_content
+            message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+            message_doc.save()
+            
+            frappe.db.commit()  # Single commit for all changes
             
             # Notify the user that the analysis is complete
             frappe.publish_realtime(
-                "security_ai_suggestion_complete", 
-                {"security": security_name, "message": _("AI suggestion for '{0}' is complete").format(security.security_name or security.name)},
+                event='security_ai_suggestion_completed',
+                message={
+                    'security_id': security_name,
+                    'status': 'success',
+                    'chat_id': chat_doc.name
+                },
+                user=user
+            )
+            
+            # Also send a notification sound and alert similar to chat messages
+            frappe.publish_realtime(
+                event='eval_js',
+                message='frappe.show_alert({message: "Security AI analysis completed successfully", indicator: "green"}); try { const audio = new Audio("/assets/cognitive_folio/sounds/notification.mp3"); audio.volume = 0.5; audio.play(); } catch(e) { console.log("Audio play failed:", e); }',
                 user=user
             )
             
@@ -1641,24 +1681,48 @@ def process_security_ai_suggestion(security_name, user):
             return True
             
         except requests.exceptions.RequestException as e:
-            frappe.log_error(f"Request error: {str(e)}", "OpenWebUI API Error")
+            error_message = f"Request error: {str(e)}"
+            frappe.log_error(error_message, "OpenWebUI API Error")
             
             # Notify user of failure
             frappe.publish_realtime(
-                "security_ai_suggestion_error", 
-                {"security": security_name, "error": _("API request error: {0}").format(str(e))},
+                event='security_ai_suggestion_completed',
+                message={
+                    'security_id': security_name,
+                    'status': 'error',
+                    'error': error_message
+                },
+                user=user
+            )
+            
+            # Also send error notification
+            frappe.publish_realtime(
+                event='eval_js',
+                message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
                 user=user
             )
             
             return False
             
         except Exception as e:
-            frappe.log_error(f"Error generating AI suggestion: {str(e)}", "AI Suggestion Error")
+            error_message = f"Error generating AI suggestion: {str(e)}"
+            frappe.log_error(error_message, "AI Suggestion Error")
             
             # Notify user of failure
             frappe.publish_realtime(
-                "security_ai_suggestion_error", 
-                {"security": security_name, "error": _("Error generating AI suggestion: {0}").format(str(e))},
+                event='security_ai_suggestion_completed',
+                message={
+                    'security_id': security_name,
+                    'status': 'error',
+                    'error': error_message
+                },
+                user=user
+            )
+            
+            # Also send error notification
+            frappe.publish_realtime(
+                event='eval_js',
+                message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
                 user=user
             )
             
@@ -1673,8 +1737,19 @@ def process_security_ai_suggestion(security_name, user):
         
         # Notify user of failure
         frappe.publish_realtime(
-            "security_ai_suggestion_error", 
-            {"security": security_name, "error": _("Failed to generate AI suggestion: {0}").format(error_msg)},
+            event='security_ai_suggestion_completed',
+            message={
+                'security_id': security_name,
+                'status': 'error',
+                'error': error_msg
+            },
+            user=user
+        )
+        
+        # Also send error notification
+        frappe.publish_realtime(
+            event='eval_js',
+            message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
             user=user
         )
         
