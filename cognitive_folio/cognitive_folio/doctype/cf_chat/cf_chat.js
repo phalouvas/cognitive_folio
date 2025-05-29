@@ -30,34 +30,10 @@ frappe.ui.form.on("CF Chat", {
         // Load and display chat messages as timeline
         if (!frm.is_new()) {
             render_chat_timeline(frm);
-        }
-    },
-
-    onload(frm) {
-        // Listen for realtime updates from chat messages
-        frappe.realtime.on('chat_message_completed', (data) => {
-            if (data.chat_id === frm.doc.name) {
-                // Refresh the timeline when a message is completed
+            frappe.realtime.on('chat_message_completed', (data) => {
                 render_chat_timeline(frm);
-
-                const audio = new Audio('/assets/cognitive_folio/sounds/notification.mp3');
-                audio.volume = 0.5;
-                audio.play().catch(e => console.log('Audio play failed:', e));
-                
-                // Show notification
-                if (data.status === 'success') {
-                    frappe.show_alert({
-                        message: __("Chat message processed successfully"),
-                        indicator: "green"
-                    });
-                } else if (data.status === 'error') {
-                    frappe.show_alert({
-                        message: __("Chat message processing failed"),
-                        indicator: "red"
-                    });
-                }
-            }
-        });
+            });
+        }
     }
 });
 
