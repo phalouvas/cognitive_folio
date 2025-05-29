@@ -1622,11 +1622,13 @@ def process_security_ai_suggestion(security_name, user):
 			message_doc = frappe.new_doc("CF Chat Message")
 			message_doc.chat = chat_doc.name
 			message_doc.prompt = prompt
-			message_doc.response = frappe.utils.markdown(markdown_content)
+			message_doc.response = markdown_content
+			message_doc.response_html = frappe.utils.markdown(message_doc.response)
 			message_doc.model = model
 			message_doc.status = "Success"
 			message_doc.system_prompt = settings.system_content
 			message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+			message_doc.flags.ignore_before_save = True
 			message_doc.save()
 			
 			frappe.db.commit()  # Single commit for all changes
