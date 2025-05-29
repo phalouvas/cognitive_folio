@@ -4,6 +4,7 @@ from frappe.utils import flt, add_days, date_diff
 from datetime import datetime, timedelta
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
+from cognitive_folio.utils.markdown import safe_markdown_to_html
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -95,7 +96,7 @@ class CFPortfolio(Document):
 		"""Queue AI analysis generation for the portfolio as a background job"""
 
 		self.ai_suggestion = "Processing your request..."
-		self.ai_suggestion_html = frappe.utils.markdown(self.ai_suggestion)
+		self.ai_suggestion_html = safe_markdown_to_html(self.ai_suggestion)
 		self.save()
 
 		try:
@@ -590,7 +591,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			content = response.choices[0].message.content
 			
 			# Convert to markdown for better display
-			markdown_content = frappe.utils.markdown(content)
+			markdown_content = safe_markdown_to_html(content)
 			
 			# Save to portfolio
 			portfolio.ai_prompt = prompt
