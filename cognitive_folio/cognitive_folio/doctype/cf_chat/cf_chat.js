@@ -9,6 +9,21 @@ frappe.ui.form.on("CF Chat", {
                 frappe.new_doc('CF Chat Message', {
                     chat: frm.doc.name
                 });
+            }).addClass('btn-primary');
+        }
+
+        // Show Amend button if not new and not already amended
+        if (!frm.is_new() && !frm.doc.amended_from) {
+            frm.add_custom_button(__('Amend'), function() {
+                frappe.call({
+                    method: "cognitive_folio.cognitive_folio.doctype.cf_chat.cf_chat.amend_cf_chat",
+                    args: { name: frm.doc.name },
+                    callback: function(r) {
+                        if (r.message) {
+                            frappe.set_route("Form", "CF Chat", r.message);
+                        }
+                    }
+                });
             });
         }
 

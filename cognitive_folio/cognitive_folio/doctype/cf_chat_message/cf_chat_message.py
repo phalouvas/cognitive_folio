@@ -12,6 +12,10 @@ class CFChatMessage(Document):
 				self.system_prompt = chat.system_prompt
 
 	def before_save(self):
+		# Skip processing if this is a duplicated message
+		if getattr(self.flags, 'ignore_before_save', False):
+			return
+			
 		self.status = "Processing"
 		
 		self.response = "Processing your request..."
