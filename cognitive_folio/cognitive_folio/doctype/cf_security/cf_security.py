@@ -7,6 +7,7 @@ import frappe
 from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
+from cognitive_folio.utils.markdown import safe_markdown_to_html
 
 try:
 	import yfinance as yf
@@ -129,7 +130,7 @@ class CFSecurity(Document):
 			return {'success': False, 'error': _('AI suggestion is only for non-stock securities')}
 		
 		self.ai_suggestion = "Processing your request..."
-		self.ai_suggestion_html = frappe.utils.markdown(self.ai_suggestion)
+		self.ai_suggestion_html = safe_markdown_to_html(self.ai_suggestion)
 		self.save()
 		
 		try:
@@ -1623,7 +1624,7 @@ def process_security_ai_suggestion(security_name, user):
 			message_doc.chat = chat_doc.name
 			message_doc.prompt = prompt
 			message_doc.response = markdown_content
-			message_doc.response_html = frappe.utils.markdown(message_doc.response)
+			message_doc.response_html = safe_markdown_to_html(message_doc.response)
 			message_doc.model = model
 			message_doc.status = "Success"
 			message_doc.system_prompt = settings.system_content

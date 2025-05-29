@@ -1,7 +1,7 @@
 import frappe
 from frappe.model.document import Document
 import re
-
+from cognitive_folio.utils.markdown import safe_markdown_to_html
 
 class CFChatMessage(Document):
 
@@ -19,7 +19,7 @@ class CFChatMessage(Document):
 		self.status = "Processing"
 		
 		self.response = "Processing your request..."
-		self.response_html = frappe.utils.markdown(self.response)
+		self.response_html = safe_markdown_to_html(self.response)
 		
 		# Enqueue the job to run after the document is saved
 		frappe.db.commit()
@@ -66,7 +66,7 @@ class CFChatMessage(Document):
 				# Reload the document and update it with error
 				message_doc = frappe.get_doc("CF Chat Message", self.name)
 				message_doc.response = f"Error processing request: {error_message}"
-				message_doc.response_html = frappe.utils.markdown(message_doc.response)
+				message_doc.response_html = safe_markdown_to_html(message_doc.response)
 				message_doc.db_set("status", "Failed", update_modified=False)
 				message_doc.db_update()
 				frappe.db.commit()
@@ -191,5 +191,5 @@ class CFChatMessage(Document):
 
 		self.prompt = prompt
 		self.response = response.choices[0].message.content if response.choices else "No response from OpenAI"
-		self.response_html = frappe.utils.markdown(self.response)
+		self.response_html = safe_markdown_to_html(self.response)
 		self.tokens = response.usage.to_json()
