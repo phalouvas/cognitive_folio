@@ -11,6 +11,7 @@
   "column_break_zqji",
   "model",
   "system_prompt",
+  "duplicated_from",
   "messages_section",
   "messages"
  ],
@@ -66,6 +67,15 @@
    "options": "CF Portfolio",
    "read_only": 1,
    "search_index": 1
+  },
+  {
+   "fieldname": "duplicated_from",
+   "fieldtype": "Link",
+   "label": "Duplicated From",
+   "no_copy": 1,
+   "options": "CF Chat",
+   "print_hide": 1,
+   "read_only": 1
   }
  ],
  "grid_page_length": 50,
@@ -76,7 +86,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-27 15:14:05.145108",
+ "modified": "2025-05-29 07:07:34.847389",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",
