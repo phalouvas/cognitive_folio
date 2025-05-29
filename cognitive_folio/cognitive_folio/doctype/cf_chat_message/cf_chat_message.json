@@ -93,6 +93,7 @@
   {
    "allow_in_quick_entry": 1,
    "fetch_from": "chat.system_prompt",
+   "fetch_if_empty": 1,
    "fieldname": "system_prompt",
    "fieldtype": "Data",
    "label": "System Prompt"
@@ -101,7 +102,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-29 07:54:01.474339",
+ "modified": "2025-05-29 10:18:00.811664",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
