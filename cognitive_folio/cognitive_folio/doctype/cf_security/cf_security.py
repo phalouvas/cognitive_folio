@@ -29,6 +29,18 @@ class CFSecurity(Document):
 			self.calculate_fair_value()
 			self.set_alert()
 
+	def on_change(self):
+		"""Save all holdings"""
+		holdings = frappe.get_all(
+			"CF Portfolio Holding",
+			filters={"security": self.name},
+			fields=["name"]
+		)
+		
+		for holding in holdings:
+			portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
+			portfolio_holding.save()
+
 	def set_news_urls(self):
 		news_urls = []
 		if self.news:
@@ -103,19 +115,7 @@ class CFSecurity(Document):
 			if not self.region:
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
-
-			# Get all portfolio holdings of this security
-			holdings = frappe.get_all(
-				"CF Portfolio Holding",
-				filters={"security": self.name},
-				fields=["name"]
-			)
-			
-			# Update each holding with the new price
-			for holding in holdings:
-				portfolio_holding = frappe.get_doc("CF Portfolio Holding", holding.name)
-				portfolio_holding.save()
-				
+	
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
