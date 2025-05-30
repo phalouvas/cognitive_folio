@@ -50,7 +50,7 @@ class CFChatMessage(Document):
 			
 			# Notify the user that the response is ready
 			frappe.publish_realtime(
-				event='chat_message_completed',
+				event='cf_job_completed',
 				message={
 					'message_id': message_doc.name,
 					'chat_id': message_doc.chat,
@@ -84,7 +84,7 @@ class CFChatMessage(Document):
 			# Always try to notify user about the error - moved outside the inner try block
 			try:
 				frappe.publish_realtime(
-					event='chat_message_completed',
+					event='cf_job_completed',
 					message={
 						'message_id': self.name,  # Use self.name as fallback
 						'chat_id': getattr(message_doc, 'chat', self.chat),  # Use message_doc if available, else self

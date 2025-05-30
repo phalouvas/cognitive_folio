@@ -30,9 +30,6 @@ frappe.ui.form.on("CF Chat", {
         // Load and display chat messages as timeline
         if (!frm.is_new()) {
             render_chat_timeline(frm);
-            frappe.realtime.on('chat_message_completed', (data) => {
-                render_chat_timeline(frm);
-            });
         }
     }
 });

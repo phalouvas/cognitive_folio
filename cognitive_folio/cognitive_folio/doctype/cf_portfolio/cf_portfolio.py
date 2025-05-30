@@ -400,7 +400,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Analysis Error")
 			# Notify user of failure
 			frappe.publish_realtime(
-				event='portfolio_ai_analysis_completed',
+				event='cf_job_completed',
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
@@ -619,7 +619,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			
 			# Notify the user that the analysis is complete
 			frappe.publish_realtime(
-				event='portfolio_ai_analysis_completed',
+				event='cf_job_completed',
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'success',
@@ -636,7 +636,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			
 			# Notify user of failure
 			frappe.publish_realtime(
-				event='portfolio_ai_analysis_completed',
+				event='cf_job_completed',
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
@@ -653,7 +653,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			
 			# Notify user of failure
 			frappe.publish_realtime(
-				event='portfolio_ai_analysis_completed',
+				event='cf_job_completed',
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
@@ -673,7 +673,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 		
 		# Notify user of failure
 		frappe.publish_realtime(
-			event='portfolio_ai_analysis_completed',
+			event='cf_job_completed',
 			message={
 				'portfolio_id': portfolio_name,
 				'status': 'error',

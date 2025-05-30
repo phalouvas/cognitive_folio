@@ -1506,7 +1506,7 @@ def process_security_ai_suggestion(security_name, user):
 			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Suggestion Error")
 			# Notify user of failure
 			frappe.publish_realtime(
-				event='security_ai_suggestion_completed',
+				event='cf_job_completed',
 				message={
 					'security_id': security_name,
 					'status': 'error',
@@ -1630,7 +1630,7 @@ def process_security_ai_suggestion(security_name, user):
 			
 			# Notify the user that the analysis is complete
 			frappe.publish_realtime(
-				event='security_ai_suggestion_completed',
+				event='cf_job_completed',
 				message={
 					'security_id': security_name,
 					'status': 'success',
@@ -1647,7 +1647,7 @@ def process_security_ai_suggestion(security_name, user):
 			
 			# Notify user of failure
 			frappe.publish_realtime(
-				event='security_ai_suggestion_completed',
+				event='cf_job_completed',
 				message={
 					'security_id': security_name,
 					'status': 'error',
@@ -1664,7 +1664,7 @@ def process_security_ai_suggestion(security_name, user):
 			
 			# Notify user of failure
 			frappe.publish_realtime(
-				event='security_ai_suggestion_completed',
+				event='cf_job_completed',
 				message={
 					'security_id': security_name,
 					'status': 'error',
@@ -1684,7 +1684,7 @@ def process_security_ai_suggestion(security_name, user):
 		
 		# Notify user of failure
 		frappe.publish_realtime(
-			event='security_ai_suggestion_completed',
+			event='cf_job_completed',
 			message={
 				'security_id': security_name,
 				'status': 'error',
