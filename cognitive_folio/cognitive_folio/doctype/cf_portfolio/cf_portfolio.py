@@ -567,9 +567,9 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 						diff = alloc.difference or 0
 						target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
 			
-			# Replace {Target Allocations} placeholder in prompt if it exists
-			if "{Target Allocations}" in prompt:
-				prompt = prompt.replace("{Target Allocations}", target_allocations_text)
+			# Replace {{Target Allocations}} placeholder in prompt if it exists
+			if "{{Target Allocations}}" in prompt:
+				prompt = prompt.replace("{{Target Allocations}}", target_allocations_text)
 
 			# Make the API call
 			messages = [
