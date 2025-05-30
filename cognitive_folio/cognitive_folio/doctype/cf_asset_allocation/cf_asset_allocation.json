@@ -79,7 +79,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-17 07:32:34.512184",
+ "modified": "2025-05-30 10:27:04.396178",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Asset Allocation",
@@ -120,6 +120,5 @@
  "search_fields": "portfolio,allocation_type,asset_class",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }

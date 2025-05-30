@@ -260,7 +260,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-27 15:16:22.099304",
+ "modified": "2025-05-30 10:28:33.852199",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
@@ -301,6 +301,5 @@
  "search_fields": "portfolio_name,customer,currency,disabled",
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }
