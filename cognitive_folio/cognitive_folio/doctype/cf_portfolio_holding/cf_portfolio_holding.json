@@ -22,6 +22,7 @@
   "current_price_sec",
   "current_price",
   "current_value",
+  "allocation_percentage",
   "column_break_ovgu",
   "dividend_yield",
   "yearly_dividend_income",
@@ -29,14 +30,8 @@
   "column_break_gvpf",
   "profit_loss_percentage",
   "profit_loss",
-  "allocation_section",
-  "allocation_percentage",
-  "sector",
-  "industry",
-  "column_break_jhug",
-  "country",
-  "region",
-  "subregion",
+  "alert_section",
+  "alert_details",
   "suggestion_section",
   "suggestion_action",
   "suggestion_buy_price",
@@ -45,6 +40,13 @@
   "suggestion_rating",
   "suggestion_sell_price",
   "fair_value",
+  "allocation_section",
+  "region",
+  "country",
+  "subregion",
+  "column_break_jhug",
+  "sector",
+  "industry",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
@@ -170,7 +172,7 @@
    "collapsible": 1,
    "fieldname": "allocation_section",
    "fieldtype": "Section Break",
-   "label": "Allocation"
+   "label": "Classification"
   },
   {
    "fieldname": "column_break_jhug",
@@ -366,6 +368,7 @@
    "read_only": 1
   },
   {
+   "description": "The true, fundamental worth of a stock based on its underlying business performance, cash flows, and assets.",
    "fetch_from": "security.intrinsic_value",
    "fieldname": "intrinsic_value",
    "fieldtype": "Currency",
@@ -375,6 +378,7 @@
    "read_only": 1
   },
   {
+   "description": "The market-implied value of a stock, considering both fundamentals and market conditions.",
    "fetch_from": "security.fair_value",
    "fieldname": "fair_value",
    "fieldtype": "Currency",
@@ -382,11 +386,23 @@
    "label": "Fair Value",
    "options": "currency",
    "read_only": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "alert_section",
+   "fieldtype": "Section Break",
+   "label": "Alert"
+  },
+  {
+   "fetch_from": "security.alert_details",
+   "fieldname": "alert_details",
+   "fieldtype": "Markdown Editor",
+   "label": "Alert Details"
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-30 10:28:19.865773",
+ "modified": "2025-05-30 11:54:03.205560",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
