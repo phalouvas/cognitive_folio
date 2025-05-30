@@ -137,42 +137,59 @@ class CFChatMessage(Document):
 		prompt = self.prompt
 		
 		# Replace {{variable_name}} with actual values from self
-		def replace_variables(match):
-			variable_name = match.group(1)
-			try:
-				# Get the actual field value from the document
-				if security:
+		if portfolio:
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"portfolio": portfolio.name},
+				fields=["name", "security"]
+			)
+			
+			if holdings:
+				# Process each holding separately and create a section for each
+				holding_sections = []
+				for holding_info in holdings:
+					# Get both holding and security documents
+					holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
+					security_doc = frappe.get_doc("CF Security", holding_info.security)
+					
+					def replace_variables_for_holding(match):
+						variable_name = match.group(1)
+						try:
+							# First try to get from holding
+							field_value = getattr(holding_doc, variable_name, None)
+							if field_value is not None:
+								return str(field_value)
+							
+							# If not found in holding, try security
+							field_value = getattr(security_doc, variable_name, None)
+							if field_value is not None:
+								return str(field_value)
+							else:
+								return ""
+						except AttributeError:
+							return match.group(0)
+					
+					# Replace all variables in the prompt for this holding
+					holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables_for_holding, prompt)
+					holding_sections.append(holding_prompt)
+				
+				# Join all holding sections
+				prompt = "\n\n".join(holding_sections)
+			
+		elif security:
+			def replace_variables(match):
+				variable_name = match.group(1)
+				try:
 					field_value = getattr(security, variable_name, None)
-				elif portfolio:
-					securities = frappe.get_all(
-						"CF Portfolio Holding",
-						filters={"portfolio": portfolio.name},
-						fields=["security"]
-					)
-					# Get the actual security documents
-					security_docs = []
-					for holding in securities:
-						sec_doc = frappe.get_doc("CF Security", holding.security)
-						security_docs.append(sec_doc)
-					securities = security_docs
-					if securities:
-						# If multiple securities, return them separated by newlines
-						if len(securities) > 1:
-							field_value = "\n\n".join(str(getattr(sec, variable_name, "")) for sec in securities)
+					if field_value is not None:
+						return str(field_value)
 					else:
-						field_value = None
-				else:
-					field_value = None
-				if field_value is not None:
-					return str(field_value)
-				else:
-					# Field exists but is None/empty, return empty string
-					return ""
-			except AttributeError:
-				# Field doesn't exist in this doctype, return original placeholder
-				return match.group(0)
+						return ""
+				except AttributeError:
+					return match.group(0)
+			
+			prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables, prompt)
 		
-		prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables, prompt)
 		messages.append({"role": "user", "content": prompt})
 
 		response = client.chat.completions.create(
