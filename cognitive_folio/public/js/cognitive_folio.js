@@ -6,7 +6,7 @@ $(document).ready(function() {
             // Track if listener is already initialized to prevent duplicates
             if (!frappe._cf_chat_listener_initialized) {
                 
-                frappe.realtime.on('chat_message_completed', function(data) {
+                frappe.realtime.on('cf_job_completed', function(data) {
                     // Only process if we're currently on a CF Chat form that matches the chat_id
                     if (cur_frm && 
                         cur_frm.doctype === 'CF Chat' && 
@@ -18,6 +18,9 @@ $(document).ready(function() {
                         }
                         
                     }
+
+                    // Refresh frame to ensure latest data
+                    cur_frm.reload_doc();
                     
                     // Play notification sound
                     const audio = new Audio('/assets/cognitive_folio/sounds/notification.mp3');
@@ -36,6 +39,7 @@ $(document).ready(function() {
                             indicator: "red"
                         });
                     }
+
                 });
                 
                 // Mark as initialized

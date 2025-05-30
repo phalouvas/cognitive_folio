@@ -277,45 +277,6 @@ frappe.ui.form.on('CF Security', {
         } else {
             frm.set_df_property('current_price', 'read_only', 1);
         }
-    },
-    
-    onload(frm) {
-        // Listen for realtime updates from security AI suggestion
-        frappe.realtime.on('security_ai_suggestion_completed', (data) => {
-            if (data.security_id === frm.doc.name) {
-                // Reload the document to get latest data
-                frm.reload_doc();
-                
-                // Play notification sound
-                try {
-                    const audio = new Audio('/assets/cognitive_folio/sounds/notification.mp3');
-                    audio.volume = 0.5;
-                    audio.play();
-                } catch (e) {
-                    console.log('Audio play failed:', e);
-                }
-                
-                // Show notification based on status
-                if (data.status === 'success') {
-                    frappe.show_alert({
-                        message: __("Security AI analysis completed successfully"),
-                        indicator: "green"
-                    });
-                    
-                    // Optionally open the created chat
-                    if (data.chat_id) {
-                        setTimeout(() => {
-                            frappe.set_route('Form', 'CF Chat', data.chat_id);
-                        }, 2000); // Wait 2 seconds before redirecting
-                    }
-                } else if (data.status === 'error') {
-                    frappe.show_alert({
-                        message: __("Security AI analysis failed: " + data.error),
-                        indicator: "red"
-                    });
-                }
-            }
-        });
     }
 });
 
