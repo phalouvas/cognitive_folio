@@ -4,6 +4,7 @@
  "allow_rename": 1,
  "autoname": "field:symbol",
  "creation": "2025-05-14 10:00:00",
+ "default_view": "Report",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -399,7 +400,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-30 10:28:00.138034",
+ "modified": "2025-05-30 18:28:51.396869",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
@@ -438,7 +439,9 @@
  ],
  "row_format": "Dynamic",
  "search_fields": "security_name,symbol,isin,security_type,sector",
+ "show_title_field_in_link": 1,
  "sort_field": "modified",
  "sort_order": "DESC",
- "states": []
+ "states": [],
+ "title_field": "security_name"
 }

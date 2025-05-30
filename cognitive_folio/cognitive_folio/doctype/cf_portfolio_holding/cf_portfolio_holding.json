@@ -3,6 +3,7 @@
  "allow_import": 1,
  "autoname": "format:CFPH-{####}",
  "creation": "2025-05-14 11:00:00",
+ "default_view": "Report",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -402,7 +403,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-30 11:54:03.205560",
+ "modified": "2025-05-30 18:29:25.129863",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
