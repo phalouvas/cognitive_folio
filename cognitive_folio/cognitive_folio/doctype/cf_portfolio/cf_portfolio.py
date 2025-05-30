@@ -391,9 +391,6 @@ class CFPortfolio(Document):
 def process_portfolio_ai_analysis(portfolio_name, user):
 	"""Process AI analysis for the portfolio (meant to be run as a background job)"""
 	try:
-		# Log start of process
-		frappe.logger().info(f"Starting AI analysis generation for portfolio {portfolio_name}")
-		
 		# Get the portfolio document
 		portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
 		
@@ -631,15 +628,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				user=user
 			)
 			
-			# Also send a notification sound and alert similar to chat messages
-			frappe.publish_realtime(
-				event='eval_js',
-				message='frappe.show_alert({message: "Portfolio AI analysis completed successfully", indicator: "green"}); try { const audio = new Audio("/assets/cognitive_folio/sounds/notification.mp3"); audio.volume = 0.5; audio.play(); } catch(e) { console.log("Audio play failed:", e); }',
-				user=user
-			)
-			
-			frappe.logger().info(f"Successfully generated AI analysis for portfolio {portfolio_name}")
-			
 			return True
 			
 		except requests.exceptions.RequestException as e:
@@ -654,13 +642,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'status': 'error',
 					'error': error_message
 				},
-				user=user
-			)
-			
-			# Also send error notification
-			frappe.publish_realtime(
-				event='eval_js',
-				message='frappe.show_alert({message: "Portfolio AI analysis failed. Please check the logs.", indicator: "red"});',
 				user=user
 			)
 			
@@ -681,13 +662,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				user=user
 			)
 			
-			# Also send error notification
-			frappe.publish_realtime(
-				event='eval_js',
-				message='frappe.show_alert({message: "Portfolio AI analysis failed. Please check the logs.", indicator: "red"});',
-				user=user
-			)
-			
 			return False
 	
 	except Exception as e:
@@ -705,13 +679,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				'status': 'error',
 				'error': error_msg
 			},
-			user=user
-		)
-		
-		# Also send error notification
-		frappe.publish_realtime(
-			event='eval_js',
-			message='frappe.show_alert({message: "Portfolio AI analysis failed. Please check the logs.", indicator: "red"});',
 			user=user
 		)
 		

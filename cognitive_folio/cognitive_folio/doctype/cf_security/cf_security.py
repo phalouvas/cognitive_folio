@@ -69,9 +69,6 @@ class CFSecurity(Document):
 				except Exception as e:
 					frappe.log_error(f"Error deleting chat {chat.name}: {str(e)}", "CF Security Chat Deletion Error")
 			
-			if related_chats:
-				frappe.logger().info(f"Deleted {len(related_chats)} related chats for security {self.name}")
-			
 		except Exception as e:
 			frappe.log_error(f"Error deleting related chats for security {self.name}: {str(e)}", "CF Security On Trash Error")
 
@@ -1496,14 +1493,11 @@ def get_country_region_from_api(country):
 def process_security_ai_suggestion(security_name, user):
 	"""Process AI suggestion for the security (meant to be run as a background job)"""
 	try:
-		# Log start of process
-		frappe.logger().info(f"Starting AI suggestion generation for security {security_name}")
-		
+
 		# Get the security document
 		security = frappe.get_doc("CF Security", security_name)
 		
 		if security.security_type == "Cash":
-			frappe.logger().info(f"Skipping AI suggestion for cash security {security_name}")
 			return False
 		
 		try:
@@ -1645,15 +1639,6 @@ def process_security_ai_suggestion(security_name, user):
 				user=user
 			)
 			
-			# Also send a notification sound and alert similar to chat messages
-			frappe.publish_realtime(
-				event='eval_js',
-				message='frappe.show_alert({message: "Security AI analysis completed successfully", indicator: "green"}); try { const audio = new Audio("/assets/cognitive_folio/sounds/notification.mp3"); audio.volume = 0.5; audio.play(); } catch(e) { console.log("Audio play failed:", e); }',
-				user=user
-			)
-			
-			frappe.logger().info(f"Successfully generated AI suggestion for security {security_name}")
-			
 			return True
 			
 		except requests.exceptions.RequestException as e:
@@ -1668,13 +1653,6 @@ def process_security_ai_suggestion(security_name, user):
 					'status': 'error',
 					'error': error_message
 				},
-				user=user
-			)
-			
-			# Also send error notification
-			frappe.publish_realtime(
-				event='eval_js',
-				message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
 				user=user
 			)
 			
@@ -1695,13 +1673,6 @@ def process_security_ai_suggestion(security_name, user):
 				user=user
 			)
 			
-			# Also send error notification
-			frappe.publish_realtime(
-				event='eval_js',
-				message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
-				user=user
-			)
-			
 			return False
 	
 	except Exception as e:
@@ -1719,13 +1690,6 @@ def process_security_ai_suggestion(security_name, user):
 				'status': 'error',
 				'error': error_msg
 			},
-			user=user
-		)
-		
-		# Also send error notification
-		frappe.publish_realtime(
-			event='eval_js',
-			message='frappe.show_alert({message: "Security AI analysis failed. Please check the logs.", indicator: "red"});',
 			user=user
 		)
 		
