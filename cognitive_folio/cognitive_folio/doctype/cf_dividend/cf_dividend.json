@@ -1,9 +1,8 @@
 {
  "actions": [],
  "allow_import": 1,
- "allow_rename": 0,
  "autoname": "format:CFDIV-{####}",
- "creation": "2025-05-14 15:00:00.000000",
+ "creation": "2025-05-14 15:00:00",
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
@@ -131,7 +130,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-14 15:00:00.000000",
+ "modified": "2025-05-30 10:28:41.525031",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Dividend",
@@ -168,9 +167,9 @@
    "role": "Customer"
   }
  ],
+ "row_format": "Dynamic",
  "search_fields": "portfolio,security,ex_dividend_date,payment_date",
  "sort_field": "payment_date",
  "sort_order": "DESC",
- "states": [],
- "track_changes": 1
+ "states": []
 }
