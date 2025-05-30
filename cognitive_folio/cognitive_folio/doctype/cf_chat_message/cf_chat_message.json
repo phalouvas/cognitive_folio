@@ -38,11 +38,9 @@
   },
   {
    "fieldname": "response",
-   "fieldtype": "Long Text",
-   "hidden": 1,
+   "fieldtype": "Markdown Editor",
    "label": "Response",
-   "no_copy": 1,
-   "read_only": 1
+   "no_copy": 1
   },
   {
    "fieldname": "tokens",
@@ -80,6 +78,7 @@
   {
    "fieldname": "response_html",
    "fieldtype": "Long Text",
+   "hidden": 1,
    "label": "Response Html",
    "no_copy": 1,
    "read_only": 1
@@ -102,7 +101,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-30 06:40:36.554398",
+ "modified": "2025-05-30 08:23:24.133023",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
