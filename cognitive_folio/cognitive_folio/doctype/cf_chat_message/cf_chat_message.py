@@ -138,25 +138,30 @@ class CFChatMessage(Document):
 		
 		# Replace {{variable_name}} with actual values from self
 		if portfolio:
-			securities = frappe.get_all(
+			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters={"portfolio": portfolio.name},
-				fields=["security"]
+				fields=["name", "security"]
 			)
-			# Get the actual security documents
-			security_docs = []
-			for holding in securities:
-				sec_doc = frappe.get_doc("CF Security", holding.security)
-				security_docs.append(sec_doc)
 			
-			if security_docs:
-				# Process each security separately and create a section for each
-				security_sections = []
-				for sec in security_docs:
-					def replace_variables_for_security(match):
+			if holdings:
+				# Process each holding separately and create a section for each
+				holding_sections = []
+				for holding_info in holdings:
+					# Get both holding and security documents
+					holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
+					security_doc = frappe.get_doc("CF Security", holding_info.security)
+					
+					def replace_variables_for_holding(match):
 						variable_name = match.group(1)
 						try:
-							field_value = getattr(sec, variable_name, None)
+							# First try to get from holding
+							field_value = getattr(holding_doc, variable_name, None)
+							if field_value is not None:
+								return str(field_value)
+							
+							# If not found in holding, try security
+							field_value = getattr(security_doc, variable_name, None)
 							if field_value is not None:
 								return str(field_value)
 							else:
@@ -164,12 +169,12 @@ class CFChatMessage(Document):
 						except AttributeError:
 							return match.group(0)
 					
-					# Replace all variables in the prompt for this security
-					security_prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables_for_security, prompt)
-					security_sections.append(security_prompt)
+					# Replace all variables in the prompt for this holding
+					holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables_for_holding, prompt)
+					holding_sections.append(holding_prompt)
 				
-				# Join all security sections
-				prompt = "\n\n".join(security_sections)
+				# Join all holding sections
+				prompt = "\n\n".join(holding_sections)
 			
 		elif security:
 			def replace_variables(match):
