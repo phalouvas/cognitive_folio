@@ -147,8 +147,8 @@ function formatNewsData(newsData) {
         
         const content = item.content;
         const canonicalUrl = content.canonicalUrl && content.canonicalUrl.url;
-        const title = content.title || 'No title';
-        const summary = content.summary || 'No summary available';
+        const title = content.title?.replace(/['"]/g, "") || "No title";
+        const summary = content.summary?.replace(/['"]/g, "") || "No summary available";
         const pubDate = content.pubDate || '';
         
         if (!canonicalUrl) continue;
