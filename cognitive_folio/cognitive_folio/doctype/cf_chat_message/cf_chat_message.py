@@ -173,24 +173,25 @@ class CFChatMessage(Document):
 						except AttributeError:
 							return match.group(0)
 					
-					# Replace ((variable)) with portfolio fields
-					def replace_portfolio_variables(match):
-						variable_name = match.group(1)
-						try:
-							field_value = getattr(portfolio, variable_name, None)
-							return str(field_value) if field_value is not None else ""
-						except AttributeError:
-							return match.group(0)
-					
-					# Apply all replacements
+					# Apply security and holding replacements
 					holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
 					holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
-					holding_prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, holding_prompt)
 					
 					holding_sections.append(holding_prompt)
 				
 				# Join all holding sections
 				prompt = "\n\n".join(holding_sections)
+				
+				# Replace ((variable)) with portfolio fields once at the end
+				def replace_portfolio_variables(match):
+					variable_name = match.group(1)
+					try:
+						field_value = getattr(portfolio, variable_name, None)
+						return str(field_value) if field_value is not None else ""
+					except AttributeError:
+						return match.group(0)
+				
+				prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
 			
 		elif security:
 			# Only replace security variables when dealing with single security
