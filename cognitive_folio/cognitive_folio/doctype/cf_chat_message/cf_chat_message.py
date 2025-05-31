@@ -27,7 +27,7 @@ class CFChatMessage(Document):
 			method=self.process_in_background,
 			queue="long",
 			timeout=300,
-			is_async=False,
+			is_async=True,
 			job_name=f"chat_message_{self.name}"
 		)
 
@@ -138,6 +138,18 @@ class CFChatMessage(Document):
 		
 		# Replace {{variable_name}} with actual values from self
 		if portfolio:
+
+			# Replace ((variable)) with portfolio fields once at the end
+			def replace_portfolio_variables(match):
+				variable_name = match.group(1)
+				try:
+					field_value = getattr(portfolio, variable_name, None)
+					return str(field_value) if field_value is not None else ""
+				except AttributeError:
+					return match.group(0)
+			
+			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
+			
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters={"portfolio": portfolio.name},
@@ -182,17 +194,6 @@ class CFChatMessage(Document):
 				# Join all holding sections
 				prompt = "\n\n".join(holding_sections)
 				
-				# Replace ((variable)) with portfolio fields once at the end
-				def replace_portfolio_variables(match):
-					variable_name = match.group(1)
-					try:
-						field_value = getattr(portfolio, variable_name, None)
-						return str(field_value) if field_value is not None else ""
-					except AttributeError:
-						return match.group(0)
-				
-				prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
-			
 		elif security:
 			# Only replace security variables when dealing with single security
 			def replace_variables(match):
