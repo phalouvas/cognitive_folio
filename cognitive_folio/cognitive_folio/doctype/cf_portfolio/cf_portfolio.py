@@ -495,6 +495,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				fields=["allocation_type", "asset_class", "target_percentage", "current_percentage", "difference"]
 			)
 			
+			prompt = settings.user_content
+
 			# Group target allocations by type
 			grouped_targets = {}
 			for alloc in target_allocations:
@@ -503,58 +505,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					grouped_targets[alloc_type] = []
 				grouped_targets[alloc_type].append(alloc)
 			
-			# Build the prompt with portfolio data
-			prompt = f"""
-			Portfolio Name: {portfolio.portfolio_name}
-			Risk Profile: {portfolio.risk_profile or "Not specified"}
-			Currency: {portfolio.currency or "Not specified"}
-			Total Value: {total_value} {portfolio.currency}
-			Total Profit/Loss: {total_profit_loss} {portfolio.currency} ({(total_profit_loss/total_value*100) if total_value else 0:.2f}%)
-			
-			Holdings:
-			"""
-			
-			# Add holdings data
-			for holding in holdings:
-				prompt += f"""
-				- {holding.security_name or holding.security} ({holding.security_type or "Unknown type"})
-				  Quantity: {holding.quantity}
-				  Current Value: {holding.current_value} {portfolio.currency} ({holding.allocation_percentage or 0:.2f}% of portfolio)
-				  Profit/Loss: {holding.profit_loss or 0} {portfolio.currency} ({holding.profit_loss_percentage or 0:.2f}%)
-				  Sector: {holding.sector or "Unknown"}
-				  Industry: {holding.industry or "Unknown"}
-				  Country: {holding.country or "Unknown"}
-				  Region: {holding.region or "Unknown"}
-				  Subregion: {holding.subregion or "Unknown"}
-				"""
-			
-			# Add current allocation data
-			prompt += "\nSector Allocation:\n"
-			for sector, percentage in sorted(sector_allocation.items(), key=lambda x: x[1], reverse=True):
-				prompt += f"- {sector}: {percentage:.2f}%\n"
-			
-			prompt += "\nIndustry Allocation:\n"
-			for industry, percentage in sorted(industry_allocation.items(), key=lambda x: x[1], reverse=True):
-				prompt += f"- {industry}: {percentage:.2f}%\n"
-			
-			prompt += "\nCountry Allocation:\n"
-			for country, percentage in sorted(country_allocation.items(), key=lambda x: x[1], reverse=True):
-				prompt += f"- {country}: {percentage:.2f}%\n"
-			
-			prompt += "\nRegion Allocation:\n"
-			for region, percentage in sorted(region_allocation.items(), key=lambda x: x[1], reverse=True):
-				prompt += f"- {region}: {percentage:.2f}%\n"
-			
-			prompt += "\nSubregion Allocation:\n"
-			for subregion, percentage in sorted(subregion_allocation.items(), key=lambda x: x[1], reverse=True):
-				prompt += f"- {subregion}: {percentage:.2f}%\n"
-			
-			prompt += "\nSecurity Type Allocation:\n"
-			for security_type, percentage in sorted(security_type_allocation.items(), key=lambda x: x[1], reverse=True):
-				prompt += f"- {security_type}: {percentage:.2f}%\n"
-
-			prompt += settings.user_content
-
 			# Check if Target Allocations placeholder exists in user_content
 			target_allocations_text = ""
 			if grouped_targets:
@@ -567,9 +517,9 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 						diff = alloc.difference or 0
 						target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
 			
-			# Replace {Target Allocations} placeholder in prompt if it exists
-			if "{Target Allocations}" in prompt:
-				prompt = prompt.replace("{Target Allocations}", target_allocations_text)
+			# Replace ##Target Allocations## placeholder in prompt if it exists
+			if "##Target Allocations##" in prompt:
+				prompt = prompt.replace("##Target Allocations##", target_allocations_text)
 
 			# Make the API call
 			messages = [

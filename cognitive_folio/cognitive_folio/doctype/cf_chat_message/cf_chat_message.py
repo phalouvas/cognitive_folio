@@ -138,6 +138,18 @@ class CFChatMessage(Document):
 		
 		# Replace {{variable_name}} with actual values from self
 		if portfolio:
+
+			# Replace ((variable)) with portfolio fields once at the end
+			def replace_portfolio_variables(match):
+				variable_name = match.group(1)
+				try:
+					field_value = getattr(portfolio, variable_name, None)
+					return str(field_value) if field_value is not None else ""
+				except AttributeError:
+					return match.group(0)
+			
+			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
+			
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters={"portfolio": portfolio.name},
@@ -152,31 +164,38 @@ class CFChatMessage(Document):
 					holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
 					security_doc = frappe.get_doc("CF Security", holding_info.security)
 					
-					def replace_variables_for_holding(match):
+					# Replace variables for this holding
+					holding_prompt = prompt
+                    
+					# Replace {{variable}} with security fields
+					def replace_security_variables(match):
 						variable_name = match.group(1)
 						try:
-							# First try to get from holding
-							field_value = getattr(holding_doc, variable_name, None)
-							if field_value is not None:
-								return str(field_value)
-							
-							# If not found in holding, try security
 							field_value = getattr(security_doc, variable_name, None)
-							if field_value is not None:
-								return str(field_value)
-							else:
-								return ""
+							return str(field_value) if field_value is not None else ""
 						except AttributeError:
 							return match.group(0)
 					
-					# Replace all variables in the prompt for this holding
-					holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables_for_holding, prompt)
+					# Replace [[variable]] with holding fields
+					def replace_holding_variables(match):
+						variable_name = match.group(1)
+						try:
+							field_value = getattr(holding_doc, variable_name, None)
+							return str(field_value) if field_value is not None else ""
+						except AttributeError:
+							return match.group(0)
+					
+					# Apply security and holding replacements
+					holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
+					holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
+					
 					holding_sections.append(holding_prompt)
 				
 				# Join all holding sections
 				prompt = "\n\n".join(holding_sections)
-			
+				
 		elif security:
+			# Only replace security variables when dealing with single security
 			def replace_variables(match):
 				variable_name = match.group(1)
 				try:
