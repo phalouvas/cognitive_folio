@@ -157,42 +157,68 @@ class CFChatMessage(Document):
 			)
 			
 			if holdings:
-				# Process each holding separately and create a section for each
-				holding_sections = []
-				for holding_info in holdings:
-					# Get both holding and security documents
-					holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
-					security_doc = frappe.get_doc("CF Security", holding_info.security)
-					
-					# Replace variables for this holding
-					holding_prompt = prompt
-                    
-					# Replace {{variable}} with security fields
-					def replace_security_variables(match):
-						variable_name = match.group(1)
-						try:
-							field_value = getattr(security_doc, variable_name, None)
-							return str(field_value) if field_value is not None else ""
-						except AttributeError:
-							return match.group(0)
-					
-					# Replace [[variable]] with holding fields
-					def replace_holding_variables(match):
-						variable_name = match.group(1)
-						try:
-							field_value = getattr(holding_doc, variable_name, None)
-							return str(field_value) if field_value is not None else ""
-						except AttributeError:
-							return match.group(0)
-					
-					# Apply security and holding replacements
-					holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
-					holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
-					
-					holding_sections.append(holding_prompt)
+				# Find all ***HOLDINGS*** sections in the prompt
+				holdings_pattern = r'\*\*\*HOLDINGS\*\*\*(.*?)\*\*\*HOLDINGS\*\*\*'
+				holdings_matches = re.findall(holdings_pattern, prompt, re.DOTALL)
 				
-				# Join all holding sections
-				prompt = "\n\n".join(holding_sections)
+				if holdings_matches:
+					# Process each holding separately and create sections for each
+					all_holding_sections = []
+					
+					for holding_info in holdings:
+						# Get both holding and security documents
+						holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
+						security_doc = frappe.get_doc("CF Security", holding_info.security)
+						
+						# Process each ***HOLDINGS*** section for this holding
+						holding_sections = []
+						for holdings_content in holdings_matches:
+							holding_prompt = holdings_content
+							
+							# Replace {{variable}} with security fields
+							def replace_security_variables(match):
+								variable_name = match.group(1)
+								try:
+									field_value = getattr(security_doc, variable_name, None)
+									return str(field_value) if field_value is not None else ""
+								except AttributeError:
+									return match.group(0)
+							
+							# Replace [[variable]] with holding fields
+							def replace_holding_variables(match):
+								variable_name = match.group(1)
+								try:
+									field_value = getattr(holding_doc, variable_name, None)
+									return str(field_value) if field_value is not None else ""
+								except AttributeError:
+									return match.group(0)
+							
+							# Apply security and holding replacements
+							holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
+							holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
+							
+							holding_sections.append(holding_prompt)
+						
+						# Join sections for this holding
+						all_holding_sections.append("***HOLDINGS***" + "***HOLDINGS******HOLDINGS***".join(holding_sections) + "***HOLDINGS***")
+					
+					# Replace all ***HOLDINGS*** sections in the original prompt with processed content
+					# First, get the content before first and after last ***HOLDINGS*** markers
+					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
+					
+					# Reconstruct the prompt with all holdings processed
+					final_parts = []
+					final_parts.append(parts[0])  # Content before first ***HOLDINGS***
+					
+					for holding_section in all_holding_sections:
+						# Remove the ***HOLDINGS*** markers from the processed content
+						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
+						final_parts.append(clean_holding_section)
+					
+					if len(parts) > 1:
+						final_parts.append(parts[-1])  # Content after last ***HOLDINGS***
+					
+					prompt = "\n\n".join(final_parts)
 				
 		elif security:
 			# Only replace security variables when dealing with single security
