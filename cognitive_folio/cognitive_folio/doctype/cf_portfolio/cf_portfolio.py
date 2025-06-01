@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
 from cognitive_folio.utils.markdown import safe_markdown_to_html
+import re
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -430,96 +431,88 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			if not holdings:
 				raise ValueError(_('No holdings found in this portfolio'))
 			
-			# Calculate total portfolio value and other metrics
-			total_value = sum(holding.current_value for holding in holdings if holding.current_value)
-			total_profit_loss = sum(holding.profit_loss for holding in holdings if holding.profit_loss)
-			
-			# Group holdings by various categories for analysis
-			sector_allocation = {}
-			industry_allocation = {}
-			country_allocation = {}
-			region_allocation = {}
-			subregion_allocation = {}
-			security_type_allocation = {}
-			
-			for holding in holdings:
-				# Sector allocation
-				if holding.sector:
-					if holding.sector not in sector_allocation:
-						sector_allocation[holding.sector] = 0
-					sector_allocation[holding.sector] += holding.current_value or 0
-				
-				# Industry allocation
-				if holding.industry:
-					if holding.industry not in industry_allocation:
-						industry_allocation[holding.industry] = 0
-					industry_allocation[holding.industry] += holding.current_value or 0
-				
-				# Country allocation
-				if holding.country:
-					if holding.country not in country_allocation:
-						country_allocation[holding.country] = 0
-					country_allocation[holding.country] += holding.current_value or 0
-				
-				# Region allocation
-				if holding.region:
-					if holding.region not in region_allocation:
-						region_allocation[holding.region] = 0
-					region_allocation[holding.region] += holding.current_value or 0
-				
-				# Subregion allocation
-				if holding.subregion:
-					if holding.subregion not in subregion_allocation:
-						subregion_allocation[holding.subregion] = 0
-					subregion_allocation[holding.subregion] += holding.current_value or 0
-				
-				# Security type allocation
-				if holding.security_type:
-					if holding.security_type not in security_type_allocation:
-						security_type_allocation[holding.security_type] = 0
-					security_type_allocation[holding.security_type] += holding.current_value or 0
-			
-			# Convert raw values to percentages
-			if total_value > 0:
-				sector_allocation = {k: (v/total_value*100) for k, v in sector_allocation.items()}
-				industry_allocation = {k: (v/total_value*100) for k, v in industry_allocation.items()}
-				country_allocation = {k: (v/total_value*100) for k, v in country_allocation.items()}
-				region_allocation = {k: (v/total_value*100) for k, v in region_allocation.items()}
-				subregion_allocation = {k: (v/total_value*100) for k, v in subregion_allocation.items()}
-				security_type_allocation = {k: (v/total_value*100) for k, v in security_type_allocation.items()}
-			
-			# Get target allocations from CF Asset Allocation
-			target_allocations = frappe.get_all(
-				"CF Asset Allocation",
-				filters={"portfolio": portfolio_name},
-				fields=["allocation_type", "asset_class", "target_percentage", "current_percentage", "difference"]
-			)
-			
 			prompt = settings.user_content
 
-			# Group target allocations by type
-			grouped_targets = {}
-			for alloc in target_allocations:
-				alloc_type = alloc.allocation_type
-				if alloc_type not in grouped_targets:
-					grouped_targets[alloc_type] = []
-				grouped_targets[alloc_type].append(alloc)
+			# Replace ((variable)) with portfolio fields once at the end
+			def replace_portfolio_variables(match):
+				variable_name = match.group(1)
+				try:
+					field_value = getattr(portfolio, variable_name, None)
+					return str(field_value) if field_value is not None else ""
+				except AttributeError:
+					return match.group(0)
 			
-			# Check if Target Allocations placeholder exists in user_content
-			target_allocations_text = ""
-			if grouped_targets:
-				target_allocations_text = "\nTarget Allocations:\n"
-				for alloc_type, allocations in grouped_targets.items():
-					target_allocations_text += f"\n{alloc_type} Targets:\n"
-					for alloc in sorted(allocations, key=lambda x: x.target_percentage, reverse=True):
-						current = alloc.current_percentage or 0
-						target = alloc.target_percentage or 0
-						diff = alloc.difference or 0
-						target_allocations_text += f"- {alloc.asset_class}: Current {current:.2f}% vs Target {target:.2f}% (Difference: {diff:.2f}%)\n"
+			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
 			
-			# Replace ##Target Allocations## placeholder in prompt if it exists
-			if "##Target Allocations##" in prompt:
-				prompt = prompt.replace("##Target Allocations##", target_allocations_text)
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"portfolio": portfolio.name},
+				fields=["name", "security"]
+			)
+			
+			if holdings:
+				# Find all ***HOLDINGS*** sections in the prompt
+				holdings_pattern = r'\*\*\*HOLDINGS\*\*\*(.*?)\*\*\*HOLDINGS\*\*\*'
+				holdings_matches = re.findall(holdings_pattern, prompt, re.DOTALL)
+				
+				if holdings_matches:
+					# Process each holding separately and create sections for each
+					all_holding_sections = []
+					
+					for holding_info in holdings:
+						# Get both holding and security documents
+						holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
+						security_doc = frappe.get_doc("CF Security", holding_info.security)
+						
+						# Process each ***HOLDINGS*** section for this holding
+						holding_sections = []
+						for holdings_content in holdings_matches:
+							holding_prompt = holdings_content
+							
+							# Replace {{variable}} with security fields
+							def replace_security_variables(match):
+								variable_name = match.group(1)
+								try:
+									field_value = getattr(security_doc, variable_name, None)
+									return str(field_value) if field_value is not None else ""
+								except AttributeError:
+									return match.group(0)
+							
+							# Replace [[variable]] with holding fields
+							def replace_holding_variables(match):
+								variable_name = match.group(1)
+								try:
+									field_value = getattr(holding_doc, variable_name, None)
+									return str(field_value) if field_value is not None else ""
+								except AttributeError:
+									return match.group(0)
+							
+							# Apply security and holding replacements
+							holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
+							holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
+							
+							holding_sections.append(holding_prompt)
+						
+						# Join sections for this holding
+						all_holding_sections.append("***HOLDINGS***" + "***HOLDINGS******HOLDINGS***".join(holding_sections) + "***HOLDINGS***")
+					
+					# Replace all ***HOLDINGS*** sections in the original prompt with processed content
+					# First, get the content before first and after last ***HOLDINGS*** markers
+					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
+					
+					# Reconstruct the prompt with all holdings processed
+					final_parts = []
+					final_parts.append(parts[0])  # Content before first ***HOLDINGS***
+					
+					for holding_section in all_holding_sections:
+						# Remove the ***HOLDINGS*** markers from the processed content
+						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
+						final_parts.append(clean_holding_section)
+					
+					if len(parts) > 1:
+						final_parts.append(parts[-1])  # Content after last ***HOLDINGS***
+					
+					prompt = "\n\n".join(final_parts)
 
 			# Make the API call
 			messages = [
