@@ -1531,15 +1531,35 @@ def process_security_ai_suggestion(security_name, user):
 			def replace_variables(match):
 				variable_name = match.group(1)
 				try:
-					field_value = getattr(security, variable_name, None)
-					if field_value is not None:
-						return str(field_value)
+					# Handle nested JSON variables like {{field_name.key}}
+					if '.' in variable_name:
+						field_name, nested_key = variable_name.split('.', 1)  # Split on first dot only
+						field_value = getattr(security, field_name, None)
+						if field_value:
+							try:
+								# Try to parse as JSON
+								json_data = json.loads(field_value)
+								nested_value = json_data.get(nested_key)
+								if nested_value is not None:
+									return str(nested_value)
+								else:
+									return ""
+							except json.JSONDecodeError:
+								# If not valid JSON, return empty string
+								return ""
+						else:
+							return ""
 					else:
-						return ""
+						# Handle regular security field variables
+						field_value = getattr(security, variable_name, None)
+						if field_value is not None:
+							return str(field_value)
+						else:
+							return ""
 				except AttributeError:
 					return match.group(0)
 			
-			prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables, prompt)
+			prompt = re.sub(r'\{\{(\w+(?:\.\w+)?)\}\}', replace_variables, prompt)
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},

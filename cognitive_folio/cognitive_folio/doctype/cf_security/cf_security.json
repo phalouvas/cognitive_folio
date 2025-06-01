@@ -271,6 +271,7 @@
    "label": "AI"
   },
   {
+   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{alert_details}} {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}}",
    "fieldname": "ai_prompt",
    "fieldtype": "Markdown Editor",
    "label": "AI Prompt"
@@ -406,7 +407,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-01 09:47:05.130652",
+ "modified": "2025-06-01 14:50:08.045452",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
