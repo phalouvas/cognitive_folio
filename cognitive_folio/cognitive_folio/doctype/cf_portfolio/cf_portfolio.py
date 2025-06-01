@@ -111,7 +111,7 @@ class CFPortfolio(Document):
 				method="cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio.process_portfolio_ai_analysis",
 				queue="long",
 				timeout=1800,  # 30 minutes
-				job_name=job_name,
+				job_id=job_name,
 				now=False,
 				portfolio_name=self.name,
 				user=frappe.session.user

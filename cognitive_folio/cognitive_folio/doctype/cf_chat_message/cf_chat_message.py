@@ -27,8 +27,8 @@ class CFChatMessage(Document):
 			method=self.process_in_background,
 			queue="long",
 			timeout=300,
-			is_async=True,
-			job_name=f"chat_message_{self.name}"
+			now=False,
+			job_id=f"chat_message_{self.name}"
 		)
 
 	def process_in_background(self):

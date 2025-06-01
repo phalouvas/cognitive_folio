@@ -142,7 +142,7 @@ class CFSecurity(Document):
 				method="cognitive_folio.cognitive_folio.doctype.cf_security.cf_security.process_security_ai_suggestion",
 				queue="long",
 				timeout=1800,  # 30 minutes
-				job_name=job_name,
+				job_id=job_name,
 				now=False,
 				security_name=self.name,
 				user=frappe.session.user
