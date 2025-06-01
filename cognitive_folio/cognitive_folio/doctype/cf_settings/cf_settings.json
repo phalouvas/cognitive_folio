@@ -8,7 +8,6 @@
   "open_ai_url",
   "open_ai_api_key",
   "system_content",
-  "user_content",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -47,19 +46,13 @@
    "fieldname": "system_content",
    "fieldtype": "Small Text",
    "label": "System Content"
-  },
-  {
-   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{alert_details}} {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}} <b>Portfolio </b> - ((Target Allocations)) ((portfolio_name)) ((risk_profile)) ((currency)) ((total_value)) ((total_profit_loss)) <b>Holding</b> - [[current_price]] [[current_price_sec]] [[quantity]] [[average_purchase_price]] [[base_average_purchase_price]] [[base_cost]] [[current_value]] [[allocation_percentage]] [[yearly_dividend_income]] [[total_dividend_income]] [[profit_loss_percentage]] [[profit_loss]]",
-   "fieldname": "user_content",
-   "fieldtype": "Markdown Editor",
-   "label": "User Content (Prompt)"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-05-30 18:36:00.792408",
+ "modified": "2025-06-01 09:40:07.569435",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",

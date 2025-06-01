@@ -431,7 +431,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			if not holdings:
 				raise ValueError(_('No holdings found in this portfolio'))
 			
-			prompt = settings.user_content
+			prompt = portfolio.ai_prompt or ""
 
 			# Replace ((variable)) with portfolio fields once at the end
 			def replace_portfolio_variables(match):
@@ -534,7 +534,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			markdown_content = safe_markdown_to_html(content)
 			
 			# Save to portfolio
-			portfolio.ai_prompt = prompt
 			portfolio.ai_suggestion = markdown_content
 			portfolio.save()
 			

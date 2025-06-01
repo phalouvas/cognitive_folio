@@ -44,6 +44,7 @@
   "section_break_11",
   "ticker_info_html",
   "ai_tab",
+  "template_prompt",
   "ai_prompt",
   "raw_data_tab",
   "ticker_info_section",
@@ -271,9 +272,8 @@
   },
   {
    "fieldname": "ai_prompt",
-   "fieldtype": "Text",
-   "label": "AI Prompt",
-   "read_only": 1
+   "fieldtype": "Markdown Editor",
+   "label": "AI Prompt"
   },
   {
    "fieldname": "raw_data_tab",
@@ -379,6 +379,12 @@
    "label": "Fair Value",
    "options": "currency",
    "read_only": 1
+  },
+  {
+   "fieldname": "template_prompt",
+   "fieldtype": "Link",
+   "label": "Template Prompt",
+   "options": "CF Prompt"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -400,7 +406,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-05-30 18:28:51.396869",
+ "modified": "2025-06-01 09:47:05.130652",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
