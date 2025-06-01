@@ -1536,70 +1536,25 @@ def process_security_ai_suggestion(security_name, user):
 				stream=False,
 				temperature=0.2
 			)
-
-			# Parse the JSON from the content string, removing any Markdown formatting
-			content_string = response.choices[0].message.content
-			# Remove Markdown code blocks if present
-			if content_string.startswith('```') and '```' in content_string[3:]:
-				# Extract content between the first and last backtick markers
-				content_string = content_string.split('```', 2)[1]
-				# Remove the language identifier if present (e.g., 'json\n')
-				if '\n' in content_string:
-					content_string = content_string.split('\n', 1)[1]
-				# Remove trailing backticks if any remain
-				if '```' in content_string:
-					content_string = content_string.split('```')[0]
-			suggestion = json.loads(content_string)
-
-			# Convert JSON to markdown for better display
-			markdown_content = security.convert_json_to_markdown(suggestion)
 			
-			security.ai_response = content_string
-			security.suggestion_action = suggestion.get("Evaluation", {}).get("Recommendation", "")
-			security.suggestion_rating = suggestion.get("Evaluation", {}).get("Rating", 0)
-			security.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
-			security.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
-			security.ai_suggestion = markdown_content
+			# Check if response has choices and content
+			if not response.choices or not response.choices[0].message.content:
+				raise ValueError("Empty response received from AI model")
+			
+			content_string = response.choices[0].message.content.strip()
+			
+			# Validate that we got actual content
+			if not content_string:
+				raise ValueError("No content in AI response")
+			
+		except Exception as api_error:
+			error_message = f"AI API error: {str(api_error)}"
+			frappe.log_error(error_message, "OpenAI API Error")
+			
+			# Update security with error status
+			security.ai_suggestion = f"❌ **Error generating AI analysis**: {str(api_error)}\n\nPlease try again later or check the AI service configuration."
+			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.save()
-			
-			# Create CF Chat and CF Chat Message
-			chat_doc = frappe.new_doc("CF Chat")
-			chat_doc.security = security_name
-			chat_doc.title = f"AI Analysis for {security.security_name or security.symbol} @ {frappe.utils.today()}"
-			chat_doc.system_prompt = settings.system_content
-			chat_doc.save()
-			
-			# Create the chat message
-			message_doc = frappe.new_doc("CF Chat Message")
-			message_doc.chat = chat_doc.name
-			message_doc.prompt = prompt
-			message_doc.response = markdown_content
-			message_doc.response_html = safe_markdown_to_html(message_doc.response)
-			message_doc.model = model
-			message_doc.status = "Success"
-			message_doc.system_prompt = settings.system_content
-			message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
-			message_doc.flags.ignore_before_save = True
-			message_doc.save()
-			
-			frappe.db.commit()  # Single commit for all changes
-			
-			# Notify the user that the analysis is complete
-			frappe.publish_realtime(
-				event='cf_job_completed',
-				message={
-					'security_id': security_name,
-					'status': 'success',
-					'chat_id': chat_doc.name
-				},
-				user=user
-			)
-			
-			return True
-			
-		except requests.exceptions.RequestException as e:
-			error_message = f"Request error: {str(e)}"
-			frappe.log_error(error_message, "OpenWebUI API Error")
 			
 			# Notify user of failure
 			frappe.publish_realtime(
@@ -1613,10 +1568,55 @@ def process_security_ai_suggestion(security_name, user):
 			)
 			
 			return False
+
+		try:
+			# Parse the JSON from the content string, removing any Markdown formatting
+			if content_string.startswith('```') and '```' in content_string[3:]:
+				# Extract content between the first and last backtick markers
+				content_string = content_string.split('```', 2)[1]
+				# Remove the language identifier if present (e.g., 'json\n')
+				if '\n' in content_string:
+					content_string = content_string.split('\n', 1)[1]
+				# Remove trailing backticks if any remain
+				if '```' in content_string:
+					content_string = content_string.split('```')[0]
+	
+			suggestion = json.loads(content_string)
+	
+			# Validate the JSON structure
+			if not isinstance(suggestion, dict):
+				raise ValueError("AI response is not a valid JSON object")
+	
+		except json.JSONDecodeError as json_error:
+			error_message = f"Invalid JSON in AI response: {str(json_error)}"
+			frappe.log_error(f"{error_message}\nRaw response: {content_string}", "AI JSON Parse Error")
 			
-		except Exception as e:
-			error_message = f"Error generating AI suggestion: {str(e)}"
-			frappe.log_error(error_message, "AI Suggestion Error")
+			# Fallback: save the raw response as markdown
+			security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
+			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
+			security.save()
+			
+			# Notify user of partial success
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'security_id': security_name,
+					'status': 'warning',
+					'error': 'AI response format issue - raw response saved'
+				},
+				user=user
+			)
+			
+			return True  # Still consider it a success since we got some response
+
+		except Exception as parse_error:
+			error_message = f"Error parsing AI response: {str(parse_error)}"
+			frappe.log_error(error_message, "AI Response Parse Error")
+			
+			# Update security with error status
+			security.ai_suggestion = f"❌ **Error processing AI response**: {str(parse_error)}\n\nRaw response saved for debugging."
+			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
+			security.save()
 			
 			# Notify user of failure
 			frappe.publish_realtime(
@@ -1631,12 +1631,66 @@ def process_security_ai_suggestion(security_name, user):
 			
 			return False
 	
-	except Exception as e:
-		error_msg = str(e)
-		frappe.log_error(
-			f"Error generating AI suggestion for security {security_name}: {error_msg}",
-			"Security AI Suggestion Error"
+		# Validate the JSON structure has expected fields
+		required_sections = ["Evaluation"]
+		missing_sections = [section for section in required_sections if section not in suggestion]
+
+		if missing_sections:
+			frappe.log_error(f"AI response missing required sections: {missing_sections}", "AI Response Validation Warning")
+			# Continue processing with available data
+
+		# Convert JSON to markdown for better display
+		markdown_content = security.convert_json_to_markdown(suggestion)
+
+		# Safely extract values with defaults
+		evaluation = suggestion.get("Evaluation", {})
+		security.ai_response = content_string
+		security.suggestion_action = evaluation.get("Recommendation", "")
+		security.suggestion_rating = evaluation.get("Rating", 0)
+		security.suggestion_buy_price = evaluation.get("Price Target Buy Below", 0)
+		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
+		security.ai_suggestion = markdown_content
+		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
+		security.save()
+		
+		# Create CF Chat and CF Chat Message
+		chat_doc = frappe.new_doc("CF Chat")
+		chat_doc.security = security_name
+		chat_doc.title = f"AI Analysis for {security.security_name or security.symbol} @ {frappe.utils.today()}"
+		chat_doc.system_prompt = settings.system_content
+		chat_doc.save()
+		
+		# Create the chat message
+		message_doc = frappe.new_doc("CF Chat Message")
+		message_doc.chat = chat_doc.name
+		message_doc.prompt = prompt
+		message_doc.response = markdown_content
+		message_doc.response_html = safe_markdown_to_html(message_doc.response)
+		message_doc.model = model
+		message_doc.status = "Success"
+		message_doc.system_prompt = settings.system_content
+		message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+		message_doc.flags.ignore_before_save = True
+		message_doc.save()
+		
+		frappe.db.commit()  # Single commit for all changes
+		
+		# Notify the user that the analysis is complete
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'security_id': security_name,
+				'status': 'success',
+				'chat_id': chat_doc.name
+			},
+			user=user
 		)
+		
+		return True
+			
+	except requests.exceptions.RequestException as e:
+		error_message = f"Request error: {str(e)}"
+		frappe.log_error(error_message, "OpenWebUI API Error")
 		
 		# Notify user of failure
 		frappe.publish_realtime(
@@ -1644,7 +1698,24 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'error',
-				'error': error_msg
+				'error': error_message
+			},
+			user=user
+		)
+		
+		return False
+			
+	except Exception as e:
+		error_message = f"Error generating AI suggestion: {str(e)}"
+		frappe.log_error(error_message, "AI Suggestion Error")
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'security_id': security_name,
+				'status': 'error',
+				'error': error_message
 			},
 			user=user
 		)
@@ -1677,6 +1748,8 @@ def generate_ai_suggestion_selected(docnames):
 	"""Fetch latest data for selected securities"""
 	if isinstance(docnames, str):
 		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
+	
+
 	
 	if not docnames:
 		frappe.throw(_("Please select at least one Batch"))
