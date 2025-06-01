@@ -1531,17 +1531,43 @@ def process_security_ai_suggestion(security_name, user):
 			def replace_variables(match):
 				variable_name = match.group(1)
 				try:
-					# Handle nested JSON variables like {{field_name.key}}
+					# Handle nested JSON variables like {{field_name.key}} or {{field_name.0.key}} for arrays
 					if '.' in variable_name:
-						field_name, nested_key = variable_name.split('.', 1)  # Split on first dot only
+						parts = variable_name.split('.')
+						field_name = parts[0]
+						nested_path = parts[1:]  # Remaining path parts
+						
 						field_value = getattr(security, field_name, None)
 						if field_value:
 							try:
 								# Try to parse as JSON
 								json_data = json.loads(field_value)
-								nested_value = json_data.get(nested_key)
-								if nested_value is not None:
-									return str(nested_value)
+								
+								# Navigate through the nested path
+								current_data = json_data
+								for part in nested_path:
+									if isinstance(current_data, dict):
+										# Handle object access
+										current_data = current_data.get(part)
+									elif isinstance(current_data, list):
+										# Handle array access by index
+										try:
+											index = int(part)
+											if 0 <= index < len(current_data):
+												current_data = current_data[index]
+											else:
+												current_data = None
+										except ValueError:
+											# If part is not a number, try to access as key in array elements
+											# This handles cases like array of objects
+											current_data = None
+											break
+									else:
+										current_data = None
+										break
+								
+								if current_data is not None:
+									return str(current_data)
 								else:
 									return ""
 							except json.JSONDecodeError:
@@ -1556,10 +1582,11 @@ def process_security_ai_suggestion(security_name, user):
 							return str(field_value)
 						else:
 							return ""
-				except AttributeError:
+				except (AttributeError, IndexError, ValueError):
 					return match.group(0)
 			
-			prompt = re.sub(r'\{\{(\w+(?:\.\w+)?)\}\}', replace_variables, prompt)
+			# Update regex to handle more complex paths including array indices
+			prompt = re.sub(r'\{\{([\w\.]+)\}\}', replace_variables, prompt)
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},
