@@ -8,6 +8,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 from cognitive_folio.utils.markdown import safe_markdown_to_html
+import re
 
 try:
 	import yfinance as yf
@@ -141,7 +142,7 @@ class CFSecurity(Document):
 				method="cognitive_folio.cognitive_folio.doctype.cf_security.cf_security.process_security_ai_suggestion",
 				queue="long",
 				timeout=1800,  # 30 minutes
-				job_name=job_name,
+				job_id=job_name,
 				now=False,
 				security_name=self.name,
 				user=frappe.session.user
@@ -1510,7 +1511,8 @@ def process_security_ai_suggestion(security_name, user):
 				message={
 					'security_id': security_name,
 					'status': 'error',
-					'error': 'OpenAI package is not installed'
+					'error': 'OpenAI package is not installed',
+					'message': 'Please run "bench pip install openai" to install the required package.'
 				},
 				user=user
 			)
@@ -1525,6 +1527,67 @@ def process_security_ai_suggestion(security_name, user):
 				raise ValueError(_('Default AI model is not configured in CF Settings'))
 
 			prompt = security.ai_prompt or ""
+
+			# Only replace security variables when dealing with single security
+			def replace_variables(match):
+				variable_name = match.group(1)
+				try:
+					# Handle nested JSON variables like {{field_name.key}} or {{field_name.0.key}} for arrays
+					if '.' in variable_name:
+						parts = variable_name.split('.')
+						field_name = parts[0]
+						nested_path = parts[1:]  # Remaining path parts
+						
+						field_value = getattr(security, field_name, None)
+						if field_value:
+							try:
+								# Try to parse as JSON
+								json_data = json.loads(field_value)
+								
+								# Navigate through the nested path
+								current_data = json_data
+								for part in nested_path:
+									if isinstance(current_data, dict):
+										# Handle object access
+										current_data = current_data.get(part)
+									elif isinstance(current_data, list):
+										# Handle array access by index
+										try:
+											index = int(part)
+											if 0 <= index < len(current_data):
+												current_data = current_data[index]
+											else:
+												current_data = None
+										except ValueError:
+											# If part is not a number, try to access as key in array elements
+											# This handles cases like array of objects
+											current_data = None
+											break
+									else:
+										current_data = None
+										break
+								
+								if current_data is not None:
+									return str(current_data)
+								else:
+									return ""
+							except json.JSONDecodeError:
+								# If not valid JSON, return empty string
+								return ""
+						else:
+							return ""
+					else:
+						# Handle regular security field variables
+						field_value = getattr(security, variable_name, None)
+						if field_value is not None:
+							return str(field_value)
+						else:
+							return ""
+				except (AttributeError, IndexError, ValueError):
+					return match.group(0)
+			
+			# Update regex to handle more complex paths including array indices
+			prompt = re.sub(r'\{\{([\w\.]+)\}\}', replace_variables, prompt)
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},
@@ -1562,7 +1625,8 @@ def process_security_ai_suggestion(security_name, user):
 				message={
 					'security_id': security_name,
 					'status': 'error',
-					'error': error_message
+					'error': error_message,
+					'message': error_message
 				},
 				user=user
 			)
@@ -1601,8 +1665,9 @@ def process_security_ai_suggestion(security_name, user):
 				event='cf_job_completed',
 				message={
 					'security_id': security_name,
-					'status': 'warning',
-					'error': 'AI response format issue - raw response saved'
+					'status': 'error',
+					'error': 'AI response format issue - raw response saved',
+					'message': 'AI response format issue - raw response saved'
 				},
 				user=user
 			)
@@ -1624,7 +1689,8 @@ def process_security_ai_suggestion(security_name, user):
 				message={
 					'security_id': security_name,
 					'status': 'error',
-					'error': error_message
+					'error': error_message,
+					'message': error_message
 				},
 				user=user
 			)
@@ -1681,7 +1747,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'success',
-				'chat_id': chat_doc.name
+				'chat_id': chat_doc.name,
+				'message': f"AI analysis completed for {security.security_name or security.symbol}.",
 			},
 			user=user
 		)
@@ -1698,7 +1765,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'error',
-				'error': error_message
+				'error': error_message,
+				'message': error_message
 			},
 			user=user
 		)
@@ -1715,7 +1783,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'error',
-				'error': error_message
+				'error': error_message,
+				'message': error_message
 			},
 			user=user
 		)
@@ -1748,9 +1817,7 @@ def generate_ai_suggestion_selected(docnames):
 	"""Fetch latest data for selected securities"""
 	if isinstance(docnames, str):
 		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
-	
 
-	
 	if not docnames:
 		frappe.throw(_("Please select at least one Batch"))
 	

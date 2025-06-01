@@ -30,12 +30,12 @@ $(document).ready(function() {
                     // Show notification based on status
                     if (data.status === 'success') {
                         frappe.show_alert({
-                            message: __("Chat message processed successfully"),
+                            message: __(data.message || "Chat message processed successfully."),
                             indicator: "green"
                         });
                     } else if (data.status === 'error') {
                         frappe.show_alert({
-                            message: __("Chat message processing failed"),
+                            message: __(data.message || "An error occurred while processing the chat message."),
                             indicator: "red"
                         });
                     }

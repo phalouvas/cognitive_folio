@@ -111,7 +111,7 @@ class CFPortfolio(Document):
 				method="cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio.process_portfolio_ai_analysis",
 				queue="long",
 				timeout=1800,  # 30 minutes
-				job_name=job_name,
+				job_id=job_name,
 				now=False,
 				portfolio_name=self.name,
 				user=frappe.session.user
@@ -405,7 +405,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
-					'error': 'OpenAI package is not installed'
+					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
 				},
 				user=user
 			)
@@ -565,7 +565,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'success',
-					'chat_id': chat_doc.name
+					'chat_id': chat_doc.name,
+					'message': _(f"Portfolio '{portfolio_name}' AI analysis has been successfully generated and saved.")
 				},
 				user=user
 			)
@@ -582,7 +583,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
-					'error': error_message
+					'error': error_message,
+					'message': error_message
 				},
 				user=user
 			)
@@ -599,7 +601,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
-					'error': error_message
+					'error': error_message,
+					'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_message}")
 				},
 				user=user
 			)
@@ -619,7 +622,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			message={
 				'portfolio_id': portfolio_name,
 				'status': 'error',
-				'error': error_msg
+				'error': error_msg,
+				'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_msg}")
 			},
 			user=user
 		)
