@@ -1511,7 +1511,8 @@ def process_security_ai_suggestion(security_name, user):
 				message={
 					'security_id': security_name,
 					'status': 'error',
-					'error': 'OpenAI package is not installed'
+					'error': 'OpenAI package is not installed',
+					'message': 'Please run "bench pip install openai" to install the required package.'
 				},
 				user=user
 			)
@@ -1624,7 +1625,8 @@ def process_security_ai_suggestion(security_name, user):
 				message={
 					'security_id': security_name,
 					'status': 'error',
-					'error': error_message
+					'error': error_message,
+					'message': error_message
 				},
 				user=user
 			)
@@ -1663,8 +1665,9 @@ def process_security_ai_suggestion(security_name, user):
 				event='cf_job_completed',
 				message={
 					'security_id': security_name,
-					'status': 'warning',
-					'error': 'AI response format issue - raw response saved'
+					'status': 'error',
+					'error': 'AI response format issue - raw response saved',
+					'message': 'AI response format issue - raw response saved'
 				},
 				user=user
 			)
@@ -1686,7 +1689,8 @@ def process_security_ai_suggestion(security_name, user):
 				message={
 					'security_id': security_name,
 					'status': 'error',
-					'error': error_message
+					'error': error_message,
+					'message': error_message
 				},
 				user=user
 			)
@@ -1743,7 +1747,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'success',
-				'chat_id': chat_doc.name
+				'chat_id': chat_doc.name,
+				'message': f"AI analysis completed for {security.security_name or security.symbol}.",
 			},
 			user=user
 		)
@@ -1760,7 +1765,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'error',
-				'error': error_message
+				'error': error_message,
+				'message': error_message
 			},
 			user=user
 		)
@@ -1777,7 +1783,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'error',
-				'error': error_message
+				'error': error_message,
+				'message': error_message
 			},
 			user=user
 		)

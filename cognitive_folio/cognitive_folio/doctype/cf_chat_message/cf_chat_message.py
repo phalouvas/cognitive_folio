@@ -54,7 +54,8 @@ class CFChatMessage(Document):
 				message={
 					'message_id': message_doc.name,
 					'chat_id': message_doc.chat,
-					'status': 'success'
+					'status': 'success',
+					'message': f"Response ready for message {message_doc.name}"
 				},
 				user=message_doc.owner
 			)
@@ -89,7 +90,7 @@ class CFChatMessage(Document):
 						'message_id': self.name,  # Use self.name as fallback
 						'chat_id': getattr(message_doc, 'chat', self.chat),  # Use message_doc if available, else self
 						'status': 'error',
-						'error': error_message
+						'message': f"Error processing message {self.name}: {error_message}"
 					},
 					user=getattr(message_doc, 'owner', self.owner)  # Use message_doc owner if available, else self
 				)
