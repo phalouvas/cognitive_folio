@@ -1532,7 +1532,7 @@ def process_security_ai_suggestion(security_name, user):
 			
 			# Create base prompt with security data
 			prompt = f"""
-			You own stocks of below company and you must decide whether you will buy more, hold, or sell.
+			Proceed to fundamentals analysis of below company. Do not try to guess the company, just use the data provided.
 			
 			Profit and Loss Statement:
 			{security.profit_loss}
