@@ -8,6 +8,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 from cognitive_folio.utils.markdown import safe_markdown_to_html
+import re
 
 try:
 	import yfinance as yf
@@ -142,7 +143,7 @@ class CFSecurity(Document):
 				queue="long",
 				timeout=1800,  # 30 minutes
 				job_name=job_name,
-				now=False,
+				now=True,
 				security_name=self.name,
 				user=frappe.session.user
 			)
@@ -1525,6 +1526,20 @@ def process_security_ai_suggestion(security_name, user):
 				raise ValueError(_('Default AI model is not configured in CF Settings'))
 
 			prompt = security.ai_prompt or ""
+
+			# Only replace security variables when dealing with single security
+			def replace_variables(match):
+				variable_name = match.group(1)
+				try:
+					field_value = getattr(security, variable_name, None)
+					if field_value is not None:
+						return str(field_value)
+					else:
+						return ""
+				except AttributeError:
+					return match.group(0)
+			
+			prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables, prompt)
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},
@@ -1748,9 +1763,7 @@ def generate_ai_suggestion_selected(docnames):
 	"""Fetch latest data for selected securities"""
 	if isinstance(docnames, str):
 		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
-	
 
-	
 	if not docnames:
 		frappe.throw(_("Please select at least one Batch"))
 	
