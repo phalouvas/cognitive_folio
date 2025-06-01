@@ -200,5 +200,20 @@ frappe.ui.form.on("CF Portfolio", {
                 });
             }, __('Actions'));
         }
+    },
+
+    template_prompt(frm) {
+        // When template_prompt field is changed, fetch the content from CF Prompt
+        if (frm.doc.template_prompt) {
+            frappe.db.get_value('CF Prompt', frm.doc.template_prompt, 'content')
+                .then(r => {
+                    if (r.message && r.message.content) {
+                        frm.set_value('ai_prompt', r.message.content);
+                    }
+                });
+        } else {
+            // Clear prompt if template_prompt is cleared
+            frm.set_value('ai_prompt', '');
+        }
     }
 });

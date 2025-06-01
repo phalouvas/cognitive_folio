@@ -8,10 +8,10 @@
   "portfolio",
   "security",
   "title",
+  "duplicated_from",
   "column_break_zqji",
   "model",
   "system_prompt",
-  "duplicated_from",
   "messages_section",
   "messages"
  ],
@@ -48,7 +48,7 @@
   {
    "allow_in_quick_entry": 1,
    "fieldname": "system_prompt",
-   "fieldtype": "Data",
+   "fieldtype": "Small Text",
    "label": "System Prompt"
   },
   {
@@ -86,7 +86,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-05-29 07:07:34.847389",
+ "modified": "2025-06-01 09:41:39.148767",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",

@@ -37,6 +37,7 @@
   "ai_suggestion_html",
   "ai_suggestion",
   "ai_tab",
+  "template_prompt",
   "ai_prompt"
  ],
  "fields": [
@@ -227,14 +228,19 @@
   },
   {
    "fieldname": "ai_prompt",
-   "fieldtype": "Text",
-   "label": "AI Prompt",
-   "read_only": 1
+   "fieldtype": "Markdown Editor",
+   "label": "AI Prompt"
   },
   {
    "fieldname": "ai_tab",
    "fieldtype": "Tab Break",
    "label": "AI"
+  },
+  {
+   "fieldname": "template_prompt",
+   "fieldtype": "Link",
+   "label": "Template Prompt",
+   "options": "CF Prompt"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -260,7 +266,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-05-30 10:28:33.852199",
+ "modified": "2025-06-01 09:44:05.402887",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",

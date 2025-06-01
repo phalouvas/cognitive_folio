@@ -1524,50 +1524,7 @@ def process_security_ai_suggestion(security_name, user):
 			if not model:
 				raise ValueError(_('Default AI model is not configured in CF Settings'))
 
-			news_json = json.loads(security.news) if security.news else []
-			# Extract URLs from news data and format with # prefix
-			news_urls = ["#" + item.get("content", {}).get("clickThroughUrl", {}).get("url", "") 
-						 for item in news_json if item.get("content") and item.get("content").get("clickThroughUrl")]
-			news = "\n".join(news_urls)
-			
-			# Create base prompt with security data
-			prompt = f"""
-			Proceed to fundamentals analysis of below company. Do not try to guess the company, just use the data provided.
-			
-			Profit and Loss Statement:
-			{security.profit_loss}
-
-			Balance Sheet:
-			{security.balance_sheet}
-
-			Cash Flow Statement:
-			{security.cash_flow}
-
-			Dividends:
-			{security.dividends}
-
-			"""                        
-			
-			# Add final instructions to the prompt
-			prompt += """
-			Include a rating from 1 to 5, where 1 is the worst and 5 is the best.
-			State your recommendation Buy, Hold, or Sell.
-			State the price target that you would think for buying and selling.
-			Output in JSON format but give titles to each column so I am able to render them in markdown format.
-			
-			EXAMPLE JSON OUTPUT:
-			{
-				"Summary": "Your summary here in markdown format",
-				"Analysis": "Your evaluation analysis here in markdown format",
-				"Risks": "The identified risks here in markdown format",
-				"Evaluation": {
-					"Rating": 4,
-					"Recommendation": "Buy",
-					"Price Target Buy Below": 156.01,
-					"Price Target Sell Above": 185.18
-				}
-			}
-			"""
+			prompt = security.ai_prompt or ""
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},
@@ -1603,7 +1560,6 @@ def process_security_ai_suggestion(security_name, user):
 			security.suggestion_buy_price = suggestion.get("Evaluation", {}).get("Price Target Buy Below", 0)
 			security.suggestion_sell_price = suggestion.get("Evaluation", {}).get("Price Target Sell Above", 0)
 			security.ai_suggestion = markdown_content
-			security.ai_prompt = prompt
 			security.save()
 			
 			# Create CF Chat and CF Chat Message
