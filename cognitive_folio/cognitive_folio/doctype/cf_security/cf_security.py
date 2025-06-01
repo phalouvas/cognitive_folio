@@ -1694,3 +1694,27 @@ def process_security_ai_suggestion(security_name, user):
 		)
 		
 		return False
+	
+@frappe.whitelist()
+def fetch_selected_data(docnames, with_fundamentals=False):
+	"""Fetch latest data for selected securities"""
+	if isinstance(docnames, str):
+		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
+	
+	if not docnames:
+		frappe.throw(_("Please select at least one Batch"))
+	
+	total_steps = len(docnames)
+	for counter, docname in enumerate(docnames, 1):
+		security = frappe.get_doc("CF Security", docname)
+		frappe.publish_progress(
+			percent=(counter)/total_steps * 100,
+			title="Processing",
+			description=f"Processing item {counter} of {total_steps} ({security.security_name or security.symbol})",
+		)
+		security.fetch_data(with_fundamentals=with_fundamentals)
+		
+	return total_steps
+			
+		
+	return len(docnames) 
