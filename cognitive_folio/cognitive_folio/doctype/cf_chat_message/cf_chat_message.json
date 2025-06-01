@@ -10,6 +10,7 @@
   "model",
   "status",
   "system_prompt",
+  "template_prompt",
   "section_break_nyal",
   "prompt",
   "response_html",
@@ -96,12 +97,18 @@
    "fieldname": "system_prompt",
    "fieldtype": "Data",
    "label": "System Prompt"
+  },
+  {
+   "fieldname": "template_prompt",
+   "fieldtype": "Link",
+   "label": "Template Prompt",
+   "options": "CF Prompt"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-30 18:50:05.799446",
+ "modified": "2025-06-01 07:38:32.465898",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
