@@ -209,11 +209,11 @@
   },
   {
    "fieldname": "suggestion_action",
-   "fieldtype": "Data",
+   "fieldtype": "Select",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Recommendation",
-   "read_only": 1
+   "options": "\nBuy\nHold\nSell"
   },
   {
    "fieldname": "column_break_rfgw",
@@ -224,24 +224,21 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Buy Below",
-   "options": "currency",
-   "read_only": 1
+   "options": "currency"
   },
   {
    "fieldname": "suggestion_sell_price",
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Sell Above",
-   "options": "currency",
-   "read_only": 1
+   "options": "currency"
   },
   {
    "fieldname": "suggestion_rating",
-   "fieldtype": "Int",
+   "fieldtype": "Rating",
    "in_list_view": 1,
    "in_standard_filter": 1,
-   "label": "Rating",
-   "read_only": 1
+   "label": "Rating"
   },
   {
    "fieldname": "ai_response",
@@ -407,7 +404,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-01 14:50:08.045452",
+ "modified": "2025-06-02 18:22:33.320735",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
