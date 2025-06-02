@@ -9,6 +9,29 @@ frappe.ui.form.on("CF Prompt", {
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });
+            
+            // Add custom button to copy prompt to securities
+            frm.add_custom_button(__('Copy to CF Securities'), function() {
+                // Show confirmation dialog
+                frappe.confirm(
+                    __('This will copy the Content field to the AI Prompt field of ALL CF Security records. This will overwrite existing ai_prompt values. Are you sure you want to continue?'),
+                    function() {
+                        // Call server-side method on the document
+                        frm.call({
+                            doc: frm.doc,
+                            method: 'copy_prompt_to_securities',
+                            callback: function(r) {
+                                if (!r.exc) {
+                                    frappe.show_alert({
+                                        message: __('Successfully copied to CF Security records'),
+                                        indicator: 'green'
+                                    });
+                                }
+                            }
+                        });
+                    }
+                );
+            }, __('Actions'));
         }
     },
 });
@@ -87,4 +110,12 @@ function addCopyButtonToField(frm, fieldName) {
             field.$wrapper.find('.control-label').append(copyBtn);
         }
     }
+}
+
+function getFieldDisplayName(fieldName) {
+    const fieldDisplayNames = {
+        'content': 'Content',
+        'title': 'Title'
+    };
+    return fieldDisplayNames[fieldName] || fieldName;
 }
