@@ -17,6 +17,7 @@
  ],
  "fields": [
   {
+   "allow_in_quick_entry": 1,
    "fieldname": "title",
    "fieldtype": "Data",
    "label": "Title"
@@ -86,7 +87,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-06-01 09:41:39.148767",
+ "modified": "2025-06-02 09:05:21.773550",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",
