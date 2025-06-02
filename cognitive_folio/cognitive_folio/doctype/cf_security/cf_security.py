@@ -18,9 +18,11 @@ except ImportError:
 
 class CFSecurity(Document):
 	def validate(self):
+
+		if self.security_type != "Stock" and not self.symbol:
+			self.symbol = self.security_name
 			
 		if self.security_type == "Cash":
-			self.symbol = self.security_name
 			self.current_price = 1.0
 
 		if self.security_type == "Stock":
