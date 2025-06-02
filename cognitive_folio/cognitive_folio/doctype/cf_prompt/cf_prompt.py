@@ -33,3 +33,29 @@ class CFPrompt(Document):
 			frappe.msgprint(f"Successfully updated {total_records} Stock securities with prompt content")
 		else:
 			frappe.msgprint(f"Successfully cleared ai_prompt field in {total_records} Stock securities (content was empty)")
+
+	@frappe.whitelist()
+	def copy_prompt_to_portfolios(self):
+		"""Copy content field from this CF Prompt to ai_prompt field of all CF Portfolio records"""
+		
+		# Count existing CF Portfolio records
+		count_result = frappe.db.sql("SELECT COUNT(*) as count FROM `tabCF Portfolio`", as_dict=True)
+		total_records = count_result[0].count if count_result else 0
+		
+		if total_records == 0:
+			frappe.msgprint("No CF Portfolio records found")
+			return
+		
+		# Get content value (empty string if content is None or empty)
+		content_value = self.content or ""
+		
+		# Use direct SQL update for better performance
+		frappe.db.sql("""
+			UPDATE `tabCF Portfolio` 
+			SET ai_prompt = %s, modified = %s, modified_by = %s
+		""", (content_value, frappe.utils.now(), frappe.session.user))
+		
+		if content_value:
+			frappe.msgprint(f"Successfully updated {total_records} CF Portfolio records with prompt content")
+		else:
+			frappe.msgprint(f"Successfully cleared ai_prompt field in {total_records} CF Portfolio records (content was empty)")
