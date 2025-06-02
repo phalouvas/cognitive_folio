@@ -122,6 +122,9 @@ class CFPortfolioHolding(Document):
 
     @frappe.whitelist()
     def fetch_data(self, with_fundamentals=False):
+        # Convert string to boolean if needed (frappe.call sends booleans as strings)
+        if isinstance(with_fundamentals, str):
+            with_fundamentals = with_fundamentals.lower() in ('true', '1', 'yes', 'on')
 
         if self.security_type != "Stock":
             return {"success": True}
@@ -242,3 +245,49 @@ class CFPortfolioHolding(Document):
                 f"Dividend calculation failed: {str(e)}",
                 "Portfolio Holding Dividend Calculation Error"
             )
+
+@frappe.whitelist()
+def fetch_data_selected(docnames, with_fundamentals=False):
+	"""Fetch latest data for selected securities"""
+	if isinstance(docnames, str):
+		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
+	
+	# Convert string to boolean if needed (frappe.call sends booleans as strings)
+	if isinstance(with_fundamentals, str):
+		with_fundamentals = with_fundamentals.lower() in ('true', '1', 'yes', 'on')
+	
+	if not docnames:
+		frappe.throw(_("Please select at least one Batch"))
+	
+	total_steps = len(docnames)
+	for counter, docname in enumerate(docnames, 1):
+		security = frappe.get_doc("CF Portfolio Holding", docname)
+		frappe.publish_progress(
+			percent=(counter)/total_steps * 100,
+			title="Processing",
+			description=f"Processing item {counter} of {total_steps} ({security.security_name or security.symbol})",
+		)
+		security.fetch_data(with_fundamentals=with_fundamentals)
+		
+	return total_steps
+
+@frappe.whitelist()
+def generate_ai_suggestion_selected(docnames):
+	"""Fetch latest data for selected securities"""
+	if isinstance(docnames, str):
+		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
+
+	if not docnames:
+		frappe.throw(_("Please select at least one Batch"))
+	
+	total_steps = len(docnames)
+	for counter, docname in enumerate(docnames, 1):
+		security = frappe.get_doc("CF Portfolio Holding", docname)
+		frappe.publish_progress(
+			percent=(counter)/total_steps * 100,
+			title="Processing",
+			description=f"Processing item {counter} of {total_steps} ({security.security_name or security.symbol})",
+		)
+		security.generate_ai_suggestion()
+		
+	return total_steps
