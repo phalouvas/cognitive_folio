@@ -180,3 +180,4 @@ function formatNewsData(newsData) {
     
     return htmlContent.join('');
 }
+

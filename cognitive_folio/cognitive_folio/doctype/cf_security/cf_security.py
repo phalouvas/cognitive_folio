@@ -93,6 +93,10 @@ class CFSecurity(Document):
 	
 	@frappe.whitelist()
 	def fetch_data(self, with_fundamentals=False):
+		# Convert string to boolean if needed (frappe.call sends booleans as strings)
+		if isinstance(with_fundamentals, str):
+			with_fundamentals = with_fundamentals.lower() in ('true', '1', 'yes', 'on')
+			
 		if self.security_type != "Stock":
 			return {'success': False, 'error': _('Not a stock security')}
 		
@@ -1796,6 +1800,10 @@ def fetch_data_selected(docnames, with_fundamentals=False):
 	"""Fetch latest data for selected securities"""
 	if isinstance(docnames, str):
 		docnames = [d.strip() for d in docnames.strip("[]").replace('"', '').split(",")]
+	
+	# Convert string to boolean if needed (frappe.call sends booleans as strings)
+	if isinstance(with_fundamentals, str):
+		with_fundamentals = with_fundamentals.lower() in ('true', '1', 'yes', 'on')
 	
 	if not docnames:
 		frappe.throw(_("Please select at least one Batch"))
