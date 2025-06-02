@@ -1,7 +1,7 @@
 frappe.ui.form.on('CF Security', {
     validate: function(frm) {
         // If security type is Cash, set symbol equal to security_name
-        if(frm.doc.security_type === "Cash") {
+        if ((frm.doc.security_type !== "Stock") && !frm.doc.symbol) {
             frm.set_value('symbol', frm.doc.security_name);
         }
     },
@@ -298,7 +298,7 @@ frappe.ui.form.on('CF Security', {
 // Function to search for stocks based on search term
 function search_stocks(frm, search_term) {
 
-    if (frm.doc.security_type == 'Cash') {
+    if (frm.doc.security_type != 'Stock') {
         return;
     }
 
