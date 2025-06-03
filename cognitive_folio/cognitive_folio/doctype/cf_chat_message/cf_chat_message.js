@@ -3,13 +3,29 @@
 
 frappe.ui.form.on("CF Chat Message", {
     
-    after_save(frm) {
-        // Redirect to parent chat immediately after save
-        if (frm.doc.chat) {
-            frappe.set_route('Form', 'CF Chat', frm.doc.chat);
+    refresh(frm) {
+        // Add Send button
+        if (!frm.is_new() && frm.doc.prompt) {
+            frm.add_custom_button(__('Send'), function() {
+                frm.call({
+                    doc: frm.doc,
+                    method: 'process',
+                    callback: function(r) {
+                        if (!r.exc) {
+                            frappe.show_alert({
+                                message: __('Message sent for processing'),
+                                indicator: 'blue'
+                            });
+                            if (frm.doc.chat) {
+                                frappe.set_route('Form', 'CF Chat', frm.doc.chat);
+                            }
+                        }
+                    }
+                });
+            }).addClass('btn-primary');
         }
     },
-
+    
     template_prompt(frm) {
         // When template_prompt field is changed, fetch the content from CF Prompt
         if (frm.doc.template_prompt) {
