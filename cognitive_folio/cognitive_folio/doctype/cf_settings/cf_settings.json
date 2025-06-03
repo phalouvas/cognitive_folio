@@ -44,7 +44,7 @@
   },
   {
    "fieldname": "system_content",
-   "fieldtype": "Small Text",
+   "fieldtype": "Markdown Editor",
    "label": "System Content"
   }
  ],
@@ -52,7 +52,7 @@
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-06-01 09:40:07.569435",
+ "modified": "2025-06-03 10:12:28.786535",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",
