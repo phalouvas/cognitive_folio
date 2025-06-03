@@ -101,9 +101,9 @@ class CFChatMessage(Document):
 							   message=f"Original error: {error_message}\nNotification error: {str(notify_e)}")
 
 	def send(self):
-		
 		try:
-			from openai import OpenAI			
+			from openai import OpenAI
+			import tiktoken
 		except ImportError:
 			frappe.throw("OpenAI package is not installed. Please run 'bench pip install openai'")
 			return 0
@@ -118,30 +118,84 @@ class CFChatMessage(Document):
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 
+		# Initialize tokenizer for the model
+		try:
+			encoding = tiktoken.encoding_for_model(self.model)
+		except KeyError:
+			# Fallback to a common encoding if model not found
+			encoding = tiktoken.get_encoding("cl100k_base")
+
 		messages = [
 			{"role": "system", "content": self.system_prompt if self.system_prompt else settings.system_content}
 		]
 
-		# Add previous messages from the chat
+		# Add previous messages from the chat with token management
 		chat_messages = frappe.get_all(
 			"CF Chat Message",
 			filters={
 				"chat": chat.name,
 				"name": ["!=", self.name]  # Exclude the current message
 			},
-			fields=["prompt", "response"]
+			fields=["prompt", "response"],
+			order_by="creation desc"  # Get most recent messages first
 		)
-		for message in chat_messages:
-			messages.append({"role": "user", "content": message.prompt})
-			messages.append({"role": "assistant", "content": message.response})
 		
-		# Handle current message prompt
+		# Calculate tokens for system message and reserve space for current prompt
+		system_tokens = len(encoding.encode(messages[0]["content"]))
+		max_context_tokens = 60000  # Leave buffer for response
+		available_tokens = max_context_tokens - system_tokens
+		
+		# Process current message prompt first to know how much space it needs
+		prompt = self.prepare_prompt(portfolio, security)
+		
+		# Extract PDF text and add to prompt if available
+		try:
+			from PyPDF2 import PdfReader
+			pdf_text = self.extract_pdf_text()
+			if pdf_text:
+				prompt += "\n\n--- File Content ---\n" + pdf_text
+		except ImportError:
+			pass
+		
+		current_prompt_tokens = len(encoding.encode(prompt))
+		available_tokens -= current_prompt_tokens
+		
+		# Add previous messages while staying within token limit
+		used_tokens = 0
+		for message in chat_messages:  # Already ordered by most recent first
+			user_tokens = len(encoding.encode(message.prompt))
+			assistant_tokens = len(encoding.encode(message.response))
+			message_tokens = user_tokens + assistant_tokens
+			
+			if used_tokens + message_tokens > available_tokens:
+				break  # Stop adding messages if we exceed token limit
+				
+			# Insert at position 1 to maintain chronological order (after system message)
+			messages.insert(1, {"role": "user", "content": message.prompt})
+			messages.insert(2, {"role": "assistant", "content": message.response})
+			used_tokens += message_tokens
+		
+		# Add current message
+		messages.append({"role": "user", "content": prompt})
+
+		response = client.chat.completions.create(
+			model=self.model,
+			messages=messages,
+			stream=False,
+			temperature=0.2
+		)
+
+		self.prompt = prompt
+		self.response = response.choices[0].message.content if response.choices else "No response from OpenAI"
+		self.response_html = safe_markdown_to_html(self.response)
+		self.tokens = response.usage.to_json()
+
+	def prepare_prompt(self, portfolio, security):
+		"""Prepare the prompt with variable replacements"""
 		prompt = self.prompt
 		
-		# Replace {{variable_name}} with actual values from self
+		# Replace ((variable)) with portfolio fields
 		if portfolio:
-
-			# Replace ((variable)) with portfolio fields once at the end
 			def replace_portfolio_variables(match):
 				variable_name = match.group(1)
 				try:
@@ -152,6 +206,7 @@ class CFChatMessage(Document):
 			
 			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
 			
+			# Handle holdings processing (existing code)
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters={"portfolio": portfolio.name},
@@ -159,25 +214,20 @@ class CFChatMessage(Document):
 			)
 			
 			if holdings:
-				# Find all ***HOLDINGS*** sections in the prompt
 				holdings_pattern = r'\*\*\*HOLDINGS\*\*\*(.*?)\*\*\*HOLDINGS\*\*\*'
 				holdings_matches = re.findall(holdings_pattern, prompt, re.DOTALL)
 				
 				if holdings_matches:
-					# Process each holding separately and create sections for each
 					all_holding_sections = []
 					
 					for holding_info in holdings:
-						# Get both holding and security documents
 						holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
 						security_doc = frappe.get_doc("CF Security", holding_info.security)
 						
-						# Process each ***HOLDINGS*** section for this holding
 						holding_sections = []
 						for holdings_content in holdings_matches:
 							holding_prompt = holdings_content
 							
-							# Replace {{variable}} with security fields
 							def replace_security_variables(match):
 								variable_name = match.group(1)
 								try:
@@ -186,7 +236,6 @@ class CFChatMessage(Document):
 								except AttributeError:
 									return match.group(0)
 							
-							# Replace [[variable]] with holding fields
 							def replace_holding_variables(match):
 								variable_name = match.group(1)
 								try:
@@ -195,33 +244,27 @@ class CFChatMessage(Document):
 								except AttributeError:
 									return match.group(0)
 							
-							# Apply security and holding replacements
 							holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
 							holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
 							
 							holding_sections.append(holding_prompt)
 						
-						# Join sections for this holding
 						all_holding_sections.append("***HOLDINGS***" + "***HOLDINGS******HOLDINGS***".join(holding_sections) + "***HOLDINGS***")
 					
-					# Replace all ***HOLDINGS*** sections in the original prompt with processed content
-					# First, get the content before first and after last ***HOLDINGS*** markers
 					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
 					
-					# Reconstruct the prompt with all holdings processed
 					final_parts = []
-					final_parts.append(parts[0])  # Content before first ***HOLDINGS***
+					final_parts.append(parts[0])
 					
 					for holding_section in all_holding_sections:
-						# Remove the ***HOLDINGS*** markers from the processed content
 						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
 						final_parts.append(clean_holding_section)
 					
 					if len(parts) > 1:
-						final_parts.append(parts[-1])  # Content after last ***HOLDINGS***
+						final_parts.append(parts[-1])
 					
 					prompt = "\n\n".join(final_parts)
-				
+		
 		elif security:
 			# Only replace security variables when dealing with single security
 			def replace_variables(match):
@@ -237,31 +280,7 @@ class CFChatMessage(Document):
 			
 			prompt = re.sub(r'\{\{(\w+)\}\}', replace_variables, prompt)
 		
-		messages.append({"role": "user", "content": prompt})
-
-		# Extract text from PDF attachments if PdfReader is available
-		try:
-			from PyPDF2 import PdfReader
-			pdf_text = self.extract_pdf_text()
-			if pdf_text:
-				prompt += "\n\n--- File Content ---\n" + pdf_text
-				# Update the last message with the PDF content
-				messages[-1]["content"] = prompt
-		except ImportError:
-			# PdfReader not available, continue without PDF extraction
-			pass
-
-		response = client.chat.completions.create(
-			model=self.model,
-			messages=messages,
-			stream=False,
-			temperature=0.2
-		)
-
-		self.prompt = prompt
-		self.response = response.choices[0].message.content if response.choices else "No response from OpenAI"
-		self.response_html = safe_markdown_to_html(self.response)
-		self.tokens = response.usage.to_json()
+		return prompt
 
 	def extract_pdf_text(self):
 		"""Extract text from PDF attachments of the current chat message"""
