@@ -1650,35 +1650,83 @@ def process_security_ai_suggestion(security_name, user):
 				# Remove trailing backticks if any remain
 				if '```' in content_string:
 					content_string = content_string.split('```')[0]
-	
+
+			# Clean up control characters and format issues before parsing
+			import re
+			
+			# Replace problematic control characters and normalize whitespace
+			content_string = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', content_string)
+			
+			# Fix common JSON formatting issues from AI responses
+			# Replace literal newlines within string values with escaped newlines
+			content_string = re.sub(r'(?<="[^"]*)\n(?=[^"]*")', '\\n', content_string)
+			
+			# Replace literal tabs with spaces
+			content_string = content_string.replace('\t', '    ')
+			
 			suggestion = json.loads(content_string)
-	
+
 			# Validate the JSON structure
 			if not isinstance(suggestion, dict):
 				raise ValueError("AI response is not a valid JSON object")
-	
+
 		except json.JSONDecodeError as json_error:
-			error_message = f"Invalid JSON in AI response: {str(json_error)}"
-			frappe.log_error(f"{error_message}\nRaw response: {content_string}", "AI JSON Parse Error")
-			
-			# Fallback: save the raw response as markdown
-			security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
-			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
-			security.save()
-			
-			# Notify user of partial success
-			frappe.publish_realtime(
-				event='cf_job_completed',
-				message={
-					'security_id': security_name,
-					'status': 'error',
-					'error': 'AI response format issue - raw response saved',
-					'message': 'AI response format issue - raw response saved'
-				},
-				user=user
-			)
-			
-			return True  # Still consider it a success since we got some response
+			# If JSON parsing still fails, try a more aggressive cleanup
+			try:
+				# More aggressive cleanup - extract JSON-like structure manually
+				import ast
+				
+				# Try to fix the JSON by escaping newlines properly
+				lines = content_string.split('\n')
+				fixed_lines = []
+				in_string = False
+				current_quote = None
+				
+				for line in lines:
+					fixed_line = ""
+					i = 0
+					while i < len(line):
+						char = line[i]
+						if char in ['"', "'"] and (i == 0 or line[i-1] != '\\'):
+							if not in_string:
+								in_string = True
+								current_quote = char
+							elif char == current_quote:
+								in_string = False
+								current_quote = None
+						fixed_line += char
+						i += 1
+					
+					if in_string and fixed_line.rstrip() and not fixed_line.rstrip().endswith(','):
+						fixed_line += '\\n'
+					
+					fixed_lines.append(fixed_line)
+				
+				cleaned_content = '\n'.join(fixed_lines)
+				suggestion = json.loads(cleaned_content)
+				
+			except (json.JSONDecodeError, SyntaxError) as secondary_error:
+				error_message = f"Invalid JSON in AI response: {str(json_error)}"
+				frappe.log_error(f"{error_message}\nRaw response: {content_string}", "AI JSON Parse Error")
+				
+				# Fallback: save the raw response as markdown
+				security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
+				security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
+				security.save()
+				
+				# Notify user of partial success
+				frappe.publish_realtime(
+					event='cf_job_completed',
+					message={
+						'security_id': security_name,
+						'status': 'error',
+						'error': 'AI response format issue - raw response saved',
+						'message': 'AI response format issue - raw response saved'
+					},
+					user=user
+				)
+				
+				return True  # Still consider it a success since we got some response
 
 		except Exception as parse_error:
 			error_message = f"Error parsing AI response: {str(parse_error)}"
