@@ -5,12 +5,12 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
+  "model",
   "portfolio",
   "security",
   "title",
   "duplicated_from",
   "column_break_zqji",
-  "model",
   "system_prompt",
   "messages_section",
   "messages"
@@ -49,7 +49,7 @@
   {
    "allow_in_quick_entry": 1,
    "fieldname": "system_prompt",
-   "fieldtype": "Small Text",
+   "fieldtype": "Markdown Editor",
    "label": "System Prompt"
   },
   {
@@ -87,7 +87,7 @@
    "link_fieldname": "chat"
   }
  ],
- "modified": "2025-06-02 09:05:21.773550",
+ "modified": "2025-06-03 10:13:40.426473",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat",

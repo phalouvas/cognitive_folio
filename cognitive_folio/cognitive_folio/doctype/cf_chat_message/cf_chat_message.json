@@ -7,8 +7,8 @@
  "field_order": [
   "chat",
   "status",
-  "column_break_cbjh",
   "model",
+  "column_break_cbjh",
   "system_prompt",
   "template_prompt",
   "section_break_nyal",
@@ -95,7 +95,7 @@
    "fetch_from": "chat.system_prompt",
    "fetch_if_empty": 1,
    "fieldname": "system_prompt",
-   "fieldtype": "Small Text",
+   "fieldtype": "Markdown Editor",
    "label": "System Prompt"
   },
   {
@@ -108,7 +108,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-01 09:41:27.986475",
+ "modified": "2025-06-03 10:14:22.669766",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
