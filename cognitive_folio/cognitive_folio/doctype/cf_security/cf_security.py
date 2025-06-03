@@ -864,7 +864,6 @@ class CFSecurity(Document):
 			raise Exception(f"No treasury security found for {self.country}")
 			
 		except Exception as e:
-			frappe.log_error(f"Error getting cached risk-free rate for {self.country}: {str(e)}", "Risk-Free Rate Cache Error")
 			
 			# Fallback to reasonable estimates by country
 			fallback_rates = {
@@ -1132,7 +1131,8 @@ class CFSecurity(Document):
 					# If DCF value is more than 5x or less than 0.2x current price, it's likely wrong
 					price_ratio = per_share_value / current_price
 					if price_ratio > 5.0 or price_ratio < 0.2:
-						frappe.log_error(f"DCF value {per_share_value} seems unreasonable vs current price {current_price} (ratio: {price_ratio})", "DCF Sanity Check Warning")
+						pass
+						#frappe.log_error(f"DCF value {per_share_value} seems unreasonable vs current price {current_price} (ratio: {price_ratio})", "DCF Sanity Check Warning")
 						# Don't return None, but log the warning for investigation
 				
 				return max(0, per_share_value)  # Ensure non-negative value
