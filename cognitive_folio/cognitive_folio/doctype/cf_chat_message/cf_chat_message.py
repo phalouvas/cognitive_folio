@@ -11,7 +11,8 @@ class CFChatMessage(Document):
 			if chat.system_prompt:
 				self.system_prompt = chat.system_prompt
 
-	def before_save(self):
+	@frappe.whitelist()
+	def process(self):
 		# Skip processing if this is a duplicated message
 		if getattr(self.flags, 'ignore_before_save', False):
 			return
@@ -32,7 +33,7 @@ class CFChatMessage(Document):
 		)
 
 	def process_in_background(self):
-		try:
+		try:			
 			# Reload the document from the database
 			message_doc = frappe.get_doc("CF Chat Message", self.name)
 			
@@ -238,6 +239,18 @@ class CFChatMessage(Document):
 		
 		messages.append({"role": "user", "content": prompt})
 
+		# Extract text from PDF attachments if PdfReader is available
+		try:
+			from PyPDF2 import PdfReader
+			pdf_text = self.extract_pdf_text()
+			if pdf_text:
+				prompt += "\n\n--- File Content ---\n" + pdf_text
+				# Update the last message with the PDF content
+				messages[-1]["content"] = prompt
+		except ImportError:
+			# PdfReader not available, continue without PDF extraction
+			pass
+
 		response = client.chat.completions.create(
 			model=self.model,
 			messages=messages,
@@ -249,3 +262,47 @@ class CFChatMessage(Document):
 		self.response = response.choices[0].message.content if response.choices else "No response from OpenAI"
 		self.response_html = safe_markdown_to_html(self.response)
 		self.tokens = response.usage.to_json()
+
+	def extract_pdf_text(self):
+		"""Extract text from PDF attachments of the current chat message"""
+		try:
+			from PyPDF2 import PdfReader
+			import os
+		except ImportError:
+			return ""
+		
+		pdf_texts = []
+		
+		# Get file attachments for current chat message only
+		files = frappe.get_all(
+			"File",
+			filters={
+				"attached_to_doctype": "CF Chat Message",
+				"attached_to_name": self.name,
+				"file_url": ["like", "%.pdf"]
+			},
+			fields=["file_url", "file_name"]
+		)
+		
+		for file_info in files:
+			try:
+				# Get the full file path
+				file_path = frappe.get_site_path() + file_info.file_url
+				
+				if os.path.exists(file_path):
+					# Extract text from PDF
+					with open(file_path, 'rb') as pdf_file:
+						pdf_reader = PdfReader(pdf_file)
+						text_content = ""
+						
+						for page in pdf_reader.pages:
+							text_content += page.extract_text() + "\n"
+						
+						if text_content.strip():
+							pdf_texts.append(f"--- {file_info.file_name} ---\n{text_content.strip()}")
+			
+			except Exception as e:
+				frappe.log_error(f"Error extracting PDF text from {file_info.file_name}: {str(e)}")
+				continue
+		
+		return "\n\n".join(pdf_texts) if pdf_texts else ""
