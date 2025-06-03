@@ -1834,7 +1834,14 @@ def process_security_ai_suggestion(security_name, user):
 			
 	except Exception as e:
 		error_message = f"Error generating AI suggestion: {str(e)}"
-		frappe.log_error("AI Suggestion Error", error_message[:140])
+		
+		# Create a short, descriptive title for the error log
+		short_title = f"AI Suggestion Error - {security_name}"
+		if len(short_title) > 140:
+			short_title = f"AI Suggestion Error"[:140]
+		
+		# Log the full error message as the content, short title as the title
+		frappe.log_error(error_message, short_title)
 		
 		# Notify user of failure
 		frappe.publish_realtime(
@@ -1842,8 +1849,8 @@ def process_security_ai_suggestion(security_name, user):
 			message={
 				'security_id': security_name,
 				'status': 'error',
-				'error': error_message,
-				'message': error_message
+				'error': error_message[:200],  # Truncate for realtime message too
+				'message': error_message[:200]
 			},
 			user=user
 		)
