@@ -1651,15 +1651,50 @@ def process_security_ai_suggestion(security_name, user):
 				if '```' in content_string:
 					content_string = content_string.split('```')[0]
 
-			# Clean up control characters and format issues before parsing
-			import re
-			
 			# Replace problematic control characters and normalize whitespace
 			content_string = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', content_string)
 			
 			# Fix common JSON formatting issues from AI responses
-			# Replace literal newlines within string values with escaped newlines
-			content_string = re.sub(r'(?<="[^"]*)\n(?=[^"]*")', '\\n', content_string)
+			# FIXED: Use a simpler approach to handle newlines in JSON strings
+			# Replace unescaped newlines with escaped newlines
+			lines = content_string.split('\n')
+			fixed_lines = []
+			in_string = False
+			
+			for line in lines:
+				if not in_string:
+					# Count unescaped quotes to determine if we're entering a string
+					quote_count = 0
+					i = 0
+					while i < len(line):
+						if line[i] == '"' and (i == 0 or line[i-1] != '\\'):
+							quote_count += 1
+						i += 1
+					# If odd number of quotes, we're entering/staying in a string
+					if quote_count % 2 == 1:
+						in_string = not in_string
+					fixed_lines.append(line)
+				else:
+					# We're inside a string, check if this line ends the string
+					quote_count = 0
+					i = 0
+					while i < len(line):
+						if line[i] == '"' and (i == 0 or line[i-1] != '\\'):
+							quote_count += 1
+						i += 1
+					
+					if quote_count % 2 == 1:
+						# String ends on this line
+						in_string = False
+						fixed_lines.append(line)
+					else:
+						# String continues, escape the newline
+						if fixed_lines:
+							fixed_lines[-1] += '\\n' + line.lstrip()
+						else:
+							fixed_lines.append(line)
+			
+			content_string = '\n'.join(fixed_lines)
 			
 			# Replace literal tabs with spaces
 			content_string = content_string.replace('\t', '    ')
@@ -1730,7 +1765,7 @@ def process_security_ai_suggestion(security_name, user):
 
 		except Exception as parse_error:
 			error_message = f"Error parsing AI response: {str(parse_error)}"
-			frappe.log_error(error_message, "AI Response Parse Error")
+			frappe.log_error("AI Response Parse Error", error_message)
 			
 			# Update security with error status
 			security.ai_suggestion = f"❌ **Error processing AI response**: {str(parse_error)}\n\nRaw response saved for debugging."
@@ -1816,7 +1851,7 @@ def process_security_ai_suggestion(security_name, user):
 			
 	except requests.exceptions.RequestException as e:
 		error_message = f"Request error: {str(e)}"
-		frappe.log_error(error_message, "OpenWebUI API Error")
+		frappe.log_error("OpenWebUI API Error", error_message)
 		
 		# Notify user of failure
 		frappe.publish_realtime(
@@ -1831,7 +1866,7 @@ def process_security_ai_suggestion(security_name, user):
 		)
 		
 		return False
-			
+		
 	except Exception as e:
 		error_message = f"Error generating AI suggestion: {str(e)}"
 		
@@ -1840,8 +1875,8 @@ def process_security_ai_suggestion(security_name, user):
 		if len(short_title) > 140:
 			short_title = f"AI Suggestion Error"[:140]
 		
-		# Log the full error message as the content, short title as the title
-		frappe.log_error(error_message, short_title)
+		# FIXED: Correct parameter order - title first, then message
+		frappe.log_error(short_title, error_message)
 		
 		# Notify user of failure
 		frappe.publish_realtime(
