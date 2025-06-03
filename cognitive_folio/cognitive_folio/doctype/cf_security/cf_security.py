@@ -1714,6 +1714,9 @@ def process_security_ai_suggestion(security_name, user):
 		# Convert JSON to markdown for better display
 		markdown_content = security.convert_json_to_markdown(suggestion)
 
+		# Reload the document to get the latest version and avoid modification conflicts
+		security.reload()
+
 		# Safely extract values with defaults
 		evaluation = suggestion.get("Evaluation", {})
 		security.ai_response = content_string
@@ -1723,6 +1726,8 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
+		
+		# Save the document with all AI-related updates
 		security.save()
 		
 		# Create CF Chat and CF Chat Message
