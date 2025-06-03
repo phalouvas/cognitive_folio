@@ -300,7 +300,7 @@
   {
    "fetch_from": "security.suggestion_rating",
    "fieldname": "suggestion_rating",
-   "fieldtype": "Int",
+   "fieldtype": "Rating",
    "in_list_view": 1,
    "in_standard_filter": 1,
    "label": "Rating",
@@ -403,7 +403,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-05-30 18:29:25.129863",
+ "modified": "2025-06-03 10:01:29.147323",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

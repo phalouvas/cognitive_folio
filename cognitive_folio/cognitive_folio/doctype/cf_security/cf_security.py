@@ -178,7 +178,7 @@ class CFSecurity(Document):
 			eval_data = data["Evaluation"]
 			markdown.append("## Evaluation")
 			
-			rating = "⭐" * int(eval_data.get("Rating", 0))
+			rating = "⭐" * max(1, round(eval_data.get("Rating", 0) * 5))
 			markdown.append(f"- Rating: {rating}")
 			markdown.append(f"- Recommendation: **{eval_data.get('Recommendation', '-')}**")
 			markdown.append(f"- Buy Below: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
