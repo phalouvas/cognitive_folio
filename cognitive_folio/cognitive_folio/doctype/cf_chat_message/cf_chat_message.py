@@ -21,6 +21,7 @@ class CFChatMessage(Document):
 		
 		self.response = "Processing your request..."
 		self.response_html = safe_markdown_to_html(self.response)
+		self.save()
 		
 		# Enqueue the job to run after the document is saved
 		frappe.db.commit()
@@ -148,12 +149,10 @@ class CFChatMessage(Document):
 		# Process current message prompt first to know how much space it needs
 		prompt = self.prepare_prompt(portfolio, security)
 		
-		# Extract PDF text and add to prompt if available
+		# Extract PDF text and replace file references if available
 		try:
 			from PyPDF2 import PdfReader
-			pdf_text = self.extract_pdf_text()
-			if pdf_text:
-				prompt += "\n\n--- File Content ---\n" + pdf_text
+			prompt = self.extract_pdf_text()
 		except ImportError:
 			pass
 		
@@ -283,16 +282,35 @@ class CFChatMessage(Document):
 		return prompt
 
 	def extract_pdf_text(self):
-		"""Extract text from PDF attachments of the current chat message"""
+		"""Extract text from specific PDF files referenced in the prompt"""
 		try:
 			from PyPDF2 import PdfReader
 			import os
+			import html
 		except ImportError:
-			return ""
+			return self.prompt
 		
-		pdf_texts = []
+		prompt = self.prompt
 		
-		# Get file attachments for current chat message only
+		# First, decode any HTML entities
+		prompt = html.unescape(prompt)
+		
+		# Find all PDF file references in both formats:
+		# <<filename.pdf>> and &lt;&lt;filename.pdf&gt;&gt;
+		pdf_references = []
+		
+		# Pattern for normal angle brackets
+		normal_pattern = r'<<([^>]+\.pdf)>>'
+		pdf_references.extend(re.findall(normal_pattern, prompt, re.IGNORECASE))
+		
+		# Pattern for HTML encoded angle brackets
+		encoded_pattern = r'&lt;&lt;([^&]+\.pdf)&gt;&gt;'
+		pdf_references.extend(re.findall(encoded_pattern, prompt, re.IGNORECASE))
+		
+		if not pdf_references:
+			return prompt
+		
+		# Get all file attachments for current chat message
 		files = frappe.get_all(
 			"File",
 			filters={
@@ -303,25 +321,53 @@ class CFChatMessage(Document):
 			fields=["file_url", "file_name"]
 		)
 		
+		# Create a mapping of file names to file info
+		file_mapping = {}
 		for file_info in files:
-			try:
-				# Get the full file path
-				file_path = frappe.get_site_path() + file_info.file_url
-				
-				if os.path.exists(file_path):
-					# Extract text from PDF
-					with open(file_path, 'rb') as pdf_file:
-						pdf_reader = PdfReader(pdf_file)
-						text_content = ""
-						
-						for page in pdf_reader.pages:
-							text_content += page.extract_text() + "\n"
-						
-						if text_content.strip():
-							pdf_texts.append(f"--- {file_info.file_name} ---\n{text_content.strip()}")
-			
-			except Exception as e:
-				frappe.log_error(f"Error extracting PDF text from {file_info.file_name}: {str(e)}")
-				continue
+			file_mapping[file_info.file_name.lower()] = file_info
 		
-		return "\n\n".join(pdf_texts) if pdf_texts else ""
+		# Replace each PDF reference with its content
+		for pdf_filename in pdf_references:
+			pdf_key = pdf_filename.lower()
+			
+			if pdf_key in file_mapping:
+				file_info = file_mapping[pdf_key]
+				try:
+					# Get the full file path
+					file_path = frappe.get_site_path() + file_info.file_url
+                    
+					if os.path.exists(file_path):
+						# Extract text from PDF
+						with open(file_path, 'rb') as pdf_file:
+							pdf_reader = PdfReader(pdf_file)
+							text_content = ""
+							
+							for page in pdf_reader.pages:
+								text_content += page.extract_text() + "\n"
+							
+							if text_content.strip():
+								# Replace the reference with the file content
+								replacement = f"--- Content of {file_info.file_name} ---\n{text_content.strip()}"
+								
+								# Replace both normal and encoded versions
+								prompt = prompt.replace(f"<<{pdf_filename}>>", replacement)
+								prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", replacement)
+							else:
+								# Replace with message indicating no text found
+								no_text_msg = f"[No readable text found in {file_info.file_name}]"
+								prompt = prompt.replace(f"<<{pdf_filename}>>", no_text_msg)
+								prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", no_text_msg)
+				
+				except Exception as e:
+					frappe.log_error(f"Error extracting PDF text from {file_info.file_name}: {str(e)}")
+					# Replace with error message
+					error_msg = f"[Error reading {file_info.file_name}]"
+					prompt = prompt.replace(f"<<{pdf_filename}>>", error_msg)
+					prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", error_msg)
+			else:
+				# File not found, replace with message
+				not_found_msg = f"[File {pdf_filename} not found in attachments]"
+				prompt = prompt.replace(f"<<{pdf_filename}>>", not_found_msg)
+				prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", not_found_msg)
+		
+		return prompt
