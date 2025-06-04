@@ -1624,6 +1624,8 @@ def process_security_ai_suggestion(security_name, user):
 			security.reload()
 			security.ai_suggestion = f"❌ **Error generating AI analysis**: {str(api_error)}\n\nPlease try again later or check the AI service configuration."
 			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
+			security.flags.ignore_version = True
+			security.flags.ignore_mandatory = True
 			security.save()
 			
 			# Notify user of failure
@@ -1738,6 +1740,8 @@ def process_security_ai_suggestion(security_name, user):
 				security.reload()
 				security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
 				security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
+				security.flags.ignore_version = True
+				security.flags.ignore_mandatory = True
 				security.save()
 				
 				# Notify user of partial success
@@ -1745,7 +1749,7 @@ def process_security_ai_suggestion(security_name, user):
 					event='cf_job_completed',
 					message={
 						'security_id': security_name,
-						'status': 'warning',
+						'status': 'error',
 						'error': 'AI response format issue - raw response saved',
 						'message': 'AI response had formatting issues but content was saved'
 					},
@@ -1762,6 +1766,8 @@ def process_security_ai_suggestion(security_name, user):
 			security.reload()
 			security.ai_suggestion = f"❌ **Error processing AI response**: {str(parse_error)}\n\nRaw response saved for debugging."
 			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
+			security.flags.ignore_version = True
+			security.flags.ignore_mandatory = True
 			security.save()
 			
 			# Notify user of failure
@@ -1802,7 +1808,9 @@ def process_security_ai_suggestion(security_name, user):
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		
-		# Save the document with all AI-related updates
+		# Use flags to ignore timestamp validation and force save
+		security.flags.ignore_version = True
+		security.flags.ignore_mandatory = True
 		security.save()
 		
 		# Create CF Chat and CF Chat Message
