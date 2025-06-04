@@ -1621,6 +1621,7 @@ def process_security_ai_suggestion(security_name, user):
 			frappe.log_error(error_message, "OpenAI API Error")
 			
 			# Update security with error status
+			security.reload()
 			security.ai_suggestion = f"❌ **Error generating AI analysis**: {str(api_error)}\n\nPlease try again later or check the AI service configuration."
 			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.save()
@@ -1654,49 +1655,49 @@ def process_security_ai_suggestion(security_name, user):
 			# Replace problematic control characters and normalize whitespace
 			content_string = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', content_string)
 			
-			# Fix common JSON formatting issues from AI responses
-			# FIXED: Use a simpler approach to handle newlines in JSON strings
-			# Replace unescaped newlines with escaped newlines
+			# Fix JSON formatting issues - improved approach for handling newlines in strings
+			# First, properly escape newlines that appear within JSON string values
 			lines = content_string.split('\n')
-			fixed_lines = []
+			fixed_content = []
+			current_line = ""
 			in_string = False
+			escape_next = False
 			
 			for line in lines:
-				if not in_string:
-					# Count unescaped quotes to determine if we're entering a string
-					quote_count = 0
-					i = 0
-					while i < len(line):
-						if line[i] == '"' and (i == 0 or line[i-1] != '\\'):
-							quote_count += 1
-						i += 1
-					# If odd number of quotes, we're entering/staying in a string
-					if quote_count % 2 == 1:
-						in_string = not in_string
-					fixed_lines.append(line)
-				else:
-					# We're inside a string, check if this line ends the string
-					quote_count = 0
-					i = 0
-					while i < len(line):
-						if line[i] == '"' and (i == 0 or line[i-1] != '\\'):
-							quote_count += 1
-						i += 1
+				i = 0
+				while i < len(line):
+					char = line[i]
 					
-					if quote_count % 2 == 1:
-						# String ends on this line
-						in_string = False
-						fixed_lines.append(line)
+					if escape_next:
+						current_line += char
+						escape_next = False
+					elif char == '\\':
+						current_line += char
+						escape_next = True
+					elif char == '"' and not escape_next:
+						current_line += char
+						in_string = not in_string
 					else:
-						# String continues, escape the newline
-						if fixed_lines:
-							fixed_lines[-1] += '\\n' + line.lstrip()
-						else:
-							fixed_lines.append(line)
+						current_line += char
+                    
+					i += 1
+				
+				# If we're at the end of a line and inside a string, escape the newline
+				if in_string and line != lines[-1]:  # Not the last line
+					current_line += '\\n'
+				else:
+					# We're not in a string or this is the last line
+					fixed_content.append(current_line)
+					current_line = ""
 			
-			content_string = '\n'.join(fixed_lines)
+			# Add any remaining content
+			if current_line:
+				fixed_content.append(current_line)
 			
-			# Replace literal tabs with spaces
+			content_string = '\n'.join(fixed_content)
+			
+			# Additional cleanup for HTML entities and special characters
+			content_string = content_string.replace('&nbsp;', ' ')
 			content_string = content_string.replace('\t', '    ')
 			
 			suggestion = json.loads(content_string)
@@ -1706,45 +1707,38 @@ def process_security_ai_suggestion(security_name, user):
 				raise ValueError("AI response is not a valid JSON object")
 
 		except json.JSONDecodeError as json_error:
-			# If JSON parsing still fails, try a more aggressive cleanup
+			# If JSON parsing still fails, try a more robust cleanup approach
 			try:
-				# More aggressive cleanup - extract JSON-like structure manually
-				import ast
+				# Remove markdown formatting and fix common JSON issues
+				cleaned = content_string.strip()
 				
-				# Try to fix the JSON by escaping newlines properly
-				lines = content_string.split('\n')
-				fixed_lines = []
-				in_string = False
-				current_quote = None
+				# Handle bullet points and special formatting within JSON strings
+				import re
 				
-				for line in lines:
-					fixed_line = ""
-					i = 0
-					while i < len(line):
-						char = line[i]
-						if char in ['"', "'"] and (i == 0 or line[i-1] != '\\'):
-							if not in_string:
-								in_string = True
-								current_quote = char
-							elif char == current_quote:
-								in_string = False
-								current_quote = None
-						fixed_line += char
-						i += 1
-					
-					if in_string and fixed_line.rstrip() and not fixed_line.rstrip().endswith(','):
-						fixed_line += '\\n'
-					
-					fixed_lines.append(fixed_line)
+				# Find all string values in the JSON and clean them
+				def clean_json_string(match):
+					string_content = match.group(1)
+					# Replace literal newlines with \n
+					string_content = string_content.replace('\n', '\\n')
+					# Replace other problematic characters
+					string_content = string_content.replace('\r', '\\r')
+					string_content = string_content.replace('\t', '\\t')
+					string_content = string_content.replace('&nbsp;', ' ')
+					# Handle unescaped quotes within strings
+					string_content = re.sub(r'(?<!\\)"', '\\"', string_content)
+					return f'"{string_content}"'
 				
-				cleaned_content = '\n'.join(fixed_lines)
-				suggestion = json.loads(cleaned_content)
+				# Apply cleaning to all JSON string values
+				cleaned = re.sub(r'"([^"]*(?:\\.[^"]*)*)"', clean_json_string, cleaned, flags=re.DOTALL)
 				
-			except (json.JSONDecodeError, SyntaxError) as secondary_error:
+				suggestion = json.loads(cleaned)
+				
+			except (json.JSONDecodeError, Exception) as secondary_error:
 				error_message = f"Invalid JSON in AI response: {str(json_error)}"
 				frappe.log_error(f"{error_message}\nRaw response: {content_string}", "AI JSON Parse Error")
 				
 				# Fallback: save the raw response as markdown
+				security.reload()
 				security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
 				security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 				security.save()
@@ -1754,9 +1748,9 @@ def process_security_ai_suggestion(security_name, user):
 					event='cf_job_completed',
 					message={
 						'security_id': security_name,
-						'status': 'error',
+						'status': 'warning',
 						'error': 'AI response format issue - raw response saved',
-						'message': 'AI response format issue - raw response saved'
+						'message': 'AI response had formatting issues but content was saved'
 					},
 					user=user
 				)
@@ -1768,6 +1762,7 @@ def process_security_ai_suggestion(security_name, user):
 			frappe.log_error("AI Response Parse Error", error_message)
 			
 			# Update security with error status
+			security.reload()
 			security.ai_suggestion = f"❌ **Error processing AI response**: {str(parse_error)}\n\nRaw response saved for debugging."
 			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.save()
