@@ -147,16 +147,16 @@ class CFChatMessage(Document):
 		available_tokens = max_context_tokens - system_tokens
 		
 		# Process current message prompt first to know how much space it needs
-		prompt = self.prepare_prompt(portfolio, security)
+		self.prompt = self.prepare_prompt(portfolio, security)
 		
 		# Extract PDF text and replace file references if available
 		try:
 			from PyPDF2 import PdfReader
-			prompt = self.extract_pdf_text()
+			self.prompt = self.extract_pdf_text()
 		except ImportError:
 			pass
 		
-		current_prompt_tokens = len(encoding.encode(prompt))
+		current_prompt_tokens = len(encoding.encode(self.prompt))
 		available_tokens -= current_prompt_tokens
 		
 		# Add previous messages while staying within token limit
@@ -175,7 +175,7 @@ class CFChatMessage(Document):
 			used_tokens += message_tokens
 		
 		# Add current message
-		messages.append({"role": "user", "content": prompt})
+		messages.append({"role": "user", "content": self.prompt})
 
 		response = client.chat.completions.create(
 			model=self.model,
@@ -184,7 +184,6 @@ class CFChatMessage(Document):
 			temperature=0.2
 		)
 
-		self.prompt = prompt
 		self.response = response.choices[0].message.content if response.choices else "No response from OpenAI"
 		self.response_html = safe_markdown_to_html(self.response)
 		self.tokens = response.usage.to_json()

@@ -7,18 +7,6 @@ $(document).ready(function() {
             if (!frappe._cf_chat_listener_initialized) {
                 
                 frappe.realtime.on('cf_job_completed', function(data) {
-                    // Only process if we're currently on a CF Chat form that matches the chat_id
-                    if (cur_frm && 
-                        cur_frm.doctype === 'CF Chat' && 
-                        cur_frm.doc.name === data.chat_id) {
-                        
-                        // Refresh the timeline
-                        if (typeof render_chat_timeline === 'function') {
-                            render_chat_timeline(cur_frm);
-                        }
-                        
-                    }
-
                     // Refresh frame to ensure latest data
                     cur_frm.reload_doc();
                     

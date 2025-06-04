@@ -17,7 +17,7 @@ frappe.ui.form.on("CF Chat Message", {
                                 indicator: 'blue'
                             });
                             if (frm.doc.chat) {
-                                frappe.set_route('Form', 'CF Chat', frm.doc.chat);
+                                window.location.href = `/app/cf-chat/${frm.doc.chat}`;
                             }
                         }
                     }
