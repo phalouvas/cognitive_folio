@@ -1712,9 +1712,6 @@ def process_security_ai_suggestion(security_name, user):
 				# Remove markdown formatting and fix common JSON issues
 				cleaned = content_string.strip()
 				
-				# Handle bullet points and special formatting within JSON strings
-				import re
-				
 				# Find all string values in the JSON and clean them
 				def clean_json_string(match):
 					string_content = match.group(1)
