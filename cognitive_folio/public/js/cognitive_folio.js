@@ -22,18 +22,21 @@ $(document).ready(function() {
                     // Refresh frame to ensure latest data
                     cur_frm.reload_doc();
                     
-                    // Play notification sound
-                    const audio = new Audio('/assets/cognitive_folio/sounds/notification.mp3');
-                    audio.volume = 0.5;
-                    audio.play().catch(e => console.log('Audio play failed:', e));
-                    
                     // Show notification based on status
                     if (data.status === 'success') {
+                        // Play notification sound
+                        const audio = new Audio('/assets/cognitive_folio/sounds/notification.mp3');
+                        audio.volume = 0.5;
+                        audio.play().catch(e => console.log('Audio play failed:', e));
                         frappe.show_alert({
                             message: __(data.message || "Chat message processed successfully."),
                             indicator: "green"
                         });
                     } else if (data.status === 'error') {
+                        // Play notification sound
+                        const audio = new Audio('/assets/cognitive_folio/sounds/error.mp3');
+                        audio.volume = 0.5;
+                        audio.play().catch(e => console.log('Audio play failed:', e));
                         frappe.show_alert({
                             message: __(data.message || "An error occurred while processing the chat message."),
                             indicator: "red"
