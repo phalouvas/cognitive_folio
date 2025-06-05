@@ -17,6 +17,7 @@
   "cost",
   "current_value",
   "disabled",
+  "auth_fetch_prices",
   "performance_section",
   "price_column",
   "returns_price",
@@ -87,6 +88,13 @@
    "fieldname": "disabled",
    "fieldtype": "Check",
    "label": "Disabled"
+  },
+  {
+   "default": "0",
+   "description": "Enable automatic daily price fetching at 5:00 AM",
+   "fieldname": "auth_fetch_prices",
+   "fieldtype": "Check",
+   "label": "Auto Fetch Prices"
   },
   {
    "fieldname": "section_break_8",

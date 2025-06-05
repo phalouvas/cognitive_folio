@@ -153,23 +153,13 @@ after_install = "cognitive_folio.install.after_install"
 # Scheduled Tasks
 # ---------------
 
-# scheduler_events = {
-# 	"all": [
-# 		"cognitive_folio.tasks.all"
-# 	],
-# 	"daily": [
-# 		"cognitive_folio.tasks.daily"
-# 	],
-# 	"hourly": [
-# 		"cognitive_folio.tasks.hourly"
-# 	],
-# 	"weekly": [
-# 		"cognitive_folio.tasks.weekly"
-# 	],
-# 	"monthly": [
-# 		"cognitive_folio.tasks.monthly"
-# 	],
-# }
+scheduler_events = {
+	"cron": {
+		"0 5 * * *": [
+			"cognitive_folio.tasks.auto_fetch_portfolio_prices"
+		]
+	}
+}
 
 # Testing
 # -------
