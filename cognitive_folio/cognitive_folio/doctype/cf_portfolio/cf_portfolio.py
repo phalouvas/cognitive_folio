@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
 from cognitive_folio.utils.markdown import safe_markdown_to_html
+from cognitive_folio.utils.helper import replace_variables
 import re
 
 class CFPortfolio(Document):
@@ -442,7 +443,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				except AttributeError:
 					return match.group(0)
 			
-			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
+			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
@@ -488,8 +489,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 									return match.group(0)
 							
 							# Apply security and holding replacements
-							holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
-							holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
+							holding_prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security_doc), holding_prompt)
+							holding_prompt = re.sub(r'\[\[([\w\.]+)\]\]', lambda match: replace_variables(match, holding_doc), holding_prompt)
 							
 							holding_sections.append(holding_prompt)
 						

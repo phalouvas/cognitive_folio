@@ -95,39 +95,34 @@ frappe.ui.form.on("CF Portfolio", {
             
             // Add "Generate Portfolio AI Analysis" button
             frm.add_custom_button(__('Generate AI Analysis'), function() {
-                frappe.confirm(
-                    __('This will generate an AI analysis for the entire portfolio. Continue?'),
-                    function() {
-                        frappe.dom.freeze(__('Generating portfolio analysis...'));
+                frappe.dom.freeze(__('Generating portfolio analysis...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'generate_portfolio_ai_analysis',
+                    callback: function(r) {
+                        frappe.dom.unfreeze();
                         
-                        frm.call({
-                            doc: frm.doc,
-                            method: 'generate_portfolio_ai_analysis',
-                            callback: function(r) {
-                                frappe.dom.unfreeze();
-                                
-                                if (r.message && r.message.success) {
-                                    frm.reload_doc();
-                                } else {
-                                    frappe.msgprint({
-                                        title: __('Error'),
-                                        indicator: 'red',
-                                        message: r.message && r.message.error ? 
-                                            r.message.error : __('Failed to generate portfolio analysis')
-                                    });
-                                }
-                            },
-                            error: function() {
-                                frappe.dom.unfreeze();
-                                frappe.msgprint({
-                                    title: __('Error'),
-                                    indicator: 'red',
-                                    message: __('An error occurred while generating portfolio analysis')
-                                });
-                            }
+                        if (r.message && r.message.success) {
+                            frm.reload_doc();
+                        } else {
+                            frappe.msgprint({
+                                title: __('Error'),
+                                indicator: 'red',
+                                message: r.message && r.message.error ? 
+                                    r.message.error : __('Failed to generate portfolio analysis')
+                            });
+                        }
+                    },
+                    error: function() {
+                        frappe.dom.unfreeze();
+                        frappe.msgprint({
+                            title: __('Error'),
+                            indicator: 'red',
+                            message: __('An error occurred while generating portfolio analysis')
                         });
                     }
-                );
+                });
             }, __('Actions'));
 
             // Add button to update purchase prices from market data
