@@ -201,10 +201,6 @@ frappe.ui.form.on("CF Portfolio", {
                     doc: frm.doc,
                     callback: function(r) {
                         if (r.message) {
-                            frappe.show_alert({
-                                message: __('Job to evaluate news for holdings has been queued.'),
-                                indicator: 'green'
-                            }, 5);
                             frm.reload_doc();
                         }
                     },

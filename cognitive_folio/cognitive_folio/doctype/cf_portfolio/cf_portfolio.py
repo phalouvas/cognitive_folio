@@ -839,7 +839,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'success',
-					'message': _(f"Portfolio '{portfolio_name}' AI analysis has been successfully generated and saved.")
+					'message': _(f"Portfolio '{portfolio_name}' AI news evaluation has been successfully completed.")
 				},
 				user=user
 			)
@@ -875,7 +875,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 					'portfolio_id': portfolio_name,
 					'status': 'error',
 					'error': error_message,
-					'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_message}")
+					'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_message}")
 				},
 				user=user
 			)
@@ -885,7 +885,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 	except Exception as e:
 		error_msg = str(e)
 		frappe.log_error(
-			f"Error generating AI analysis for portfolio {portfolio_name}: {error_msg}",
+			f"Error generating AI news evaluation for portfolio {portfolio_name}: {error_msg}",
 			"Portfolio AI Analysis Error"
 		)
 		
@@ -896,7 +896,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				'portfolio_id': portfolio_name,
 				'status': 'error',
 				'error': error_msg,
-				'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_msg}")
+				'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_msg}")
 			},
 			user=user
 		)
