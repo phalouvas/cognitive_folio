@@ -112,13 +112,13 @@ def auto_portfolio_notifications():
 				
 				# Get securities that need evaluation
 				evaluation_securities = frappe.get_all(
-					"CF Portfolio Holding",
-					filters=[
-						["portfolio", "=", portfolio.name],
-						["need_evaluation", "=", 1]
-					],
-					fields=["security", "security_name", "suggestion_action", "current_price", "allocation_percentage"]
-				)
+                    "CF Portfolio Holding",
+                    filters=[
+                        ["portfolio", "=", portfolio.name],
+                        ["need_evaluation", "=", 1]
+                    ],
+                    fields=["security", "security_name", "news_reasoning", "current_price", "allocation_percentage"]
+                )
 				
 				# Only send email if there are alerts or evaluations
 				if alert_securities or evaluation_securities:
@@ -166,7 +166,7 @@ def auto_portfolio_notifications():
 									<td>{security.security_name or security.security}</td>
 									<td>{security.current_price or 'N/A'}</td>
 									<td>{security.allocation_percentage or 0:.2f}%</td>
-									<td>{security.suggestion_action or 'No recommendation'}</td>
+									<td>{security.news_reasoning or 'No reasoning available'}</td>
 								</tr>
 							""")
 						message_parts.append("</table><br>")
