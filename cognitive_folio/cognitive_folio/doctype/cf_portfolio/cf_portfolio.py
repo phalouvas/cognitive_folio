@@ -692,103 +692,108 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				filters=[
 					["portfolio", "=", portfolio_name],
 				],
-				fields=["*"]
+				fields=["name", "security"]
 			)
 			
 			if not holdings:
 				raise ValueError(_('No holdings found in this portfolio'))
 			
-			prompt = """
-				I own stocks that I evaluated their fundamentals.
-				Read below headlines and decide whether I need evaluate them again.
-
-				Respond only in JSON as below:
-				{
-					"Company": "Company name",
-					"Symbol:": "ticker symbol"
-					"Evaluate": "Yes/No",
-					"Reasoning": "Explain why need re-evaluation"
-				}
-
-				***HOLDINGS***
-				*Company*: {{security_name}}
-				*Symbol*: {{symbol}}
-				*Headlines*:
-				{{news.ARRAY.content.title}}
-				***HOLDINGS***
-			"""
-			
-			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
-			
-			holdings = frappe.get_all(
-				"CF Portfolio Holding",
-				filters={"portfolio": portfolio.name},
-				fields=["name", "security"]
-			)
-			
-			if holdings:
-				# Find all ***HOLDINGS*** sections in the prompt
-				holdings_pattern = r'\*\*\*HOLDINGS\*\*\*(.*?)\*\*\*HOLDINGS\*\*\*'
-				holdings_matches = re.findall(holdings_pattern, prompt, re.DOTALL)
+			# Filter securities that have news and need evaluation
+			securities_to_evaluate = []
+			for holding_info in holdings:
+				security_doc = frappe.get_doc("CF Security", holding_info.security)
 				
-				if holdings_matches:
-					# Process each holding separately and create sections for each
-					all_holding_sections = []
-					
-					for holding_info in holdings:
-						# Get both holding and security documents
-						holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
-						security_doc = frappe.get_doc("CF Security", holding_info.security)
-						
-						# Process each ***HOLDINGS*** section for this holding
-						holding_sections = []
-						for holdings_content in holdings_matches:
-							holding_prompt = holdings_content
-							
-							# Replace {{variable}} with security fields
-							def replace_security_variables(match):
-								variable_name = match.group(1)
+				# Check if security has news in the JSON field
+				if not security_doc.news:
+					continue  # Skip if no news
+				
+				# Parse the news JSON data
+				try:
+					news_data = frappe.parse_json(security_doc.news) if isinstance(security_doc.news, str) else security_doc.news
+				except (ValueError, TypeError):
+					continue  # Skip if news JSON is invalid
+				
+				if not isinstance(news_data, list) or not news_data:
+					continue  # Skip if no news items
+				
+				# Check if there's news newer than ai_modified
+				recent_news_items = []
+				if security_doc.ai_modified:
+					# Filter news items that are newer than ai_modified
+					for news_item in news_data:
+						if isinstance(news_item, dict) and 'content' in news_item:
+							content = news_item['content']
+							if 'pubDate' in content:
 								try:
-									field_value = getattr(security_doc, variable_name, None)
-									return str(field_value) if field_value is not None else ""
-								except AttributeError:
-									return match.group(0)
-							
-							# Replace [[variable]] with holding fields
-							def replace_holding_variables(match):
-								variable_name = match.group(1)
-								try:
-									field_value = getattr(holding_doc, variable_name, None)
-									return str(field_value) if field_value is not None else ""
-								except AttributeError:
-									return match.group(0)
-							
-							# Apply security and holding replacements
-							holding_prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security_doc), holding_prompt)
-							holding_prompt = re.sub(r'\[\[([\w\.]+)\]\]', lambda match: replace_variables(match, holding_doc), holding_prompt)
-							
-							holding_sections.append(holding_prompt)
-						
-						# Join sections for this holding
-						all_holding_sections.append("***HOLDINGS***" + "***HOLDINGS******HOLDINGS***".join(holding_sections) + "***HOLDINGS***")
+									from dateutil import parser as date_parser
+									pub_date = date_parser.parse(content['pubDate'])
+									if pub_date > security_doc.ai_modified:
+										recent_news_items.append(news_item)
+								except (ValueError, TypeError, ImportError):
+									# If we can't parse the date or dateutil is not available, include the item to be safe
+									recent_news_items.append(news_item)
 					
-					# Replace all ***HOLDINGS*** sections in the original prompt with processed content
-					# First, get the content before first and after last ***HOLDINGS*** markers
-					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
-					
-					# Reconstruct the prompt with all holdings processed
-					final_parts = []
-					final_parts.append(parts[0])  # Content before first ***HOLDINGS***
-					
-					for holding_section in all_holding_sections:
-						# Remove the ***HOLDINGS*** markers from the processed content
-						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
-						final_parts.append(clean_holding_section)
-					
-					if len(parts) > 1:
-						final_parts.append(parts[-1])  # Content after last ***HOLDINGS***
-					
-					prompt = "\n\n".join(final_parts)
+					if not recent_news_items:
+						continue  # Skip if no recent news
+					news_items_to_process = recent_news_items
+				else:
+					# If no ai_modified date, process all news
+					news_items_to_process = news_data
+				
+				# Prepare headlines for this security
+				headlines = []
+				for news_item in news_items_to_process:
+					if isinstance(news_item, dict) and 'content' in news_item:
+						content = news_item['content']
+						if 'title' in content and content['title']:
+							headlines.append(content['title'])
+				
+				if headlines:
+					securities_to_evaluate.append({
+						'security_doc': security_doc,
+						'headlines': headlines
+					})
+			
+			if not securities_to_evaluate:
+				# Notify user that no securities need evaluation
+				frappe.publish_realtime(
+					event='cf_job_completed',
+					message={
+						'portfolio_id': portfolio_name,
+						'status': 'success',
+						'message': _(f"No securities in portfolio '{portfolio_name}' require news evaluation.")
+					},
+					user=user
+				)
+				return True
+			
+			# Build the prompt with actual security data
+			prompt = """I own stocks that I evaluated their fundamentals.
+Read below headlines and decide whether I need evaluate them again.
+
+Respond only in JSON as below:
+[
+	{
+		"Company": "Company name",
+		"Symbol": "ticker symbol",
+		"Evaluate": "Yes/No",
+		"Reasoning": "Explain why need re-evaluation"
+	}
+]
+
+"""
+			
+			# Add each security's information to the prompt
+			for item in securities_to_evaluate:
+				security_doc = item['security_doc']
+				headlines = item['headlines']
+				
+				prompt += f"*Company*: {security_doc.security_name or ''}\n"
+				prompt += f"*Symbol*: {security_doc.symbol or ''}\n"
+				prompt += "*Headlines*:\n"
+				for headline in headlines:
+					prompt += f"- {headline}\n"
+				prompt += "\n"
 
 			# Make the API call
 			messages = [
@@ -812,7 +817,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 
 			# Validate the JSON structure
 			if not isinstance(json_content, list):
-				raise ValueError("AI response is not a valid JSON object")
+				raise ValueError("AI response is not a valid JSON array")
 
 			for item in json_content:
 				if not isinstance(item, dict):
@@ -822,14 +827,20 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				if 'Company' not in item or 'Symbol' not in item or 'Evaluate' not in item or 'Reasoning' not in item:
 					raise ValueError("AI response item is missing required fields")
 				
-				# Get the security document from symbol
+				# Find the security document from our evaluated securities list by symbol
 				if item['Evaluate'].lower() == 'yes':
-					security_doc = frappe.get_doc("CF Security", item['Symbol'])
-					if not security_doc:
-						raise ValueError(f"Security with symbol {item['Symbol']} not found")
-					security_doc.need_evaluation = True
-					security_doc.news_reasoning = item['Reasoning']
-					security_doc.save()
+					security_found = None
+					for eval_item in securities_to_evaluate:
+						if eval_item['security_doc'].symbol == item['Symbol']:
+							security_found = eval_item['security_doc']
+							break
+					
+					if security_found:
+						security_found.need_evaluation = True
+						security_found.news_reasoning = item['Reasoning']
+						security_found.save()
+					else:
+						frappe.log_error(f"Security with symbol {item['Symbol']} not found in evaluated securities", "News Evaluation Error")
 
 			frappe.db.commit()  # Single commit for all changes
 			
