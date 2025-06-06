@@ -60,7 +60,7 @@
   },
   {
    "fieldname": "description",
-   "fieldtype": "Small Text",
+   "fieldtype": "Markdown Editor",
    "label": "Description"
   },
   {
@@ -275,7 +275,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-06-01 14:50:18.102893",
+ "modified": "2025-06-06 14:58:52.306070",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",
