@@ -5,8 +5,9 @@ from datetime import datetime, timedelta
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-from cognitive_folio.utils.helper import replace_variables
+from cognitive_folio.utils.helper import replace_variables, clear_string
 import re
+import requests
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -23,9 +24,40 @@ class CFPortfolio(Document):
 		pass
 	 
 	@frappe.whitelist()
+	def evaluate_holdings_news(self):
+		"""Evaluate news for all holdings in this portfolio"""
+		
+		try:
+			from frappe.utils.background_jobs import enqueue
+			
+			# Create a unique job name to prevent duplicates
+			job_name = f"portfolio_news_evaluation_{self.name}_{frappe.utils.now()}"
+			
+			# Enqueue the job
+			enqueue(
+				method="cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio.process_evaluate_holdings_news",
+				queue="long",
+				timeout=1800,  # 30 minutes
+				job_id=job_name,
+				now=False,
+				portfolio_name=self.name,
+				user=frappe.session.user
+			)
+			
+			frappe.msgprint(
+				_("Portfolio AI news evaluation has been queued. You will be notified when it's complete."),
+				alert=True
+			)
+			
+			return {'success': True, 'message': _('Portfolio AI news evaluation has been queued')}
+		
+		except Exception as e:
+			frappe.log_error(f"Error queueing portfolio AI analysis: {str(e)}", "Portfolio AI Analysis Error")
+			return {'success': False, 'error': str(e)}
+
+	@frappe.whitelist()
 	def generate_holdings_ai_suggestions(self):
 		"""Queue AI suggestion generation for each holding as separate background jobs"""
-		from frappe.utils.background_jobs import enqueue
 
 		try:
 			# Get holdings in this portfolio
@@ -33,7 +65,7 @@ class CFPortfolio(Document):
 				"CF Portfolio Holding",
 				filters=[
 					["portfolio", "=", self.name],
-					["security_type", "!=", "Cash"]
+					["security_type", "==", "Stock"]
 				],
 				fields=["name", "security", "modified"]
 			)
@@ -150,12 +182,12 @@ class CFPortfolio(Document):
 		end_date = datetime.strptime(start_date_str, '%Y-%m-%d') + timedelta(days=1)
 		end_date_str = end_date.strftime('%Y-%m-%d')
 		
-		# Get all holdings for this portfolio (excluding Cash type securities)
+		# Get all holdings for this portfolio
 		holdings = frappe.get_all(
 			"CF Portfolio Holding",
 			filters=[
 				["portfolio", "=", self.name],
-				["security_type", "!=", "Cash"]
+				["security_type", "==", "Stock"]
 			],
 			fields=["name", "security"]
 		)
@@ -616,6 +648,266 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				'status': 'error',
 				'error': error_msg,
 				'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_msg}")
+			},
+			user=user
+		)
+		
+		return False
+
+
+def process_evaluate_holdings_news(portfolio_name, user):
+	"""Process news evaluation for all holdings in the portfolio (meant to be run as a background job)"""
+	
+	try:
+		# Get the portfolio document
+		portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
+		
+		try:
+			from openai import OpenAI            
+		except ImportError:
+			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Analysis Error")
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
+				},
+				user=user
+			)
+			return False
+		
+		try:
+			# Get OpenWebUI settings
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			model = settings.default_ai_model
+			if not model:
+				raise ValueError(_('Default AI model is not configured in CF Settings'))
+			
+			# Get all holdings for this portfolio
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters=[
+					["portfolio", "=", portfolio_name],
+				],
+				fields=["name", "security"]
+			)
+			
+			if not holdings:
+				raise ValueError(_('No holdings found in this portfolio'))
+			
+			# Filter securities that have news and need evaluation
+			securities_to_evaluate = []
+			for holding_info in holdings:
+				security_doc = frappe.get_doc("CF Security", holding_info.security)
+				
+				# Check if security has news in the JSON field
+				if not security_doc.news:
+					continue  # Skip if no news
+				
+				# Parse the news JSON data
+				try:
+					news_data = frappe.parse_json(security_doc.news) if isinstance(security_doc.news, str) else security_doc.news
+				except (ValueError, TypeError):
+					continue  # Skip if news JSON is invalid
+				
+				if not isinstance(news_data, list) or not news_data:
+					continue  # Skip if no news items
+				
+				# Check if there's news newer than ai_modified
+				recent_news_items = []
+				if security_doc.ai_modified:
+					# Filter news items that are newer than ai_modified
+					for news_item in news_data:
+						if isinstance(news_item, dict) and 'content' in news_item:
+							content = news_item['content']
+							if 'pubDate' in content:
+								try:
+									from dateutil import parser as date_parser
+									pub_date = date_parser.parse(content['pubDate'])
+									if pub_date > security_doc.ai_modified:
+										recent_news_items.append(news_item)
+								except (ValueError, TypeError, ImportError):
+									# If we can't parse the date or dateutil is not available, include the item to be safe
+									recent_news_items.append(news_item)
+					
+					if not recent_news_items:
+						continue  # Skip if no recent news
+					news_items_to_process = recent_news_items
+				else:
+					# If no ai_modified date, process all news
+					news_items_to_process = news_data
+				
+				# Prepare headlines for this security
+				headlines = []
+				for news_item in news_items_to_process:
+					if isinstance(news_item, dict) and 'content' in news_item:
+						content = news_item['content']
+						if 'title' in content and content['title']:
+							headlines.append(content['title'])
+				
+				if headlines:
+					securities_to_evaluate.append({
+						'security_doc': security_doc,
+						'headlines': headlines
+					})
+			
+			if not securities_to_evaluate:
+				# Notify user that no securities need evaluation
+				frappe.publish_realtime(
+					event='cf_job_completed',
+					message={
+						'portfolio_id': portfolio_name,
+						'status': 'success',
+						'message': _(f"No securities in portfolio '{portfolio_name}' require news evaluation.")
+					},
+					user=user
+				)
+				return True
+			
+			# Build the prompt with actual security data
+			prompt = """I own stocks that I evaluated their fundamentals.
+Read below headlines and decide whether I need evaluate them again.
+
+Respond only in JSON as below:
+[
+	{
+		"Company": "Company name",
+		"Symbol": "ticker symbol",
+		"Evaluate": "Yes/No",
+		"Reasoning": "Explain why need re-evaluation"
+	}
+]
+
+"""
+			
+			# Add each security's information to the prompt
+			for item in securities_to_evaluate:
+				security_doc = item['security_doc']
+				headlines = item['headlines']
+				
+				prompt += f"*Company*: {security_doc.security_name or ''}\n"
+				prompt += f"*Symbol*: {security_doc.symbol or ''}\n"
+				prompt += "*Headlines*:\n"
+				for headline in headlines:
+					prompt += f"- {headline}\n"
+				prompt += "\n"
+
+			# Make the API call
+			messages = [
+				{"role": "system", "content": settings.system_content},
+				{"role": "user", "content": prompt},
+			]
+			
+			response = client.chat.completions.create(
+				model=model,
+				messages=messages,
+				stream=False,
+				temperature=0.2
+			)
+			
+			# Get content from response
+			content = response.choices[0].message.content
+			
+			# Convert to markdown for better display
+			content = clear_string(content)
+			json_content = frappe.parse_json(content)
+
+			# Validate the JSON structure
+			if not isinstance(json_content, list):
+				raise ValueError("AI response is not a valid JSON array")
+
+			for item in json_content:
+				if not isinstance(item, dict):
+					raise ValueError("AI response item is not a valid JSON object")
+				
+				# Ensure required fields are present
+				if 'Company' not in item or 'Symbol' not in item or 'Evaluate' not in item or 'Reasoning' not in item:
+					raise ValueError("AI response item is missing required fields")
+				
+				# Find the security document from our evaluated securities list by symbol
+				if item['Evaluate'].lower() == 'yes':
+					security_found = None
+					for eval_item in securities_to_evaluate:
+						if eval_item['security_doc'].symbol == item['Symbol']:
+							security_found = eval_item['security_doc']
+							break
+					
+					if security_found:
+						security_found.need_evaluation = True
+						security_found.news_reasoning = item['Reasoning']
+						security_found.save()
+					else:
+						frappe.log_error(f"Security with symbol {item['Symbol']} not found in evaluated securities", "News Evaluation Error")
+
+			frappe.db.commit()  # Single commit for all changes
+			
+			# Notify the user that the analysis is complete
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'success',
+					'message': _(f"Portfolio '{portfolio_name}' AI news evaluation has been successfully completed.")
+				},
+				user=user
+			)
+			
+			return True
+			
+		except requests.exceptions.RequestException as e:
+			error_message = f"Request error: {str(e)}"
+			frappe.log_error(error_message, "OpenWebUI API Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': error_message,
+					'message': error_message
+				},
+				user=user
+			)
+			
+			return False
+			
+		except Exception as e:
+			error_message = f"Error generating AI analysis: {str(e)}"
+			frappe.log_error(error_message, "AI Analysis Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': error_message,
+					'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_message}")
+				},
+				user=user
+			)
+			
+			return False
+	
+	except Exception as e:
+		error_msg = str(e)
+		frappe.log_error(
+			f"Error generating AI news evaluation for portfolio {portfolio_name}: {error_msg}",
+			"Portfolio AI Analysis Error"
+		)
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'portfolio_id': portfolio_name,
+				'status': 'error',
+				'error': error_msg,
+				'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_msg}")
 			},
 			user=user
 		)

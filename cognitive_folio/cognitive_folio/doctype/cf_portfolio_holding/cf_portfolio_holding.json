@@ -19,6 +19,7 @@
   "base_cost",
   "currency",
   "is_alert",
+  "need_evaluation",
   "section_break_hwcf",
   "current_price_sec",
   "current_price",
@@ -49,6 +50,7 @@
   "sector",
   "industry",
   "analysis_section",
+  "news_reasoning",
   "ai_suggestion_html",
   "ai_suggestion",
   "news_section",
@@ -399,11 +401,26 @@
    "fieldname": "alert_details",
    "fieldtype": "Markdown Editor",
    "label": "Alert Details"
+  },
+  {
+   "default": "0",
+   "fetch_from": "security.need_evaluation",
+   "fieldname": "need_evaluation",
+   "fieldtype": "Check",
+   "label": "Need Evaluation",
+   "read_only": 1
+  },
+  {
+   "fetch_from": "security.news_reasoning",
+   "fieldname": "news_reasoning",
+   "fieldtype": "Small Text",
+   "label": "News Reasoning",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-03 10:01:29.147323",
+ "modified": "2025-06-06 09:22:48.226423",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",

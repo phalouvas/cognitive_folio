@@ -8,7 +8,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-from cognitive_folio.utils.helper import replace_variables
+from cognitive_folio.utils.helper import replace_variables, clear_string
 import re
 
 try:
@@ -217,6 +217,7 @@ class CFSecurity(Document):
 		
 		# ACTIONABLE ALERTS (only these trigger is_alert = 1)
 		if ai_buy_price > 0 and current_price <= ai_buy_price:
+			self.is_alert = 1  # TRIGGER ALERT
 			discount_pct = ((ai_buy_price - current_price) / ai_buy_price) * 100
 			
 			# Add confidence level based on fundamental support
@@ -1586,65 +1587,7 @@ def process_security_ai_suggestion(security_name, user):
 			return False
 
 		try:
-			# Parse the JSON from the content string, removing any Markdown formatting
-			if content_string.startswith('```') and '```' in content_string[3:]:
-				# Extract content between the first and last backtick markers
-				content_string = content_string.split('```', 2)[1]
-				# Remove the language identifier if present (e.g., 'json\n')
-				if '\n' in content_string:
-					content_string = content_string.split('\n', 1)[1]
-				# Remove trailing backticks if any remain
-				if '```' in content_string:
-					content_string = content_string.split('```')[0]
-
-			# Replace problematic control characters and normalize whitespace
-			content_string = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', content_string)
-			
-			# Fix JSON formatting issues - improved approach for handling newlines in strings
-			# First, properly escape newlines that appear within JSON string values
-			lines = content_string.split('\n')
-			fixed_content = []
-			current_line = ""
-			in_string = False
-			escape_next = False
-			
-			for line in lines:
-				i = 0
-				while i < len(line):
-					char = line[i]
-					
-					if escape_next:
-						current_line += char
-						escape_next = False
-					elif char == '\\':
-						current_line += char
-						escape_next = True
-					elif char == '"' and not escape_next:
-						current_line += char
-						in_string = not in_string
-					else:
-						current_line += char
-                    
-					i += 1
-				
-				# If we're at the end of a line and inside a string, escape the newline
-				if in_string and line != lines[-1]:  # Not the last line
-					current_line += '\\n'
-				else:
-					# We're not in a string or this is the last line
-					fixed_content.append(current_line)
-					current_line = ""
-			
-			# Add any remaining content
-			if current_line:
-				fixed_content.append(current_line)
-			
-			content_string = '\n'.join(fixed_content)
-			
-			# Additional cleanup for HTML entities and special characters
-			content_string = content_string.replace('&nbsp;', ' ')
-			content_string = content_string.replace('\t', '    ')
-			
+			content_string = clear_string(content_string)
 			suggestion = json.loads(content_string)
 
 			# Validate the JSON structure
@@ -1750,6 +1693,9 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
+		security.news_reasoning = None
+		security.need_evaluation = False
+		security.ai_modified = frappe.utils.now()
 		
 		# Use flags to ignore timestamp validation and force save
 		security.flags.ignore_version = True

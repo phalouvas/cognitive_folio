@@ -93,38 +93,6 @@ frappe.ui.form.on("CF Portfolio", {
                 );
             }, __('Holdings'));
             
-            // Add "Generate Portfolio AI Analysis" button
-            frm.add_custom_button(__('Generate AI Analysis'), function() {
-                frappe.dom.freeze(__('Generating portfolio analysis...'));
-                
-                frm.call({
-                    doc: frm.doc,
-                    method: 'generate_portfolio_ai_analysis',
-                    callback: function(r) {
-                        frappe.dom.unfreeze();
-                        
-                        if (r.message && r.message.success) {
-                            frm.reload_doc();
-                        } else {
-                            frappe.msgprint({
-                                title: __('Error'),
-                                indicator: 'red',
-                                message: r.message && r.message.error ? 
-                                    r.message.error : __('Failed to generate portfolio analysis')
-                            });
-                        }
-                    },
-                    error: function() {
-                        frappe.dom.unfreeze();
-                        frappe.msgprint({
-                            title: __('Error'),
-                            indicator: 'red',
-                            message: __('An error occurred while generating portfolio analysis')
-                        });
-                    }
-                });
-            }, __('Actions'));
-
             // Add button to update purchase prices from market data
             frm.add_custom_button(__('Update Purchase Prices'), function() {
                 frappe.confirm(
@@ -159,6 +127,38 @@ frappe.ui.form.on("CF Portfolio", {
                 );
             }, __('Holdings'));
 
+            // Add "Generate Portfolio AI Analysis" button
+            frm.add_custom_button(__('Generate AI Analysis'), function() {
+                frappe.dom.freeze(__('Generating portfolio analysis...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'generate_portfolio_ai_analysis',
+                    callback: function(r) {
+                        frappe.dom.unfreeze();
+                        
+                        if (r.message && r.message.success) {
+                            frm.reload_doc();
+                        } else {
+                            frappe.msgprint({
+                                title: __('Error'),
+                                indicator: 'red',
+                                message: r.message && r.message.error ? 
+                                    r.message.error : __('Failed to generate portfolio analysis')
+                            });
+                        }
+                    },
+                    error: function() {
+                        frappe.dom.unfreeze();
+                        frappe.msgprint({
+                            title: __('Error'),
+                            indicator: 'red',
+                            message: __('An error occurred while generating portfolio analysis')
+                        });
+                    }
+                });
+            }, __('Actions'));
+
             // Add button to calculate portfolio performance metrics
             frm.add_custom_button(__('Calculate Performance'), function() {
                 frappe.dom.freeze(__('Calculating portfolio performance...'));
@@ -191,6 +191,22 @@ frappe.ui.form.on("CF Portfolio", {
                             indicator: 'red',
                             message: __('An error occurred while calculating portfolio performance')
                         });
+                    }
+                });
+            }, __('Actions'));
+
+            frm.add_custom_button(__('Evaluate News'), function() {
+                frm.call({
+                    method: 'evaluate_holdings_news',
+                    doc: frm.doc,
+                    callback: function(r) {
+                        if (r.message) {
+                            frm.reload_doc();
+                        }
+                    },
+                    error: function() {
+                        // Unfreeze UI in case of an error
+                        frappe.msgprint(__('An error occurred while evaluating news.'));
                     }
                 });
             }, __('Actions'));
