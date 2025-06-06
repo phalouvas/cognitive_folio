@@ -155,8 +155,11 @@ after_install = "cognitive_folio.install.after_install"
 
 scheduler_events = {
 	"cron": {
-		"0 5 * * *": [
+		"0 3 * * *": [
 			"cognitive_folio.tasks.auto_fetch_portfolio_prices"
+		],
+		"0 5 * * *": [
+			"cognitive_folio.tasks.auto_portfolio_notifications"
 		]
 	}
 }
