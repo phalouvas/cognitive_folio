@@ -87,22 +87,115 @@ def auto_portfolio_notifications():
 				["auth_fetch_prices", "=", 1],
 				["disabled", "=", 0]
 			],
-			fields=["name", "portfolio_name"]
+			fields=["name", "portfolio_name", "owner"]
 		)
 		
 		if not portfolios:
 			frappe.logger().info("No portfolios found with auto fetch prices enabled")
 			return
 		
+		total_notifications = 0
+		
+		frappe.logger().info(f"Starting notifications for {len(portfolios)} portfolios")
+		
 		for portfolio in portfolios:
 			try:
-				pass
+				# Get securities with alerts
+				alert_securities = frappe.get_all(
+					"CF Portfolio Holding",
+					filters=[
+						["portfolio", "=", portfolio.name],
+						["is_alert", "=", 1]
+					],
+					fields=["security", "security_name", "alert_details", "current_price", "allocation_percentage"]
+				)
+				
+				# Get securities that need evaluation
+				evaluation_securities = frappe.get_all(
+					"CF Portfolio Holding",
+					filters=[
+						["portfolio", "=", portfolio.name],
+						["need_evaluation", "=", 1]
+					],
+					fields=["security", "security_name", "suggestion_action", "current_price", "allocation_percentage"]
+				)
+				
+				# Only send email if there are alerts or evaluations
+				if alert_securities or evaluation_securities:
+					# Get portfolio owner email
+					owner_email = portfolio.owner
+					if not owner_email:
+						frappe.logger().warning(f"No owner found for portfolio: {portfolio.portfolio_name}")
+						continue
+					
+					# Prepare email content
+					subject = f"Portfolio Alert: {portfolio.portfolio_name}"
+					
+					# Build email message
+					message_parts = [
+						f"<h3>Daily Portfolio Alert for {portfolio.portfolio_name}</h3>",
+						f"<p>Generated on {frappe.utils.now()}</p>"
+					]
+					
+					# Add alert securities section
+					if alert_securities:
+						message_parts.append("<h4>🚨 Securities with Alerts</h4>")
+						message_parts.append("<table border='1' style='border-collapse: collapse; width: 100%;'>")
+						message_parts.append("<tr><th>Security</th><th>Current Price</th><th>Allocation %</th><th>Alert Details</th></tr>")
+						
+						for security in alert_securities:
+							message_parts.append(f"""
+								<tr>
+									<td>{security.security_name or security.security}</td>
+									<td>{security.current_price or 'N/A'}</td>
+									<td>{security.allocation_percentage or 0:.2f}%</td>
+									<td>{security.alert_details or 'No details available'}</td>
+								</tr>
+							""")
+						message_parts.append("</table><br>")
+					
+					# Add evaluation securities section
+					if evaluation_securities:
+						message_parts.append("<h4>📊 Securities Needing Evaluation</h4>")
+						message_parts.append("<table border='1' style='border-collapse: collapse; width: 100%;'>")
+						message_parts.append("<tr><th>Security</th><th>Current Price</th><th>Allocation %</th><th>Recommendation</th></tr>")
+						
+						for security in evaluation_securities:
+							message_parts.append(f"""
+								<tr>
+									<td>{security.security_name or security.security}</td>
+									<td>{security.current_price or 'N/A'}</td>
+									<td>{security.allocation_percentage or 0:.2f}%</td>
+									<td>{security.suggestion_action or 'No recommendation'}</td>
+								</tr>
+							""")
+						message_parts.append("</table><br>")
+					
+					message_parts.append("<p><i>This is an automated notification from your Cognitive Folio system.</i></p>")
+					
+					message = "".join(message_parts)
+					
+					# Send email
+					frappe.sendmail(
+						recipients=[owner_email],
+						subject=subject,
+						message=message,
+						header=["Portfolio Alert", "blue"]
+					)
+					
+					total_notifications += 1
+					frappe.logger().info(f"Notification sent to {owner_email} for portfolio {portfolio.portfolio_name} - Alerts: {len(alert_securities)}, Evaluations: {len(evaluation_securities)}")
+				else:
+					frappe.logger().info(f"No alerts or evaluations for portfolio: {portfolio.portfolio_name}")
 				
 			except Exception as e:
 				frappe.log_error(
 					f"Error sending notification for portfolio {portfolio.portfolio_name}: {str(e)}",
 					"Auto Portfolio Notification Error"
 				)
+				continue
+		
+		frappe.logger().info(f"Portfolio notifications completed. Sent {total_notifications} notifications")
 		
 	except Exception as e:
 		frappe.log_error(
