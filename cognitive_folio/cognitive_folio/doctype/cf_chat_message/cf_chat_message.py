@@ -2,7 +2,7 @@ import frappe
 from frappe.model.document import Document
 import re
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-import json
+from cognitive_folio.utils.helper import replace_variables
 
 class CFChatMessage(Document):
 
@@ -195,15 +195,7 @@ class CFChatMessage(Document):
 		
 		# Replace ((variable)) with portfolio fields
 		if portfolio:
-			def replace_portfolio_variables(match):
-				variable_name = match.group(1)
-				try:
-					field_value = getattr(portfolio, variable_name, None)
-					return str(field_value) if field_value is not None else ""
-				except AttributeError:
-					return match.group(0)
-			
-			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
+			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			
 			# Handle holdings processing (existing code)
 			holdings = frappe.get_all(
@@ -227,24 +219,8 @@ class CFChatMessage(Document):
 						for holdings_content in holdings_matches:
 							holding_prompt = holdings_content
 							
-							def replace_security_variables(match):
-								variable_name = match.group(1)
-								try:
-									field_value = getattr(security_doc, variable_name, None)
-									return str(field_value) if field_value is not None else ""
-								except AttributeError:
-									return match.group(0)
-							
-							def replace_holding_variables(match):
-								variable_name = match.group(1)
-								try:
-									field_value = getattr(holding_doc, variable_name, None)
-									return str(field_value) if field_value is not None else ""
-								except AttributeError:
-									return match.group(0)
-							
-							holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
-							holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
+							holding_prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security_doc), holding_prompt)
+							holding_prompt = re.sub(r'\[\[([\w\.]+)\]\]', lambda match: replace_variables(match, holding_doc), holding_prompt)
 							
 							holding_sections.append(holding_prompt)
 						
@@ -265,65 +241,7 @@ class CFChatMessage(Document):
 					prompt = "\n\n".join(final_parts)
 		
 		elif security:
-			# Only replace security variables when dealing with single security
-			def replace_variables(match):
-				variable_name = match.group(1)
-				try:
-					# Handle nested JSON variables like {{field_name.key}} or {{field_name.0.key}} for arrays
-					if '.' in variable_name:
-						parts = variable_name.split('.')
-						field_name = parts[0]
-						nested_path = parts[1:]  # Remaining path parts
-						
-						field_value = getattr(security, field_name, None)
-						if field_value:
-							try:
-								# Try to parse as JSON
-								json_data = json.loads(field_value)
-								
-								# Navigate through the nested path
-								current_data = json_data
-								for part in nested_path:
-									if isinstance(current_data, dict):
-										# Handle object access
-										current_data = current_data.get(part)
-									elif isinstance(current_data, list):
-										# Handle array access by index
-										try:
-											index = int(part)
-											if 0 <= index < len(current_data):
-												current_data = current_data[index]
-											else:
-												current_data = None
-										except ValueError:
-											# If part is not a number, try to access as key in array elements
-											# This handles cases like array of objects
-											current_data = None
-											break
-									else:
-										current_data = None
-										break
-								
-								if current_data is not None:
-									return str(current_data)
-								else:
-									return ""
-							except json.JSONDecodeError:
-								# If not valid JSON, return empty string
-								return ""
-						else:
-							return ""
-					else:
-						# Handle regular security field variables
-						field_value = getattr(security, variable_name, None)
-						if field_value is not None:
-							return str(field_value)
-						else:
-							return ""
-				except (AttributeError, IndexError, ValueError):
-					return match.group(0)
-			
-			prompt = re.sub(r'\{\{([\w\.]+)\}\}', replace_variables, prompt)
+			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
 		
 		return prompt
 
