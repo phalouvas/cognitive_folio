@@ -38,6 +38,7 @@
   "ai_suggestion_html",
   "ai_suggestion",
   "ai_response",
+  "ai_modified",
   "news_section",
   "news_html",
   "news",
@@ -383,6 +384,11 @@
    "fieldtype": "Link",
    "label": "Template Prompt",
    "options": "CF Prompt"
+  },
+  {
+   "fieldname": "ai_modified",
+   "fieldtype": "Datetime",
+   "label": "AI Modified"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -404,7 +410,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-02 18:22:33.320735",
+ "modified": "2025-06-06 07:15:59.560973",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

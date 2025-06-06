@@ -1750,6 +1750,7 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
+		security.ai_modified = frappe.utils.now()
 		
 		# Use flags to ignore timestamp validation and force save
 		security.flags.ignore_version = True
