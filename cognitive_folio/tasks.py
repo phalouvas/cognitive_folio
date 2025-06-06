@@ -7,7 +7,7 @@ from frappe import _
 def auto_fetch_portfolio_prices():
 	"""
 	Scheduled task to automatically fetch holdings data for portfolios with auth_fetch_prices enabled.
-	Runs daily at 5:00 AM.
+	Runs daily at 3:00 AM.
 	"""
 	try:
 		# Get all portfolios with auth_fetch_prices enabled and not disabled
@@ -72,4 +72,40 @@ def auto_fetch_portfolio_prices():
 		frappe.log_error(
 			f"Error in auto_fetch_portfolio_prices scheduled task: {str(e)}",
 			"Auto Fetch Portfolio Prices Task Error"
+		)
+
+def auto_portfolio_notifications():
+	"""
+	Scheduled task to send notifications for portfolios with auth_fetch_prices enabled.
+	Runs daily at 5:00 AM.
+	"""
+	try:
+		# Get all portfolios with auth_fetch_prices enabled and not disabled
+		portfolios = frappe.get_all(
+			"CF Portfolio",
+			filters=[
+				["auth_fetch_prices", "=", 1],
+				["disabled", "=", 0]
+			],
+			fields=["name", "portfolio_name"]
+		)
+		
+		if not portfolios:
+			frappe.logger().info("No portfolios found with auto fetch prices enabled")
+			return
+		
+		for portfolio in portfolios:
+			try:
+				pass
+				
+			except Exception as e:
+				frappe.log_error(
+					f"Error sending notification for portfolio {portfolio.portfolio_name}: {str(e)}",
+					"Auto Portfolio Notification Error"
+				)
+		
+	except Exception as e:
+		frappe.log_error(
+			f"Error in auto_portfolio_notifications scheduled task: {str(e)}",
+			"Auto Portfolio Notifications Task Error"
 		)
