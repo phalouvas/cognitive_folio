@@ -39,7 +39,7 @@ class CFPortfolio(Document):
 				queue="long",
 				timeout=1800,  # 30 minutes
 				job_id=job_name,
-				now=True,
+				now=False,
 				portfolio_name=self.name,
 				user=frappe.session.user
 			)
