@@ -5,8 +5,9 @@ from datetime import datetime, timedelta
 from erpnext.setup.utils import get_exchange_rate
 from frappe import _
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-from cognitive_folio.utils.helper import replace_variables
+from cognitive_folio.utils.helper import replace_variables, clear_string
 import re
+import requests
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -23,9 +24,40 @@ class CFPortfolio(Document):
 		pass
 	 
 	@frappe.whitelist()
+	def evaluate_holdings_news(self):
+		"""Evaluate news for all holdings in this portfolio"""
+		
+		try:
+			from frappe.utils.background_jobs import enqueue
+			
+			# Create a unique job name to prevent duplicates
+			job_name = f"portfolio_news_evaluation_{self.name}_{frappe.utils.now()}"
+			
+			# Enqueue the job
+			enqueue(
+				method="cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio.process_evaluate_holdings_news",
+				queue="long",
+				timeout=1800,  # 30 minutes
+				job_id=job_name,
+				now=True,
+				portfolio_name=self.name,
+				user=frappe.session.user
+			)
+			
+			frappe.msgprint(
+				_("Portfolio AI news evaluation has been queued. You will be notified when it's complete."),
+				alert=True
+			)
+			
+			return {'success': True, 'message': _('Portfolio AI news evaluation has been queued')}
+		
+		except Exception as e:
+			frappe.log_error(f"Error queueing portfolio AI analysis: {str(e)}", "Portfolio AI Analysis Error")
+			return {'success': False, 'error': str(e)}
+
+	@frappe.whitelist()
 	def generate_holdings_ai_suggestions(self):
 		"""Queue AI suggestion generation for each holding as separate background jobs"""
-		from frappe.utils.background_jobs import enqueue
 
 		try:
 			# Get holdings in this portfolio
@@ -33,7 +65,7 @@ class CFPortfolio(Document):
 				"CF Portfolio Holding",
 				filters=[
 					["portfolio", "=", self.name],
-					["security_type", "!=", "Cash"]
+					["security_type", "==", "Stock"]
 				],
 				fields=["name", "security", "modified"]
 			)
@@ -150,12 +182,12 @@ class CFPortfolio(Document):
 		end_date = datetime.strptime(start_date_str, '%Y-%m-%d') + timedelta(days=1)
 		end_date_str = end_date.strftime('%Y-%m-%d')
 		
-		# Get all holdings for this portfolio (excluding Cash type securities)
+		# Get all holdings for this portfolio
 		holdings = frappe.get_all(
 			"CF Portfolio Holding",
 			filters=[
 				["portfolio", "=", self.name],
-				["security_type", "!=", "Cash"]
+				["security_type", "==", "Stock"]
 			],
 			fields=["name", "security"]
 		)
@@ -558,6 +590,255 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'portfolio_id': portfolio_name,
 					'status': 'success',
 					'chat_id': chat_doc.name,
+					'message': _(f"Portfolio '{portfolio_name}' AI analysis has been successfully generated and saved.")
+				},
+				user=user
+			)
+			
+			return True
+			
+		except requests.exceptions.RequestException as e:
+			error_message = f"Request error: {str(e)}"
+			frappe.log_error(error_message, "OpenWebUI API Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': error_message,
+					'message': error_message
+				},
+				user=user
+			)
+			
+			return False
+			
+		except Exception as e:
+			error_message = f"Error generating AI analysis: {str(e)}"
+			frappe.log_error(error_message, "AI Analysis Error")
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'error': error_message,
+					'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_message}")
+				},
+				user=user
+			)
+			
+			return False
+	
+	except Exception as e:
+		error_msg = str(e)
+		frappe.log_error(
+			f"Error generating AI analysis for portfolio {portfolio_name}: {error_msg}",
+			"Portfolio AI Analysis Error"
+		)
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'portfolio_id': portfolio_name,
+				'status': 'error',
+				'error': error_msg,
+				'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_msg}")
+			},
+			user=user
+		)
+		
+		return False
+
+
+def process_evaluate_holdings_news(portfolio_name, user):
+	"""Process news evaluation for all holdings in the portfolio (meant to be run as a background job)"""
+	
+	try:
+		# Get the portfolio document
+		portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
+		
+		try:
+			from openai import OpenAI            
+		except ImportError:
+			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "AI Analysis Error")
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'error',
+					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
+				},
+				user=user
+			)
+			return False
+		
+		try:
+			# Get OpenWebUI settings
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			model = settings.default_ai_model
+			if not model:
+				raise ValueError(_('Default AI model is not configured in CF Settings'))
+			
+			# Get all holdings for this portfolio
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters=[
+					["portfolio", "=", portfolio_name],
+				],
+				fields=["*"]
+			)
+			
+			if not holdings:
+				raise ValueError(_('No holdings found in this portfolio'))
+			
+			prompt = """
+				I own stocks that I evaluated their fundamentals.
+				Read below headlines and decide whether I need evaluate them again.
+
+				Respond only in JSON as below:
+				{
+					"Company": "Company name",
+					"Symbol:": "ticker symbol"
+					"Evaluate": "Yes/No",
+					"Reasoning": "Explain why need re-evaluation"
+				}
+
+				***HOLDINGS***
+				*Company*: {{security_name}}
+				*Symbol*: {{symbol}}
+				*Headlines*:
+				{{news.ARRAY.content.title}}
+				***HOLDINGS***
+			"""
+			
+			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
+			
+			holdings = frappe.get_all(
+				"CF Portfolio Holding",
+				filters={"portfolio": portfolio.name},
+				fields=["name", "security"]
+			)
+			
+			if holdings:
+				# Find all ***HOLDINGS*** sections in the prompt
+				holdings_pattern = r'\*\*\*HOLDINGS\*\*\*(.*?)\*\*\*HOLDINGS\*\*\*'
+				holdings_matches = re.findall(holdings_pattern, prompt, re.DOTALL)
+				
+				if holdings_matches:
+					# Process each holding separately and create sections for each
+					all_holding_sections = []
+					
+					for holding_info in holdings:
+						# Get both holding and security documents
+						holding_doc = frappe.get_doc("CF Portfolio Holding", holding_info.name)
+						security_doc = frappe.get_doc("CF Security", holding_info.security)
+						
+						# Process each ***HOLDINGS*** section for this holding
+						holding_sections = []
+						for holdings_content in holdings_matches:
+							holding_prompt = holdings_content
+							
+							# Replace {{variable}} with security fields
+							def replace_security_variables(match):
+								variable_name = match.group(1)
+								try:
+									field_value = getattr(security_doc, variable_name, None)
+									return str(field_value) if field_value is not None else ""
+								except AttributeError:
+									return match.group(0)
+							
+							# Replace [[variable]] with holding fields
+							def replace_holding_variables(match):
+								variable_name = match.group(1)
+								try:
+									field_value = getattr(holding_doc, variable_name, None)
+									return str(field_value) if field_value is not None else ""
+								except AttributeError:
+									return match.group(0)
+							
+							# Apply security and holding replacements
+							holding_prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security_doc), holding_prompt)
+							holding_prompt = re.sub(r'\[\[([\w\.]+)\]\]', lambda match: replace_variables(match, holding_doc), holding_prompt)
+							
+							holding_sections.append(holding_prompt)
+						
+						# Join sections for this holding
+						all_holding_sections.append("***HOLDINGS***" + "***HOLDINGS******HOLDINGS***".join(holding_sections) + "***HOLDINGS***")
+					
+					# Replace all ***HOLDINGS*** sections in the original prompt with processed content
+					# First, get the content before first and after last ***HOLDINGS*** markers
+					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
+					
+					# Reconstruct the prompt with all holdings processed
+					final_parts = []
+					final_parts.append(parts[0])  # Content before first ***HOLDINGS***
+					
+					for holding_section in all_holding_sections:
+						# Remove the ***HOLDINGS*** markers from the processed content
+						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
+						final_parts.append(clean_holding_section)
+					
+					if len(parts) > 1:
+						final_parts.append(parts[-1])  # Content after last ***HOLDINGS***
+					
+					prompt = "\n\n".join(final_parts)
+
+			# Make the API call
+			messages = [
+				{"role": "system", "content": settings.system_content},
+				{"role": "user", "content": prompt},
+			]
+			
+			response = client.chat.completions.create(
+				model=model,
+				messages=messages,
+				stream=False,
+				temperature=0.2
+			)
+			
+			# Get content from response
+			content = response.choices[0].message.content
+			
+			# Convert to markdown for better display
+			content = clear_string(content)
+			json_content = frappe.parse_json(content)
+
+			# Validate the JSON structure
+			if not isinstance(json_content, list):
+				raise ValueError("AI response is not a valid JSON object")
+
+			for item in json_content:
+				if not isinstance(item, dict):
+					raise ValueError("AI response item is not a valid JSON object")
+				
+				# Ensure required fields are present
+				if 'Company' not in item or 'Symbol' not in item or 'Evaluate' not in item or 'Reasoning' not in item:
+					raise ValueError("AI response item is missing required fields")
+				
+				# Get the security document from symbol
+				if item['Evaluate'].lower() == 'yes':
+					security_doc = frappe.get_doc("CF Security", item['Symbol'])
+					if not security_doc:
+						raise ValueError(f"Security with symbol {item['Symbol']} not found")
+					security_doc.need_evaluation = True
+					security_doc.news_reasoning = item['Reasoning']
+					security_doc.save()
+
+			frappe.db.commit()  # Single commit for all changes
+			
+			# Notify the user that the analysis is complete
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'portfolio_id': portfolio_name,
+					'status': 'success',
 					'message': _(f"Portfolio '{portfolio_name}' AI analysis has been successfully generated and saved.")
 				},
 				user=user

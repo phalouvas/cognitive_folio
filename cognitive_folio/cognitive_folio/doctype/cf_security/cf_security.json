@@ -17,6 +17,7 @@
   "currency",
   "current_price",
   "is_alert",
+  "need_evaluation",
   "alert_section",
   "alert_details",
   "suggestion_section",
@@ -40,6 +41,7 @@
   "ai_response",
   "ai_modified",
   "news_section",
+  "news_reasoning",
   "news_html",
   "news",
   "section_break_11",
@@ -389,6 +391,18 @@
    "fieldname": "ai_modified",
    "fieldtype": "Datetime",
    "label": "AI Modified"
+  },
+  {
+   "default": "0",
+   "fieldname": "need_evaluation",
+   "fieldtype": "Check",
+   "label": "Need Evaluation"
+  },
+  {
+   "fieldname": "news_reasoning",
+   "fieldtype": "Small Text",
+   "label": "News Reasoning",
+   "read_only": 1
   }
  ],
  "index_web_pages_for_search": 1,
@@ -410,7 +424,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-06 07:15:59.560973",
+ "modified": "2025-06-06 09:09:51.107398",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
