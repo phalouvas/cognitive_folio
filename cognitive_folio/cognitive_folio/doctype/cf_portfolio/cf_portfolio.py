@@ -433,15 +433,6 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				raise ValueError(_('No holdings found in this portfolio'))
 			
 			prompt = portfolio.ai_prompt or ""
-
-			# Replace ((variable)) with portfolio fields once at the end
-			def replace_portfolio_variables(match):
-				variable_name = match.group(1)
-				try:
-					field_value = getattr(portfolio, variable_name, None)
-					return str(field_value) if field_value is not None else ""
-				except AttributeError:
-					return match.group(0)
 			
 			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			

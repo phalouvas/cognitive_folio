@@ -195,15 +195,7 @@ class CFChatMessage(Document):
 		
 		# Replace ((variable)) with portfolio fields
 		if portfolio:
-			def replace_portfolio_variables(match):
-				variable_name = match.group(1)
-				try:
-					field_value = getattr(portfolio, variable_name, None)
-					return str(field_value) if field_value is not None else ""
-				except AttributeError:
-					return match.group(0)
-			
-			prompt = re.sub(r'\(\((\w+)\)\)', replace_portfolio_variables, prompt)
+			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			
 			# Handle holdings processing (existing code)
 			holdings = frappe.get_all(
@@ -227,24 +219,8 @@ class CFChatMessage(Document):
 						for holdings_content in holdings_matches:
 							holding_prompt = holdings_content
 							
-							def replace_security_variables(match):
-								variable_name = match.group(1)
-								try:
-									field_value = getattr(security_doc, variable_name, None)
-									return str(field_value) if field_value is not None else ""
-								except AttributeError:
-									return match.group(0)
-							
-							def replace_holding_variables(match):
-								variable_name = match.group(1)
-								try:
-									field_value = getattr(holding_doc, variable_name, None)
-									return str(field_value) if field_value is not None else ""
-								except AttributeError:
-									return match.group(0)
-							
-							holding_prompt = re.sub(r'\{\{(\w+)\}\}', replace_security_variables, holding_prompt)
-							holding_prompt = re.sub(r'\[\[(\w+)\]\]', replace_holding_variables, holding_prompt)
+							holding_prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security_doc), holding_prompt)
+							holding_prompt = re.sub(r'\[\[([\w\.]+)\]\]', lambda match: replace_variables(match, holding_doc), holding_prompt)
 							
 							holding_sections.append(holding_prompt)
 						
