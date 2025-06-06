@@ -40,6 +40,19 @@ def auto_fetch_portfolio_prices():
 				if result and result > 0:
 					updated_portfolios += 1
 					frappe.logger().info(f"Successfully updated {result} holdings for portfolio: {portfolio.portfolio_name}")
+					
+					# After successful price fetch, run news evaluation
+					try:
+						frappe.logger().info(f"Starting news evaluation for portfolio: {portfolio.portfolio_name}")
+						portfolio_doc.evaluate_holdings_news()
+						frappe.logger().info(f"News evaluation queued for portfolio: {portfolio.portfolio_name}")
+					except Exception as news_error:
+						frappe.log_error(
+							f"Error running news evaluation for portfolio {portfolio.portfolio_name}: {str(news_error)}",
+							"Auto News Evaluation Error"
+						)
+						# Continue with other portfolios even if news evaluation fails
+						continue
 				else:
 					frappe.logger().info(f"No holdings to update for portfolio: {portfolio.portfolio_name}")
 					
