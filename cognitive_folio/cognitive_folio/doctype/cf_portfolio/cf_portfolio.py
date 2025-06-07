@@ -65,7 +65,7 @@ class CFPortfolio(Document):
 				"CF Portfolio Holding",
 				filters=[
 					["portfolio", "=", self.name],
-					["security_type", "==", "Stock"]
+					["security_type", "=", "Stock"]
 				],
 				fields=["name", "security", "modified"]
 			)
