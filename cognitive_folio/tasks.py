@@ -4,6 +4,7 @@
 import frappe
 from frappe import _
 
+@frappe.whitelist()
 def auto_fetch_portfolio_prices():
 	"""
 	Scheduled task to automatically fetch holdings data for portfolios with auth_fetch_prices enabled.
@@ -74,6 +75,7 @@ def auto_fetch_portfolio_prices():
 			"Auto Fetch Portfolio Prices Task Error"
 		)
 
+@frappe.whitelist()
 def auto_portfolio_notifications():
 	"""
 	Scheduled task to send notifications for portfolios with auth_fetch_prices enabled.

@@ -8,6 +8,11 @@ frappe.ui.form.on("CF Settings", {
             check_openwebui_connection(frm);
         });
         
+        // Add button to send portfolio notifications
+        frm.add_custom_button(__('Send Portfolio Notifications'), function() {
+            send_portfolio_notifications(frm);
+        });
+        
         // Populate default_ai_model select field
         populate_default_ai_model_options(frm);
     },
@@ -17,6 +22,37 @@ frappe.ui.form.on("CF Settings", {
         populate_default_ai_model_options(frm);
     }
 });
+
+function send_portfolio_notifications(frm) {
+    frappe.confirm(
+        __('Are you sure you want to send portfolio notifications to all eligible portfolios?'),
+        function() {
+            frappe.dom.freeze(__('Sending portfolio notifications...'));
+            
+            frappe.call({
+                method: 'cognitive_folio.tasks.auto_portfolio_notifications',
+                callback: function(response) {
+                    frappe.dom.unfreeze();
+                    
+                    frappe.show_alert({
+                        message: __('Portfolio notifications have been sent successfully!'),
+                        indicator: 'green'
+                    });
+                },
+                error: function(err) {
+                    frappe.dom.unfreeze();
+                    
+                    frappe.msgprint({
+                        title: __('Error'),
+                        indicator: 'red',
+                        message: __('An error occurred while sending notifications: ') + 
+                            (err.message || 'Unknown error')
+                    });
+                }
+            });
+        }
+    );
+}
 
 function check_openwebui_connection(frm) {
     // Save the form first to ensure all values are up to date
