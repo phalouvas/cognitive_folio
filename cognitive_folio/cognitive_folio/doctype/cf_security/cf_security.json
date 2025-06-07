@@ -38,7 +38,6 @@
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
-  "ai_response",
   "ai_modified",
   "news_section",
   "news_reasoning",
@@ -49,6 +48,7 @@
   "ai_tab",
   "template_prompt",
   "ai_prompt",
+  "ai_response",
   "raw_data_tab",
   "ticker_info_section",
   "ticker_info",
@@ -246,8 +246,8 @@
   {
    "fieldname": "ai_response",
    "fieldtype": "JSON",
-   "hidden": 1,
-   "label": "AI Response"
+   "label": "AI Response",
+   "read_only": 1
   },
   {
    "collapsible": 1,
@@ -424,7 +424,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-06 09:09:51.107398",
+ "modified": "2025-06-07 19:19:15.626895",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
