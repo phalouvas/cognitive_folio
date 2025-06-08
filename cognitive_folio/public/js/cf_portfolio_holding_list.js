@@ -86,6 +86,16 @@ frappe.listview_settings['CF Portfolio Holding'].onload = function(listview) {
                 return;
             }
 
+            // Check if quantity or average_purchase_price are missing
+            const missing_data = selected_docs.filter(doc => 
+                !doc.quantity || !doc.average_purchase_price
+            );
+
+            if (missing_data.length > 0) {
+                frappe.throw(__("Please add quantity and average purchase price in the list view before copying holdings."));
+                return;
+            }
+
             // Show dialog to select target portfolio
             let dialog = new frappe.ui.Dialog({
                 title: __('Copy Holdings to Portfolio'),
