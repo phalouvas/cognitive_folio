@@ -291,3 +291,60 @@ def generate_ai_suggestion_selected(docnames):
 		security.generate_ai_suggestion()
 		
 	return total_steps
+
+@frappe.whitelist()
+def copy_holdings_to_portfolio(holdings_data):
+	"""Copy holdings to a target portfolio"""
+	if isinstance(holdings_data, str):
+		holdings_data = json.loads(holdings_data)
+	
+	if not holdings_data:
+		frappe.throw(_("No holdings data provided"))
+	
+	copied_count = 0
+	for holding_data in holdings_data:
+		try:
+			# Check if holding already exists in target portfolio
+			existing_holding = frappe.db.exists("CF Portfolio Holding", {
+				"portfolio": holding_data.get("portfolio"),
+				"security": holding_data.get("security")
+			})
+			
+			if existing_holding:
+				# Update existing holding by adding quantities and recalculating average price
+				existing_doc = frappe.get_doc("CF Portfolio Holding", existing_holding)
+				
+				# Calculate new average price weighted by quantities
+				old_total_cost = existing_doc.quantity * existing_doc.average_purchase_price
+				new_cost = holding_data.get("quantity", 0) * holding_data.get("average_purchase_price", 0)
+				new_total_quantity = existing_doc.quantity + holding_data.get("quantity", 0)
+				
+				if new_total_quantity > 0:
+					new_average_price = (old_total_cost + new_cost) / new_total_quantity
+					existing_doc.quantity = new_total_quantity
+					existing_doc.average_purchase_price = new_average_price
+					existing_doc.save(ignore_permissions=True)
+					copied_count += 1
+			else:
+				# Create new holding
+				new_holding = frappe.get_doc({
+					"doctype": "CF Portfolio Holding",
+					"portfolio": holding_data.get("portfolio"),
+					"security": holding_data.get("security"),
+					"quantity": holding_data.get("quantity", 0),
+					"average_purchase_price": holding_data.get("average_purchase_price", 0)
+				})
+				new_holding.insert(ignore_permissions=True)
+				copied_count += 1
+				
+		except Exception as e:
+
+			frappe.log_error(f"Error copying holding: {str(e)}")
+			continue
+	
+	frappe.db.commit()
+	
+	return {
+		"message": _("Successfully copied {0} holdings").format(copied_count),
+		"copied_count": copied_count
+	}
