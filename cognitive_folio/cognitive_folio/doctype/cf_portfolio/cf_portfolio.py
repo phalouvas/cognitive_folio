@@ -41,7 +41,7 @@ class CFPortfolio(Document):
 				queue="long",
 				timeout=1800,  # 30 minutes
 				job_id=job_name,
-				now=False,
+				now=True,
 				portfolio_name=self.name,
 				user=frappe.session.user
 			)
@@ -661,9 +661,6 @@ def process_evaluate_holdings_news(portfolio_name, user):
 	"""Process news evaluation for all holdings in the portfolio (meant to be run as a background job)"""
 	
 	try:
-		# Get the portfolio document
-		portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
-		
 		try:
 			from openai import OpenAI            
 		except ImportError:
@@ -840,11 +837,21 @@ Respond only in JSON as below:
 							break
 					
 					if security_found:
+						# Convert datetime to MySQL compatible format
+						current_time = frappe.utils.now_datetime()
 						security_found.need_evaluation = True
 						security_found.news_reasoning = item['Reasoning']
-						security_found.save()
+						security_found.ai_modified = current_time.strftime('%Y-%m-%d %H:%M:%S')
+						try:
+							security_found.save()
+						except Exception as save_err:
+							# Use shorter error message
+							err_msg = f"Save failed for {item['Symbol']}: {str(save_err)[:50]}..."
+							frappe.log_error(message=err_msg, title="Security Save Error")
 					else:
-						frappe.log_error(f"Security with symbol {item['Symbol']} not found in evaluated securities", "News Evaluation Error")
+						# Use shorter error message
+						err_msg = f"Symbol not found: {item['Symbol']}"
+						frappe.log_error(message=err_msg, title="Security Not Found")
 
 			frappe.db.commit()  # Single commit for all changes
 			
@@ -862,17 +869,16 @@ Respond only in JSON as below:
 			return True
 			
 		except requests.exceptions.RequestException as e:
-			error_message = f"Request error: {str(e)}"
-			frappe.log_error(error_message, "OpenWebUI API Error")
+			error_msg = f"API Error: {str(e)[:50]}..."
+			frappe.log_error(message=error_msg, title="API Error")
 			
-			# Notify user of failure
 			frappe.publish_realtime(
 				event='cf_job_completed',
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
-					'error': error_message,
-					'message': error_message
+					'error': error_msg,
+					'message': error_msg
 				},
 				user=user
 			)
@@ -880,17 +886,16 @@ Respond only in JSON as below:
 			return False
 			
 		except Exception as e:
-			error_message = f"Error generating AI analysis: {str(e)}"
-			frappe.log_error(error_message, "AI Analysis Error")
+			error_msg = f"Analysis Error: {str(e)[:50]}..."
+			frappe.log_error(message=error_msg, title="News Analysis Error")
 			
-			# Notify user of failure
 			frappe.publish_realtime(
 				event='cf_job_completed',
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'error',
-					'error': error_message,
-					'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_message}")
+					'error': error_msg,
+					'message': error_msg
 				},
 				user=user
 			)
