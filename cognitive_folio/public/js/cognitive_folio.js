@@ -8,7 +8,6 @@ $(document).ready(function() {
                 
                 // Existing job completion listener
                 frappe.realtime.on('cf_job_completed', function(data) {
-                    console.log('Job completed:', data);
                     // Refresh frame to ensure latest data
                     cur_frm.reload_doc();
                     
@@ -36,7 +35,6 @@ $(document).ready(function() {
                 
                 // New streaming update listener
                 frappe.realtime.on('cf_streaming_update', function(data) {
-                    console.log('Streaming update received:', data);
                     // Only reload if we're currently viewing the relevant chat message or chat
                     if (cur_frm && (
                         (cur_frm.doctype === 'CF Chat Message' && cur_frm.doc.name === data.message_id) ||
