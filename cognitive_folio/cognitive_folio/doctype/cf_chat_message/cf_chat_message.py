@@ -481,9 +481,7 @@ Search query:"""
 					if len(body) > 300:
 						body = body[:300] + "..."
 					
-					formatted += f"**{i}. {title}**\n"
-					formatted += f"Source: {url}\n"
-					formatted += f"Summary: {body}\n\n"
+					formatted += f"{url}\n"
 				
 				formatted += "--- End of Web Search Results ---\n"
 				return formatted
