@@ -157,12 +157,25 @@ class CFChatMessage(Document):
 		except ImportError:
 			pass
 		
+		# NEW: Perform web search if checkbox is enabled
+		if getattr(self, 'web_search', False):  # Check if web_search field exists and is True
+			try:
+				# Use OpenAI to extract intelligent search query
+				search_query = self.extract_search_query()
+				if search_query:
+					search_results = self.perform_web_search(search_query)
+					# Prepend search results to the prompt
+					self.prompt = f"{search_results}\n\n--- User Query ---\n{self.prompt}"
+			except Exception as e:
+				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
+				# Continue without web search if it fails
+    
 		current_prompt_tokens = len(encoding.encode(self.prompt))
 		available_tokens -= current_prompt_tokens
 		
 		# Add previous messages while staying within token limit
 		used_tokens = 0
-		for message in chat_messages:  # Already ordered by most recent first
+		for message in chat_messages:  # Already ordered in most recent first order
 			user_tokens = len(encoding.encode(message.prompt))
 			assistant_tokens = len(encoding.encode(message.response))
 			message_tokens = user_tokens + assistant_tokens
@@ -399,3 +412,83 @@ class CFChatMessage(Document):
 				prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", not_found_msg)
 		
 		return prompt
+
+	def extract_search_query(self):
+		"""Use OpenAI to intelligently extract search query from prompt"""
+		try:
+			from openai import OpenAI
+			
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			
+			# Create a focused prompt for search query extraction
+			extraction_prompt = f"""
+You are a search query extraction assistant. Your job is to analyze user prompts and extract the most relevant search terms for a web search.
+
+Rules:
+1. Extract 1-3 key search terms or phrases that would be most useful for web search
+2. Focus on specific topics, companies, concepts, or current events mentioned
+3. Ignore generic words like "tell me about" or "what do you think"
+4. If the prompt is about financial analysis, include relevant financial terms
+5. Return only the search query, nothing else
+6. If no clear search terms can be identified, return the main topic in 2-3 words
+
+User prompt: "{self.prompt[:500]}"
+
+Search query:"""
+
+			response = client.chat.completions.create(
+				model="deepseek-chat",
+				messages=[{"role": "user", "content": extraction_prompt}],
+				max_tokens=50,
+				temperature=0.1  # Low temperature for consistent extraction
+			)
+			
+			search_query = response.choices[0].message.content.strip()
+			
+			# Clean up the response (remove quotes, extra punctuation)
+			search_query = search_query.strip('"\'.,!?')
+			
+			# Fallback if extraction failed
+			if not search_query or len(search_query) < 3:
+				return self.prompt[:50].strip()
+				
+			return search_query
+			
+		except Exception as e:
+			frappe.log_error(f"Search query extraction error: {str(e)}", "Search Query Extraction")
+			# Fallback to simple extraction
+			return self.prompt[:50].strip()
+
+	def perform_web_search(self, query, num_results=3):
+		"""Perform web search using DuckDuckGo with OpenAI-extracted query"""
+		try:
+			from duckduckgo_search import DDGS
+			
+			with DDGS() as ddgs:
+				results = list(ddgs.text(query, max_results=num_results))
+				
+				if not results:
+					return f"No web search results found for query: '{query}'"
+				
+				formatted = f"--- Web Search Results for '{query}' ---\n\n"
+				for i, result in enumerate(results, 1):
+					title = result.get('title', 'No title')
+					url = result.get('href', 'No URL')
+					body = result.get('body', 'No summary')
+					
+					# Truncate summary if too long
+					if len(body) > 300:
+						body = body[:300] + "..."
+					
+					formatted += f"{url}\n"
+				
+				formatted += "--- End of Web Search Results ---\n"
+				return formatted
+				
+		except ImportError:
+			frappe.log_error("DuckDuckGo search package not installed", "Web Search Error")
+			return "[Web search unavailable - duckduckgo-search package not installed. Run: bench pip install duckduckgo-search]"
+		except Exception as e:
+			frappe.log_error(f"Web search error: {str(e)}", "Web Search Error")
+			return f"[Web search error: {str(e)}]"
