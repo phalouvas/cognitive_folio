@@ -8,6 +8,8 @@ from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables, clear_string
 import re
 import requests
+from dateutil import parser as date_parser
+from datetime import timezone
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -690,7 +692,9 @@ def process_evaluate_holdings_news(portfolio_name, user):
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters=[
-					["portfolio", "=", portfolio_name],
+					[
+						"portfolio", "=", portfolio_name
+					],
 				],
 				fields=["name", "security"]
 			)
@@ -704,7 +708,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				security_doc = frappe.get_doc("CF Security", holding_info.security)
 				
 				# Check if security has news in the JSON field
-				if not security_doc.news:
+				if not security_doc.news or security_doc.need_evaluation:
 					continue  # Skip if no news
 				
 				# Parse the news JSON data
@@ -724,13 +728,13 @@ def process_evaluate_holdings_news(portfolio_name, user):
 						if isinstance(news_item, dict) and 'content' in news_item:
 							content = news_item['content']
 							if 'pubDate' in content:
-								try:
-									from dateutil import parser as date_parser
-									pub_date = date_parser.parse(content['pubDate'])
-									if pub_date > security_doc.ai_modified:
-										recent_news_items.append(news_item)
-								except (ValueError, TypeError, ImportError):
-									# If we can't parse the date or dateutil is not available, include the item to be safe
+								pub_date = date_parser.parse(content['pubDate'])
+								
+								# Ensure both datetimes are offset-aware
+								if security_doc.ai_modified.tzinfo is None:
+									security_doc.ai_modified = security_doc.ai_modified.replace(tzinfo=timezone.utc)
+								
+								if pub_date > security_doc.ai_modified:
 									recent_news_items.append(news_item)
 					
 					if not recent_news_items:
