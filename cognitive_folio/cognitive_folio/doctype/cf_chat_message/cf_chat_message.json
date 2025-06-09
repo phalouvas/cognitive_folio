@@ -15,6 +15,7 @@
   "prompt",
   "response_html",
   "response",
+  "reasoning",
   "tokens_section",
   "tokens"
  ],
@@ -103,12 +104,17 @@
    "fieldtype": "Link",
    "label": "Template Prompt",
    "options": "CF Prompt"
+  },
+  {
+   "fieldname": "reasoning",
+   "fieldtype": "Markdown Editor",
+   "label": "Reasoning"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-06 06:30:23.048670",
+ "modified": "2025-06-09 18:38:27.839237",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",

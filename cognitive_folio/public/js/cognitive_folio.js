@@ -6,7 +6,9 @@ $(document).ready(function() {
             // Track if listener is already initialized to prevent duplicates
             if (!frappe._cf_chat_listener_initialized) {
                 
+                // Existing job completion listener
                 frappe.realtime.on('cf_job_completed', function(data) {
+                    console.log('Job completed:', data);
                     // Refresh frame to ensure latest data
                     cur_frm.reload_doc();
                     
@@ -30,7 +32,19 @@ $(document).ready(function() {
                             indicator: "red"
                         });
                     }
-
+                });
+                
+                // New streaming update listener
+                frappe.realtime.on('cf_streaming_update', function(data) {
+                    console.log('Streaming update received:', data);
+                    // Only reload if we're currently viewing the relevant chat message or chat
+                    if (cur_frm && (
+                        (cur_frm.doctype === 'CF Chat Message' && cur_frm.doc.name === data.message_id) ||
+                        (cur_frm.doctype === 'CF Chat' && cur_frm.doc.name === data.chat_id)
+                    )) {
+                        // Reload the document to show the streaming updates
+                        cur_frm.reload_doc();
+                    }
                 });
                 
                 // Mark as initialized
