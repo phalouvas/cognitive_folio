@@ -119,18 +119,18 @@ class CFChatMessage(Document):
 			security = frappe.get_doc("CF Security", chat.security)
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-
+	
 		# Initialize tokenizer for the model
 		try:
 			encoding = tiktoken.encoding_for_model(self.model)
 		except KeyError:
 			# Fallback to a common encoding if model not found
 			encoding = tiktoken.get_encoding("cl100k_base")
-
+	
 		messages = [
 			{"role": "system", "content": self.system_prompt if self.system_prompt else settings.system_content}
 		]
-
+	
 		# Add previous messages from the chat with token management
 		chat_messages = frappe.get_all(
 			"CF Chat Message",
@@ -177,17 +177,81 @@ class CFChatMessage(Document):
 		
 		# Add current message
 		messages.append({"role": "user", "content": self.prompt})
-
+	
+		# Enable streaming
 		response = client.chat.completions.create(
 			model=self.model,
 			messages=messages,
-			stream=False,
+			stream=True,  # Enable streaming
 			temperature=0.2
 		)
-
-		self.response = response.choices[0].message.content if response.choices else "No response from OpenAI"
-		self.response_html = safe_markdown_to_html(self.response)
-		self.tokens = response.usage.to_json()
+	
+		# Initialize response variables
+		full_response = ""
+		reasoning_content = ""
+		
+		# Process streaming chunks
+		for chunk in response:
+			if chunk.choices and len(chunk.choices) > 0:
+				choice = chunk.choices[0]
+				content_updated = False
+				
+				# Handle reasoning content if available
+				if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
+					reasoning_content += choice.delta.reasoning_content
+					content_updated = True
+				
+				# Handle message content
+				if hasattr(choice.delta, 'content') and choice.delta.content:
+					full_response += choice.delta.content
+					content_updated = True
+				
+				# Send update if either content or reasoning was updated
+				if content_updated:
+					# Update the document with the current partial response
+					self.response = full_response
+					self.response_html = safe_markdown_to_html(full_response)
+					self.reasoning = reasoning_content
+					
+					# Save the partial response to database
+					self.db_update()
+					frappe.db.commit()
+					
+					# Notify frontend to reload the frame
+					frappe.publish_realtime(
+						event='cf_streaming_update',
+						message={
+							'message_id': self.name,
+							'chat_id': self.chat,
+							'message': full_response,
+							'reasoning': reasoning_content,
+							'status': 'streaming'
+						},
+						user=self.owner
+					)
+					
+		# Final update with complete response
+		self.response = full_response
+		self.response_html = safe_markdown_to_html(full_response)
+		self.reasoning = reasoning_content
+		
+		# Note: tokens might not be available in streaming mode
+		# You might need to calculate them manually or handle differently
+		try:
+			# Some streaming responses might still have usage info
+			if hasattr(response, 'usage'):
+				self.tokens = response.usage.to_json()
+		except:
+			# Calculate tokens manually if usage not available
+			response_tokens = len(encoding.encode(full_response))
+			prompt_tokens = current_prompt_tokens + system_tokens + used_tokens
+			total_tokens = prompt_tokens + response_tokens
+			
+			self.tokens = {
+				"prompt_tokens": prompt_tokens,
+				"completion_tokens": response_tokens,
+				"total_tokens": total_tokens
+			}
 
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
