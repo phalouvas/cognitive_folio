@@ -8,6 +8,7 @@
   "chat",
   "status",
   "model",
+  "web_search",
   "column_break_cbjh",
   "system_prompt",
   "template_prompt",
@@ -109,12 +110,18 @@
    "fieldname": "reasoning",
    "fieldtype": "Markdown Editor",
    "label": "Reasoning"
+  },
+  {
+   "default": "0",
+   "fieldname": "web_search",
+   "fieldtype": "Check",
+   "label": "Web Search"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-09 18:38:27.839237",
+ "modified": "2025-06-09 18:41:24.258590",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
