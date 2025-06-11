@@ -150,7 +150,7 @@ class CFSecurity(Document):
 				queue="long",
 				timeout=1800,  # 30 minutes
 				job_id=job_name,
-				now=False,
+				now=True,
 				security_name=self.name,
 				user=frappe.session.user
 			)
@@ -180,7 +180,6 @@ class CFSecurity(Document):
 			markdown.append("## Evaluation")
 			
 			rating_value = eval_data.get("Rating", 0) * 5
-			rating_value = 4.6
 			full_stars = int(rating_value)  # Number of full stars
 			half_star = 1 if rating_value - full_stars >= 0.5 else 0  # Add half star if needed
 			rating = "⭐" * full_stars + "✩" * half_star
