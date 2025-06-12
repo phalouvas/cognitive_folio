@@ -202,8 +202,6 @@ function display_timeline(frm, messages) {
                 padding: 8px;
                 border-radius: 4px;
                 border-left: 3px solid var(--green);
-                max-height: 500px;
-                overflow-y: auto;
             }
         </style>
     `;
