@@ -16,8 +16,10 @@
   "stock_exchange",
   "currency",
   "current_price",
+  "column_break_rvai",
   "is_alert",
   "need_evaluation",
+  "ai_modified",
   "alert_section",
   "alert_details",
   "suggestion_section",
@@ -38,7 +40,6 @@
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
-  "ai_modified",
   "news_section",
   "news_reasoning",
   "news_html",
@@ -403,6 +404,10 @@
    "fieldtype": "Small Text",
    "label": "News Reasoning",
    "read_only": 1
+  },
+  {
+   "fieldname": "column_break_rvai",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -424,7 +429,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-07 19:19:15.626895",
+ "modified": "2025-06-12 07:44:47.166988",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
