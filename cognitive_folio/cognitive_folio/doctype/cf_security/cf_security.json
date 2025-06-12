@@ -34,11 +34,15 @@
   "suggestion_section",
   "suggestion_action",
   "column_break_rfgw",
-  "suggestion_buy_price",
-  "intrinsic_value",
-  "column_break_jlfk",
   "suggestion_sell_price",
+  "suggestion_buy_price",
+  "evaluation_stop_loss",
+  "column_break_jlfk",
+  "intrinsic_value",
   "fair_value",
+  "analysis_section",
+  "ai_suggestion_html",
+  "ai_suggestion",
   "alert_section",
   "alert_details",
   "section_break_8",
@@ -48,9 +52,6 @@
   "column_break_bpmj",
   "sector",
   "industry",
-  "analysis_section",
-  "ai_suggestion_html",
-  "ai_suggestion",
   "news_section",
   "news_reasoning",
   "news_html",
@@ -467,6 +468,13 @@
   {
    "fieldname": "column_break_bphw",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "evaluation_stop_loss",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Stop Loss",
+   "options": "currency"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -488,7 +496,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-12 09:01:03.766302",
+ "modified": "2025-06-12 09:52:50.426396",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
