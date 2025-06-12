@@ -150,7 +150,7 @@ class CFSecurity(Document):
 				queue="long",
 				timeout=1800,  # 30 minutes
 				job_id=job_name,
-				now=True,
+				now=False,
 				security_name=self.name,
 				user=frappe.session.user
 			)
