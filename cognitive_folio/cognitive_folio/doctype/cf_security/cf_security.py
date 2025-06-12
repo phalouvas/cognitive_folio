@@ -179,14 +179,57 @@ class CFSecurity(Document):
 			eval_data = data["Evaluation"]
 			markdown.append("## Evaluation")
 			
-			rating_value = eval_data.get("Rating", 0) * 5
+			# Handle new nested rating structure
+			rating_data = eval_data.get("Rating", 0)
+			if isinstance(rating_data, dict):
+				# New format: calculate average of all rating components
+				rating_values = []
+				for component, value in rating_data.items():
+					try:
+						rating_values.append(float(value))
+					except (ValueError, TypeError):
+						continue
+		
+				if rating_values:
+					avg_rating = sum(rating_values) / len(rating_values)
+					rating_value = avg_rating * 5  # Convert to 5-star scale
+			
+					# Add detailed breakdown
+					markdown.append("### Rating Breakdown:")
+					for component, value in rating_data.items():
+						try:
+							component_rating = float(value) * 5
+							component_full_stars = int(component_rating)
+							component_half_star = 1 if component_rating - component_full_stars >= 0.5 else 0
+							component_stars = "⭐" * component_full_stars + "✩" * component_half_star
+							markdown.append(f"- **{component}**: {component_stars} ({value})")
+						except (ValueError, TypeError):
+							markdown.append(f"- **{component}**: {value}")
+			
+					markdown.append("")
+					markdown.append("### Overall Rating:")
+				else:
+					rating_value = 0
+			else:
+				# Old format: direct numeric value
+				try:
+					rating_value = float(rating_data) * 5
+				except (ValueError, TypeError):
+					rating_value = 0
+	
 			full_stars = int(rating_value)  # Number of full stars
 			half_star = 1 if rating_value - full_stars >= 0.5 else 0  # Add half star if needed
 			rating = "⭐" * full_stars + "✩" * half_star
-			markdown.append(f"- Rating: {rating}")
-			markdown.append(f"- Recommendation: **{eval_data.get('Recommendation', '-')}**")
-			markdown.append(f"- Buy Below: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
-			markdown.append(f"- Sell Above: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
+			markdown.append(f"- **Overall Rating**: {rating} ({rating_value/5:.2f})")
+			markdown.append(f"- **Recommendation**: **{eval_data.get('Recommendation', '-')}**")
+			markdown.append(f"- **Buy Below**: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
+			markdown.append(f"- **Sell Above**: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
+			
+			# Add stop loss if available
+			stop_loss = eval_data.get('Price Stop Loss')
+			if stop_loss and stop_loss != '-':
+				markdown.append(f"- **Stop Loss**: **{self.currency} {stop_loss}**")
+			
 			markdown.append("")
 		
 		# Add Analysis
@@ -1691,9 +1734,47 @@ def process_security_ai_suggestion(security_name, user):
 		evaluation = suggestion.get("Evaluation", {})
 		security.ai_response = content_string
 		security.suggestion_action = evaluation.get("Recommendation", "")
-		security.suggestion_rating = evaluation.get("Rating", 0)
+		
+		# Handle new nested rating structure
+		rating_data = evaluation.get("Rating", 0)
+		if isinstance(rating_data, dict):
+			# New format: extract individual ratings and calculate overall
+			security.rating_moat = float(rating_data.get("Moat", 0))
+			security.rating_management = float(rating_data.get("Management", 0))
+			security.rating_financials = float(rating_data.get("Financials", 0))
+			security.rating_valuation = float(rating_data.get("Valuation", 0))
+			security.rating_industry = float(rating_data.get("Industry", 0))
+			
+			# Calculate overall rating as average of all components
+			rating_values = []
+			for component in ["Moat", "Management", "Financials", "Valuation", "Industry"]:
+				value = rating_data.get(component)
+				if value is not None:
+					try:
+						rating_values.append(float(value))
+					except (ValueError, TypeError):
+						continue
+			
+			if rating_values:
+				security.suggestion_rating = sum(rating_values) / len(rating_values)
+			else:
+				security.suggestion_rating = 0
+		else:
+			# Old format: direct numeric value
+			try:
+				security.suggestion_rating = float(rating_data)
+				# Clear individual ratings if using old format
+				security.rating_moat = 0
+				security.rating_management = 0
+				security.rating_financials = 0
+				security.rating_valuation = 0
+				security.rating_industry = 0
+			except (ValueError, TypeError):
+				security.suggestion_rating = 0
+		
 		security.suggestion_buy_price = evaluation.get("Price Target Buy Below", 0)
 		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
+		security.evaluation_stop_loss = evaluation.get("Price Stop Loss", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		security.news_reasoning = None
