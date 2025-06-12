@@ -20,16 +20,22 @@
   "is_alert",
   "need_evaluation",
   "ai_modified",
-  "alert_section",
-  "alert_details",
   "suggestion_section",
   "suggestion_action",
+  "suggestion_rating",
+  "rating_moat",
+  "rating_management",
+  "rating_financials",
+  "rating_valuation",
+  "rating_industry",
+  "column_break_rfgw",
   "suggestion_buy_price",
   "intrinsic_value",
-  "column_break_rfgw",
-  "suggestion_rating",
+  "column_break_jlfk",
   "suggestion_sell_price",
   "fair_value",
+  "alert_section",
+  "alert_details",
   "section_break_8",
   "country",
   "region",
@@ -206,7 +212,6 @@
    "label": "AI Suggestion HTML"
   },
   {
-   "collapsible": 1,
    "fieldname": "suggestion_section",
    "fieldtype": "Section Break",
    "label": "Evaluation"
@@ -408,6 +413,35 @@
   {
    "fieldname": "column_break_rvai",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "rating_moat",
+   "fieldtype": "Rating",
+   "label": "Moat"
+  },
+  {
+   "fieldname": "rating_management",
+   "fieldtype": "Rating",
+   "label": "Management"
+  },
+  {
+   "fieldname": "rating_financials",
+   "fieldtype": "Rating",
+   "label": "Financials"
+  },
+  {
+   "fieldname": "rating_valuation",
+   "fieldtype": "Rating",
+   "label": "Valuation"
+  },
+  {
+   "fieldname": "rating_industry",
+   "fieldtype": "Rating",
+   "label": "Industry Trends"
+  },
+  {
+   "fieldname": "column_break_jlfk",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -429,7 +463,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-12 07:44:47.166988",
+ "modified": "2025-06-12 08:57:16.139445",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
