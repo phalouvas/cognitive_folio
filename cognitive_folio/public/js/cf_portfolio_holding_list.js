@@ -88,11 +88,20 @@ frappe.listview_settings['CF Portfolio Holding'].onload = function(listview) {
 
             // Check if quantity or average_purchase_price are missing
             const missing_data = selected_docs.filter(doc => 
-                !doc.quantity || !doc.average_purchase_price
+                !doc.quantity || !doc.average_purchase_price || !doc.security || !doc.portfolio
             );
 
             if (missing_data.length > 0) {
-                frappe.throw(__("Please add quantity and average purchase price in the list view before copying holdings."));
+                // Collect all unique missing fields
+                let all_missing_fields = new Set();
+                missing_data.forEach(doc => {
+                    if (!doc.security) all_missing_fields.add("Security");
+                    if (!doc.quantity) all_missing_fields.add("Quantity");
+                    if (!doc.average_purchase_price) all_missing_fields.add("Average Purchase Price");
+                    if (!doc.portfolio) all_missing_fields.add("Portfolio");
+                });
+                
+                frappe.throw(__("Missing required fields: {0}", [Array.from(all_missing_fields).join(', ')]));
                 return;
             }
 
