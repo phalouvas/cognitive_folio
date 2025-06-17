@@ -114,9 +114,14 @@ class CFSecurity(Document):
 			self.news_urls = "\n".join([item['content']['clickThroughUrl']['url'] for item in json.loads(self.news) if item.get('content') and item['content'].get('clickThroughUrl') and item['content']['clickThroughUrl'].get('url')])
 			self.country = ticker_info.get('country', '')
 			if with_fundamentals:
-				self.profit_loss = ticker.financials.to_json(date_format='iso')
+				self.profit_loss = ticker.income_stmt.to_json(date_format='iso')
+				self.ttm_profit_loss = ticker.ttm_income_stmt.to_json(date_format='iso')
+				self.quarterly_profit_loss = ticker.quarterly_income_stmt.to_json(date_format='iso')
 				self.balance_sheet = ticker.balance_sheet.to_json(date_format='iso')
+				self.quarterly_balance_sheet = ticker.quarterly_balance_sheet.to_json(date_format='iso')
 				self.cash_flow = ticker.cashflow.to_json(date_format='iso')
+				self.ttm_cash_flow = ticker.ttm_cashflow.to_json(date_format='iso')
+				self.quarterly_cash_flow = ticker.quarterly_cashflow.to_json(date_format='iso')
 				self.dividends = ticker.dividends.to_json(date_format='iso')
 			if self.country == "South Korea":
 				self.country = "Korea, Republic of"

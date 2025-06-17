@@ -52,6 +52,24 @@ frappe.ui.form.on('CF Security', {
                     '<div class="text-muted">No ticker information available.</div>');
             }
 
+            // Format and display balance sheet data if available
+            if(frm.doc.balance_sheet) {
+                try {
+                    frm.set_df_property('profit_loss_html', 'options', formatJsonForDisplay(frm.doc.profit_loss, "Yearly",  frm.doc.currency ));
+                    frm.set_df_property('quarterly_profit_loss_html', 'options', formatJsonForDisplay(frm.doc.quarterly_profit_loss, "Quarterly",  frm.doc.currency ));
+                    frm.set_df_property('ttm_profit_loss_html', 'options', formatJsonForDisplay(frm.doc.ttm_profit_loss, "TTM",  frm.doc.currency ));
+                    
+                    frm.set_df_property('balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.balance_sheet, "Yearly",  frm.doc.currency ));
+                    frm.set_df_property('quarterly_balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.quarterly_balance_sheet, "Quarterly",  frm.doc.currency ));
+
+                    frm.set_df_property('cash_flow_html', 'options', formatJsonForDisplay(frm.doc.cash_flow, "Yearly",  frm.doc.currency ));
+                    frm.set_df_property('quarterly_cash_flow_html', 'options', formatJsonForDisplay(frm.doc.quarterly_cash_flow, "Quarterly",  frm.doc.currency ));
+                    frm.set_df_property('ttm_cash_flow_html', 'options', formatJsonForDisplay(frm.doc.ttm_cash_flow, "TTM",  frm.doc.currency ));
+                } catch (error) {
+                    console.error("Error parsing financial data:", error);
+                }
+            }
+
             frm.add_custom_button(__('Fetch Latest Data'), function() {
                 frappe.dom.freeze(__('Fetching latest data...'));
                 
@@ -147,84 +165,16 @@ frappe.ui.form.on('CF Security', {
             }, __('Actions'));
             
             // Add copy buttons for multiple fields
-            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news_urls', 'dividends'];
+            const fieldsWithCopyButtons = [
+                'balance_sheet', 'quarterly_balance_sheet',
+                'ticker_info', 
+                'profit_loss', 'ttm_profit_loss', 'quarterly_profit_loss',
+                'cash_flow', 'ttm_cash_flow', 'quarterly_cash_flow',
+                'ai_prompt', 'news_urls', 'dividends'];
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });
             
-            // Add inline copy button for balance_sheet field
-            if (frm.doc.balance_sheet) {
-                // Add the button directly to the field's wrapper
-                const balance_sheet_field = frm.get_field('balance_sheet');
-                if (balance_sheet_field && balance_sheet_field.$wrapper) {
-                    // Remove any existing copy button first
-                    balance_sheet_field.$wrapper.find('.copy-btn').remove();
-                    
-                    // Create a small copy button
-                    const copyBtn = $(`
-                        <button type="button" class="btn btn-xs btn-default copy-btn" 
-                                style="margin-left: 5px; padding: 2px 8px; font-size: 11px;">
-                            <i class="fa fa-copy"></i> Copy
-                        </button>
-                    `);
-                    
-                    // Add click handler
-                    copyBtn.on('click', function(e) {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        
-                        // Use the modern Clipboard API
-                        if (navigator.clipboard && window.isSecureContext) {
-                            navigator.clipboard.writeText(frm.doc.balance_sheet).then(function() {
-                                frappe.show_alert({
-                                    message: __('Balance sheet data copied to clipboard'),
-                                    indicator: 'green'
-                            });
-                            }).catch(function(err) {
-                                console.error('Failed to copy: ', err);
-                                frappe.msgprint({
-                                    title: __('Copy Error'),
-                                    indicator: 'red',
-                                    message: __('Failed to copy balance sheet data to clipboard')
-                                });
-                            });
-                        } else {
-                            // Fallback for older browsers or non-secure contexts
-                            try {
-                                const textArea = document.createElement('textarea');
-                                textArea.value = frm.doc.balance_sheet;
-                                textArea.style.position = 'fixed';
-                                textArea.style.opacity = '0';
-                                document.body.appendChild(textArea);
-                                textArea.focus();
-                                textArea.select();
-                                
-                                const successful = document.execCommand('copy');
-                                document.body.removeChild(textArea);
-                                
-                                if (successful) {
-                                    frappe.show_alert({
-                                        message: __('Balance sheet data copied to clipboard'),
-                                        indicator: 'green'
-                                    });
-                                } else {
-                                    throw new Error('Copy command failed');
-                                }
-                            } catch (err) {
-                                console.error('Fallback copy failed: ', err);
-                                frappe.msgprint({
-                                    title: __('Copy Error'),
-                                    indicator: 'red',
-                                    message: __('Failed to copy balance sheet data to clipboard')
-                                });
-                            }
-                        }
-                    });
-                    
-                    // Append the button to the field's label area
-                    balance_sheet_field.$wrapper.find('.control-label').append(copyBtn);
-                }
-            }
         }
     },
 
@@ -905,3 +855,245 @@ function getFieldDisplayName(fieldName) {
     };
     return displayNames[fieldName] || fieldName;
 }
+
+// Helper function to format a json string for display
+function formatJsonForDisplay(jsonString, title = "Financial Data", currency = "USD") {
+    try {
+        const jsonObj = JSON.parse(jsonString);
+        
+        // Check if the JSON structure matches the financial data pattern
+        // (keys are dates and values are objects with financial metrics)
+        const isFinancialTable = Object.keys(jsonObj).every(key => 
+            key.includes('T00:00:00.000') && typeof jsonObj[key] === 'object'
+        );
+        
+        if (isFinancialTable) {
+            return formatFinancialTable(jsonObj, title, currency);
+        }
+        
+        // If not a financial table, use the standard JSON formatter
+        return "";
+    } catch (e) {
+        return `<div class="text-danger">Invalid JSON: ${e.message}</div>`;
+    }
+}
+
+// Function to format financial data as a table
+function formatFinancialTable(data, title = "Financial Data", currency = "USD") {
+    // Get all dates and sort them (newest first)
+    const dates = Object.keys(data).sort().reverse();
+    
+    if (dates.length === 0) return '<div class="text-muted">No data available</div>';
+    
+    // Get all possible metrics from all date entries while preserving order
+    const allMetrics = [];
+    // First, get metrics from the first date entry to establish initial order
+    if (dates.length > 0) {
+        const firstDate = dates[0];
+        Object.keys(data[firstDate]).forEach(metric => {
+            if (!allMetrics.includes(metric)) {
+                allMetrics.push(metric);
+            }
+        });
+    }
+    
+    // Then add any additional metrics from other dates that weren't in the first date
+    dates.slice(1).forEach(date => {
+        Object.keys(data[date]).forEach(metric => {
+            if (!allMetrics.includes(metric)) {
+                allMetrics.push(metric);
+            }
+        });
+    });
+    
+    // Get currency symbol for formatting
+    const currencySymbol = getCurrencySymbol(currency);
+    
+    // Generate table HTML
+    let html = `
+        <style>
+            .financial-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: var(--font-stack);
+                font-size: 13px;
+                margin-bottom: 20px;
+                overflow-x: auto;
+            }
+            .financial-table th, .financial-table td {
+                border: 1px solid #e0e0e0;
+                padding: 8px;
+                text-align: right;
+            }
+            .financial-table th {
+                background-color: #f8f8f8;
+                font-weight: 600;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            .financial-table tr:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+            .financial-table tr:hover {
+                background-color: #f0f7ff;
+            }
+            .financial-table td.metric-name {
+                text-align: left;
+                font-weight: 500;
+                position: sticky;
+                left: 0;
+                background-color: #fff;
+                z-index: 5;
+            }
+            .financial-table tr:nth-child(even) td.metric-name {
+                background-color: #f9f9f9;
+            }
+            .financial-table tr:hover td.metric-name {
+                background-color: #f0f7ff;
+            }
+            .financial-table-container {
+                max-height: 600px;
+                overflow-y: auto;
+                margin-bottom: 20px;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+            .financial-table-search {
+                margin-bottom: 10px;
+                padding: 8px;
+                width: 250px;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+            .financial-table-toolbar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+            .financial-table-title {
+                margin: 0;
+                font-size: 16px;
+                font-weight: 600;
+            }
+            .financial-info {
+                font-size: 12px;
+                color: #666;
+                margin-top: 5px;
+            }
+        </style>
+
+        <script>
+            $(document).ready(function() {
+                // Filter table rows based on search input
+                $("#financial-table-search").on("keyup", function() {
+                    const value = $(this).val().toLowerCase();
+                    $(".financial-table tbody tr").filter(function() {
+                        $(this).toggle($(this).find("td:first").text().toLowerCase().indexOf(value) > -1);
+                    });
+                });
+                
+                // Format numbers
+                $(".financial-number").each(function() {
+                    const value = parseFloat($(this).attr("data-value"));
+                    if (!isNaN(value)) {
+                        const isLargeValue = Math.abs(value) >= 1000000;
+                        let formattedValue;
+                        
+                        if (isLargeValue) {
+                            // Format in millions with 2 decimal places
+                            formattedValue = (value / 1000000).toLocaleString(undefined, {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2
+                            }) + 'M';
+                        } else {
+                            // Regular formatting with appropriate decimal places
+                            formattedValue = value.toLocaleString(undefined, {
+                                minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+                                maximumFractionDigits: 2
+                            });
+                        }
+                        
+                        // Add currency symbol if this is a monetary value
+                        $(this).text('${currencySymbol}' + formattedValue);
+                    }
+                });
+            });
+        </script>
+
+        <div class="financial-table-toolbar">
+            <div>
+                <h3 class="financial-table-title">${title}</h3>
+                <div class="financial-info">All monetary values in ${currency}</div>
+            </div>
+        </div>
+        
+        <div class="financial-table-container">
+            <table class="financial-table">
+                <thead>
+                    <tr>
+                        <th></th>
+    `;
+    
+    // Add date headers
+    dates.forEach(date => {
+        // Format the date for display (remove time part)
+        const displayDate = date.split('T')[0];
+        html += `<th>${displayDate}</th>`;
+    });
+    
+    html += `
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    // Add rows for each metric in the preserved order
+    allMetrics.forEach(metric => {
+        html += `<tr><td class="metric-name">${metric}</td>`;
+        
+        dates.forEach(date => {
+            const value = data[date][metric];
+            if (value === null || value === undefined) {
+                html += `<td>-</td>`;
+            } else if (typeof value === 'number') {
+                // Add data-value attribute for JavaScript formatting
+                html += `<td class="financial-number" data-value="${value}">${value}</td>`;
+            } else {
+                html += `<td>${value}</td>`;
+            }
+        });
+        
+        html += `</tr>`;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Helper function to get currency symbol
+function getCurrencySymbol(currency) {
+    const currencySymbols = {
+        'USD': '$',
+        'EUR': '€',
+        'GBP': '£',
+        'JPY': '¥',
+        'CNY': '¥',
+        'HKD': 'HK$',
+        'AUD': 'A$',
+        'CAD': 'C$',
+        'CHF': 'CHF',
+        'INR': '₹',
+        'SGD': 'S$',
+        'ZAR': 'R'
+    };
+    
+    return currencySymbols[currency] || currency + ' ';
+}
+

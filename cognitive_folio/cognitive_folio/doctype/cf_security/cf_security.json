@@ -62,16 +62,33 @@
   "template_prompt",
   "ai_prompt",
   "ai_response",
+  "financials_tab",
+  "profit_loss_2_section",
+  "ttm_profit_loss_html",
+  "quarterly_profit_loss_html",
+  "profit_loss_html",
+  "balance_sheet_2_section",
+  "quarterly_balance_sheet_html",
+  "balance_sheet_html",
+  "cash_flow_2_section",
+  "ttm_cash_flow_html",
+  "quarterly_cash_flow_html",
+  "cash_flow_html",
   "raw_data_tab",
   "ticker_info_section",
   "ticker_info",
   "news_urls_section",
   "news_urls",
   "profit_and_loss_statement_section",
+  "ttm_profit_loss",
+  "quarterly_profit_loss",
   "profit_loss",
   "balance_sheet_section",
+  "quarterly_balance_sheet",
   "balance_sheet",
   "cash_flow_section",
+  "ttm_cash_flow",
+  "quarterly_cash_flow",
   "cash_flow",
   "dividends_section",
   "dividends"
@@ -307,7 +324,7 @@
   {
    "fieldname": "profit_loss",
    "fieldtype": "JSON",
-   "label": "Profit & Loss",
+   "label": "Profit & Loss Yearly",
    "read_only": 1
   },
   {
@@ -319,7 +336,7 @@
   {
    "fieldname": "balance_sheet",
    "fieldtype": "JSON",
-   "label": "Balance Sheet",
+   "label": "Balance Sheet Yearly",
    "read_only": 1
   },
   {
@@ -331,7 +348,7 @@
   {
    "fieldname": "cash_flow",
    "fieldtype": "JSON",
-   "label": "Cash Flow",
+   "label": "Cash Flow Yearly",
    "read_only": 1
   },
   {
@@ -475,6 +492,99 @@
    "in_list_view": 1,
    "label": "Stop Loss",
    "options": "currency"
+  },
+  {
+   "fieldname": "financials_tab",
+   "fieldtype": "Tab Break",
+   "label": "Financials"
+  },
+  {
+   "fieldname": "profit_loss_html",
+   "fieldtype": "HTML",
+   "label": "Profit Loss Yearly"
+  },
+  {
+   "fieldname": "balance_sheet_html",
+   "fieldtype": "HTML",
+   "label": "Balance Sheet Yearly"
+  },
+  {
+   "fieldname": "cash_flow_html",
+   "fieldtype": "HTML",
+   "label": "Cash Flow Yearly"
+  },
+  {
+   "fieldname": "ttm_profit_loss",
+   "fieldtype": "JSON",
+   "label": "Profit & Loss TTM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quarterly_profit_loss",
+   "fieldtype": "JSON",
+   "label": "Profit & Loss Quarterly",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quarterly_balance_sheet",
+   "fieldtype": "JSON",
+   "label": "Balance Sheet Quarterly",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ttm_cash_flow",
+   "fieldtype": "JSON",
+   "label": "Cash Flow TTM",
+   "read_only": 1
+  },
+  {
+   "fieldname": "quarterly_cash_flow",
+   "fieldtype": "JSON",
+   "label": "Cash Flow Quarterly",
+   "read_only": 1
+  },
+  {
+   "fieldname": "ttm_profit_loss_html",
+   "fieldtype": "HTML",
+   "label": "Profit Loss TTM"
+  },
+  {
+   "fieldname": "quarterly_profit_loss_html",
+   "fieldtype": "HTML",
+   "label": "Profit Loss Quarterly"
+  },
+  {
+   "fieldname": "quarterly_balance_sheet_html",
+   "fieldtype": "HTML",
+   "label": "Balance Sheet Quarterly"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "profit_loss_2_section",
+   "fieldtype": "Section Break",
+   "label": "Profit Loss"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "balance_sheet_2_section",
+   "fieldtype": "Section Break",
+   "label": "Balance Sheet"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "cash_flow_2_section",
+   "fieldtype": "Section Break",
+   "label": "Cash Flow"
+  },
+  {
+   "fieldname": "ttm_cash_flow_html",
+   "fieldtype": "HTML",
+   "label": "Cash Flow TTM"
+  },
+  {
+   "fieldname": "quarterly_cash_flow_html",
+   "fieldtype": "HTML",
+   "label": "Cash Flow Quarterly"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -496,7 +606,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-17 07:23:30.076203",
+ "modified": "2025-06-17 10:06:39.841265",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
