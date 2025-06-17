@@ -147,7 +147,12 @@ frappe.ui.form.on('CF Security', {
             }, __('Actions'));
             
             // Add copy buttons for multiple fields
-            const fieldsWithCopyButtons = ['balance_sheet', 'ticker_info', 'profit_loss', 'cash_flow', 'ai_prompt', 'news_urls', 'dividends'];
+            const fieldsWithCopyButtons = [
+                'balance_sheet', 'quarterly_balance_sheet',
+                'ticker_info', 
+                'profit_loss', 'ttm_profit_loss', 'quarterly_profit_loss',
+                'cash_flow', 'ttm_cash_flow', 'quarterly_cash_flow',
+                'ai_prompt', 'news_urls', 'dividends'];
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });
