@@ -55,16 +55,19 @@ frappe.ui.form.on('CF Security', {
             // Format and display balance sheet data if available
             if(frm.doc.balance_sheet) {
                 try {
-                    frm.set_df_property('balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.balance_sheet, "Balance Sheet Yearly",  frm.doc.currency ));
-                    frm.set_df_property('quarterly_balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.quarterly_balance_sheet, "Balance Sheet Quarterly",  frm.doc.currency ));
+                    frm.set_df_property('profit_loss_html', 'options', formatJsonForDisplay(frm.doc.profit_loss, "Yearly",  frm.doc.currency ));
+                    frm.set_df_property('quarterly_profit_loss_html', 'options', formatJsonForDisplay(frm.doc.quarterly_profit_loss, "Quarterly",  frm.doc.currency ));
+                    frm.set_df_property('ttm_profit_loss_html', 'options', formatJsonForDisplay(frm.doc.ttm_profit_loss, "TTM",  frm.doc.currency ));
+                    
+                    frm.set_df_property('balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.balance_sheet, "Yearly",  frm.doc.currency ));
+                    frm.set_df_property('quarterly_balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.quarterly_balance_sheet, "Quarterly",  frm.doc.currency ));
+
+                    frm.set_df_property('cash_flow_html', 'options', formatJsonForDisplay(frm.doc.cash_flow, "Yearly",  frm.doc.currency ));
+                    frm.set_df_property('quarterly_cash_flow_html', 'options', formatJsonForDisplay(frm.doc.quarterly_cash_flow, "Quarterly",  frm.doc.currency ));
+                    frm.set_df_property('ttm_cash_flow_html', 'options', formatJsonForDisplay(frm.doc.ttm_cash_flow, "TTM",  frm.doc.currency ));
                 } catch (error) {
-                    console.error("Error parsing balance sheet data:", error);
-                    frm.set_df_property('balance_sheet_html', 'options',
-                        '<div class="text-muted">Error displaying balance sheet data.</div>');
+                    console.error("Error parsing financial data:", error);
                 }
-            } else {
-                frm.set_df_property('balance_sheet_html', 'options',
-                    '<div class="text-muted">No balance sheet data available.</div>');
             }
 
             frm.add_custom_button(__('Fetch Latest Data'), function() {
@@ -1024,14 +1027,13 @@ function formatFinancialTable(data, title = "Financial Data", currency = "USD") 
                 <h3 class="financial-table-title">${title}</h3>
                 <div class="financial-info">All monetary values in ${currency}</div>
             </div>
-            <input type="text" id="financial-table-search" class="financial-table-search" placeholder="Search metrics...">
         </div>
         
         <div class="financial-table-container">
             <table class="financial-table">
                 <thead>
                     <tr>
-                        <th>Metric</th>
+                        <th></th>
     `;
     
     // Add date headers
