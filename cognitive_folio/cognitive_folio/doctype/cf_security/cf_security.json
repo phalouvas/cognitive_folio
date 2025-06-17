@@ -21,6 +21,7 @@
   "need_evaluation",
   "ai_modified",
   "suggestion_rating",
+  "news_reasoning",
   "rating_section",
   "rating_moat",
   "column_break_pmrd",
@@ -53,7 +54,6 @@
   "sector",
   "industry",
   "news_section",
-  "news_reasoning",
   "news_html",
   "news",
   "section_break_11",
@@ -496,7 +496,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-12 09:52:50.426396",
+ "modified": "2025-06-17 07:23:30.076203",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
