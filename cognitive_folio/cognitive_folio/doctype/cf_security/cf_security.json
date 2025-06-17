@@ -59,9 +59,17 @@
   "section_break_11",
   "ticker_info_html",
   "financials_tab",
+  "profit_loss_2_section",
   "profit_loss_html",
+  "ttm_profit_loss_html",
+  "quarterly_profit_loss_html",
+  "balance_sheet_2_section",
   "balance_sheet_html",
+  "quarterly_balance_sheet_html",
+  "cash_flow_2_section",
   "cash_flow_html",
+  "ttm_cash_flow_html",
+  "quarterly_cash_flow_html",
   "ai_tab",
   "template_prompt",
   "ai_prompt",
@@ -493,17 +501,17 @@
   {
    "fieldname": "profit_loss_html",
    "fieldtype": "HTML",
-   "label": "Profit Loss"
+   "label": "Profit Loss Yearly"
   },
   {
    "fieldname": "balance_sheet_html",
    "fieldtype": "HTML",
-   "label": "Balance Sheet"
+   "label": "Balance Sheet Yearly"
   },
   {
    "fieldname": "cash_flow_html",
    "fieldtype": "HTML",
-   "label": "Cash Flow"
+   "label": "Cash Flow Yearly"
   },
   {
    "fieldname": "ttm_profit_loss",
@@ -534,6 +542,48 @@
    "fieldtype": "JSON",
    "label": "Cash Flow Quarterly",
    "read_only": 1
+  },
+  {
+   "fieldname": "ttm_profit_loss_html",
+   "fieldtype": "HTML",
+   "label": "Profit Loss TTM"
+  },
+  {
+   "fieldname": "quarterly_profit_loss_html",
+   "fieldtype": "HTML",
+   "label": "Profit Loss Quarterly"
+  },
+  {
+   "fieldname": "quarterly_balance_sheet_html",
+   "fieldtype": "HTML",
+   "label": "Balance Sheet Quarterly"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "profit_loss_2_section",
+   "fieldtype": "Section Break",
+   "label": "Profit Loss"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "balance_sheet_2_section",
+   "fieldtype": "Section Break",
+   "label": "Balance Sheet"
+  },
+  {
+   "fieldname": "cash_flow_2_section",
+   "fieldtype": "Section Break",
+   "label": "Cash Flow"
+  },
+  {
+   "fieldname": "ttm_cash_flow_html",
+   "fieldtype": "HTML",
+   "label": "Cash Flow TTM"
+  },
+  {
+   "fieldname": "quarterly_cash_flow_html",
+   "fieldtype": "HTML",
+   "label": "Cash Flow Quarterly"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -555,7 +605,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-17 07:57:41.488301",
+ "modified": "2025-06-17 08:10:22.698672",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

@@ -52,6 +52,21 @@ frappe.ui.form.on('CF Security', {
                     '<div class="text-muted">No ticker information available.</div>');
             }
 
+            // Format and display balance sheet data if available
+            if(frm.doc.balance_sheet) {
+                try {
+                    frm.set_df_property('balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.balance_sheet));
+                    frm.set_df_property('quarterly_balance_sheet_html', 'options', formatJsonForDisplay(frm.doc.quarterly_balance_sheet));
+                } catch (error) {
+                    console.error("Error parsing balance sheet data:", error);
+                    frm.set_df_property('balance_sheet_html', 'options',
+                        '<div class="text-muted">Error displaying balance sheet data.</div>');
+                }
+            } else {
+                frm.set_df_property('balance_sheet_html', 'options',
+                    '<div class="text-muted">No balance sheet data available.</div>');
+            }
+
             frm.add_custom_button(__('Fetch Latest Data'), function() {
                 frappe.dom.freeze(__('Fetching latest data...'));
                 
@@ -836,4 +851,326 @@ function getFieldDisplayName(fieldName) {
         'cash_flow': 'Cash Flow'
     };
     return displayNames[fieldName] || fieldName;
+}
+
+// Helper function to format a json string for display
+function formatJsonForDisplay(jsonString) {
+    try {
+        const jsonObj = JSON.parse(jsonString);
+        
+        // Check if the JSON structure matches the financial data pattern
+        // (keys are dates and values are objects with financial metrics)
+        const isFinancialTable = Object.keys(jsonObj).every(key => 
+            key.includes('T00:00:00.000') && typeof jsonObj[key] === 'object'
+        );
+        
+        if (isFinancialTable) {
+            return formatFinancialTable(jsonObj);
+        }
+        
+        // If not a financial table, use the standard JSON formatter
+        return formatStandardJson(jsonObj);
+    } catch (e) {
+        return `<div class="text-danger">Invalid JSON: ${e.message}</div>`;
+    }
+}
+
+// Function to format financial data as a table
+function formatFinancialTable(data) {
+    // Get all dates and sort them (newest first)
+    const dates = Object.keys(data).sort().reverse();
+    
+    if (dates.length === 0) return '<div class="text-muted">No data available</div>';
+    
+    // Get all possible metrics from all date entries
+    const allMetrics = new Set();
+    dates.forEach(date => {
+        Object.keys(data[date]).forEach(metric => allMetrics.add(metric));
+    });
+    const metrics = Array.from(allMetrics).sort();
+    
+    // Generate table HTML
+    let html = `
+        <style>
+            .financial-table {
+                width: 100%;
+                border-collapse: collapse;
+                font-family: var(--font-stack);
+                font-size: 13px;
+                margin-bottom: 20px;
+                overflow-x: auto;
+            }
+            .financial-table th, .financial-table td {
+                border: 1px solid #e0e0e0;
+                padding: 8px;
+                text-align: right;
+            }
+            .financial-table th {
+                background-color: #f8f8f8;
+                font-weight: 600;
+                position: sticky;
+                top: 0;
+                z-index: 10;
+            }
+            .financial-table tr:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+            .financial-table tr:hover {
+                background-color: #f0f7ff;
+            }
+            .financial-table td.metric-name {
+                text-align: left;
+                font-weight: 500;
+                position: sticky;
+                left: 0;
+                background-color: #fff;
+                z-index: 5;
+            }
+            .financial-table tr:nth-child(even) td.metric-name {
+                background-color: #f9f9f9;
+            }
+            .financial-table tr:hover td.metric-name {
+                background-color: #f0f7ff;
+            }
+            .financial-table-container {
+                max-height: 600px;
+                overflow-y: auto;
+                margin-bottom: 20px;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+            }
+            .financial-table-search {
+                margin-bottom: 10px;
+                padding: 8px;
+            }
+            .financial-table-toolbar {
+                display: flex;
+                justify-content: space-between;
+                align-items: center;
+                margin-bottom: 10px;
+            }
+        </style>
+
+        <script>
+            $(document).ready(function() {
+                // Filter table rows based on search input
+                $("#financial-table-search").on("keyup", function() {
+                    const value = $(this).val().toLowerCase();
+                    $(".financial-table tbody tr").filter(function() {
+                        $(this).toggle($(this).find("td:first").text().toLowerCase().indexOf(value) > -1);
+                    });
+                });
+                
+                // Format numbers
+                $(".financial-number").each(function() {
+                    const value = parseFloat($(this).attr("data-value"));
+                    if (!isNaN(value)) {
+                        // Format large numbers with commas and 2 decimal places if needed
+                        $(this).text(value.toLocaleString(undefined, {
+                            minimumFractionDigits: value % 1 === 0 ? 0 : 2,
+                            maximumFractionDigits: 2
+                        }));
+                    }
+                });
+            });
+        </script>
+
+        <div class="financial-table-toolbar">
+            <h3>Financial Data</h3>
+            <input type="text" id="financial-table-search" class="financial-table-search" placeholder="Search metrics...">
+        </div>
+        
+        <div class="financial-table-container">
+            <table class="financial-table">
+                <thead>
+                    <tr>
+                        <th>Metric</th>
+    `;
+    
+    // Add date headers
+    dates.forEach(date => {
+        // Format the date for display (remove time part)
+        const displayDate = date.split('T')[0];
+        html += `<th>${displayDate}</th>`;
+    });
+    
+    html += `
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    // Add rows for each metric
+    metrics.forEach(metric => {
+        html += `<tr><td class="metric-name">${metric}</td>`;
+        
+        dates.forEach(date => {
+            const value = data[date][metric];
+            if (value === null || value === undefined) {
+                html += `<td>-</td>`;
+            } else if (typeof value === 'number') {
+                html += `<td class="financial-number" data-value="${value}">${value}</td>`;
+            } else {
+                html += `<td>${value}</td>`;
+            }
+        });
+        
+        html += `</tr>`;
+    });
+    
+    html += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    return html;
+}
+
+// Function for standard JSON formatting (for non-financial data)
+function formatStandardJson(jsonObj) {
+    // Generate CSS for styling the JSON display
+    const styles = `
+        <style>
+            .json-container {
+                font-family: monospace;
+                font-size: 13px;
+                background-color: #f8f8f8;
+                border: 1px solid #e0e0e0;
+                border-radius: 4px;
+                padding: 15px;
+                overflow: auto;
+                max-height: 500px;
+            }
+            .json-key {
+                color: #0451a5;
+                font-weight: bold;
+            }
+            .json-string {
+                color: #09885a;
+            }
+            .json-number {
+                color: #1a01cc;
+            }
+            .json-boolean {
+                color: #0000ff;
+            }
+            .json-null {
+                color: #777777;
+            }
+            .json-mark {
+                color: #555;
+            }
+            .json-container ul {
+                list-style-type: none;
+                padding: 0 0 0 20px;
+                margin: 0;
+            }
+            .json-container li {
+                position: relative;
+                margin: 0;
+                padding-top: 3px;
+                padding-bottom: 3px;
+            }
+            .json-toggle {
+                cursor: pointer;
+                color: #888;
+                user-select: none;
+                margin-left: -15px;
+                margin-right: 3px;
+                font-size: 10px;
+            }
+            .json-container .collapsed {
+                display: none;
+            }
+            .json-toggle:before {
+                content: '▼';
+                display: inline-block;
+                width: 12px;
+            }
+            .json-toggle.collapsed:before {
+                content: '▶';
+            }
+        </style>
+    `;
+    
+    // Script for toggling JSON nodes
+    const script = `
+        <script>
+            // Wait for the page to be ready
+            $(document).ready(function() {
+                // Add click handlers for toggle buttons
+                $('.json-toggle').click(function() {
+                    const target = $(this).siblings('ul.json-dict, ul.json-array');
+                    target.toggleClass('collapsed');
+                    $(this).toggleClass('collapsed');
+                });
+                
+                // Optional: collapse all nodes deeper than a certain level
+                $('.json-dict, .json-array').each(function(i, el) {
+                    const $el = $(el);
+                    const depth = $el.parents('ul').length;
+                    if (depth > 2) {
+                        $el.addClass('collapsed');
+                        $el.siblings('.json-toggle').addClass('collapsed');
+                    }
+                });
+            });
+        </script>
+    `;
+    
+    // Function to syntax highlight and format JSON
+    function formatValue(value) {
+        if (value === null) return '<span class="json-null">null</span>';
+        if (typeof value === 'boolean') return '<span class="json-boolean">' + value + '</span>';
+        if (typeof value === 'number') return '<span class="json-number">' + value + '</span>';
+        if (typeof value === 'string') return '<span class="json-string">"' + value.replace(/</g, '&lt;').replace(/>/g, '&gt;') + '"</span>';
+        
+        if (Array.isArray(value)) {
+            if (value.length === 0) return '<span class="json-mark">[]</span>';
+            
+            let result = '<span class="json-toggle"></span><span class="json-mark">[</span><ul class="json-array">';
+            
+            for (let i = 0; i < value.length; i++) {
+                result += '<li>' + formatValue(value[i]);
+                if (i < value.length - 1) {
+                    result += '<span class="json-mark">,</span>';
+                }
+                result += '</li>';
+            }
+            
+            result += '</ul><span class="json-mark">]</span>';
+            return result;
+        }
+        
+        if (typeof value === 'object') {
+            const keys = Object.keys(value);
+            if (keys.length === 0) return '<span class="json-mark">{}</span>';
+            
+            let result = '<span class="json-toggle"></span><span class="json-mark">{</span><ul class="json-dict">';
+            
+            keys.forEach((key, i) => {
+                result += '<li><span class="json-key">"' + key + '"</span><span class="json-mark">: </span>' + 
+                          formatValue(value[key]);
+                if (i < keys.length - 1) {
+                    result += '<span class="json-mark">,</span>';
+                }
+                result += '</li>';
+            });
+            
+            result += '</ul><span class="json-mark">}</span>';
+            return result;
+        }
+        
+        return String(value);
+    }
+    
+    // Create final HTML output
+    return `
+        ${styles}
+        ${script}
+        <div class="json-container">
+            ${formatValue(jsonObj)}
+        </div>
+    `;
 }
