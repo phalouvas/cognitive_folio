@@ -882,12 +882,26 @@ function formatFinancialTable(data, title = "Financial Data", currency = "USD") 
     
     if (dates.length === 0) return '<div class="text-muted">No data available</div>';
     
-    // Get all possible metrics from all date entries
-    const allMetrics = new Set();
-    dates.forEach(date => {
-        Object.keys(data[date]).forEach(metric => allMetrics.add(metric));
+    // Get all possible metrics from all date entries while preserving order
+    const allMetrics = [];
+    // First, get metrics from the first date entry to establish initial order
+    if (dates.length > 0) {
+        const firstDate = dates[0];
+        Object.keys(data[firstDate]).forEach(metric => {
+            if (!allMetrics.includes(metric)) {
+                allMetrics.push(metric);
+            }
+        });
+    }
+    
+    // Then add any additional metrics from other dates that weren't in the first date
+    dates.slice(1).forEach(date => {
+        Object.keys(data[date]).forEach(metric => {
+            if (!allMetrics.includes(metric)) {
+                allMetrics.push(metric);
+            }
+        });
     });
-    const metrics = Array.from(allMetrics).sort();
     
     // Get currency symbol for formatting
     const currencySymbol = getCurrencySymbol(currency);
@@ -1010,6 +1024,7 @@ function formatFinancialTable(data, title = "Financial Data", currency = "USD") 
                 <h3 class="financial-table-title">${title}</h3>
                 <div class="financial-info">All monetary values in ${currency}</div>
             </div>
+            <input type="text" id="financial-table-search" class="financial-table-search" placeholder="Search metrics...">
         </div>
         
         <div class="financial-table-container">
@@ -1032,8 +1047,8 @@ function formatFinancialTable(data, title = "Financial Data", currency = "USD") 
                 <tbody>
     `;
     
-    // Add rows for each metric
-    metrics.forEach(metric => {
+    // Add rows for each metric in the preserved order
+    allMetrics.forEach(metric => {
         html += `<tr><td class="metric-name">${metric}</td>`;
         
         dates.forEach(date => {
