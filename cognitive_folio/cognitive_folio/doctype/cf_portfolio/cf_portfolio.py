@@ -769,10 +769,25 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				return True
 			
 			# Build the prompt with actual security data
-			prompt = """I own stocks that I evaluated their fundamentals.
-Read below headlines and decide whether I need evaluate them again.
+			prompt = """I own the following stocks **that I previously evaluated based on fundamentals**.  
+Analyze their recent headlines **only for material changes** that could alter their valuation.  
 
-Respond only in JSON as below:
+### **Strict Evaluation Criteria**  
+Flag for re-evaluation **ONLY** if any of these occur:  
+1. **Earnings/Guidance Shifts**:  
+   - EPS/revenue miss/beat >5% vs. estimates.  
+   - FY guidance raised/lowered significantly.  
+2. **Business Risks/Opportunities**:  
+   - M&A, major partnerships, or divestitures.  
+   - Product launches with >10% revenue impact.  
+3. **Financial Health Changes**:  
+   - New debt/equity issuance or credit downgrades.  
+   - Cash flow warnings or liquidity risks.  
+4. **Management/Legal Risks**:  
+   - CEO/CFO departure or fraud allegations.  
+   - Major lawsuits/regulatory actions.
+
+**Response Format (Strict JSON):**
 [
 	{
 		"Company": "Company name",
