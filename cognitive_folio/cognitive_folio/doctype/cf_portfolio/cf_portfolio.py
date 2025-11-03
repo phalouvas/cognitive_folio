@@ -41,7 +41,7 @@ class CFPortfolio(Document):
 				queue="long",
 				timeout=1800,  # 30 minutes
 				job_id=job_name,
-				now=False,
+				now=True,
 				portfolio_name=self.name,
 				user=frappe.session.user
 			)
@@ -741,13 +741,56 @@ def process_evaluate_holdings_news(portfolio_name, user):
 					# If no ai_modified date, process all news
 					news_items_to_process = news_data
 				
-				# Prepare headlines for this security
+				# Prepare headlines for this security with date-based tagging
 				headlines = []
+				current_time = frappe.utils.now_datetime()
+				
+				# Ensure current_time is offset-aware
+				if current_time.tzinfo is None:
+					current_time = current_time.replace(tzinfo=timezone.utc)
+				
+				# Keywords that indicate earnings/results announcements
+				earnings_keywords = [
+					'earnings', 'results', 'quarterly', 'annual',
+					'q1', 'q2', 'q3', 'q4', 'fy', 'fiscal',
+					'revenue', 'profit', 'loss', 'guidance',
+					'eps', 'ebitda', 'beat', 'miss'
+				]
+				
 				for news_item in news_items_to_process:
 					if isinstance(news_item, dict) and 'content' in news_item:
 						content = news_item['content']
 						if 'title' in content and content['title']:
-							headlines.append(content['title'])
+							title = content['title']
+							
+							# Check if this is a recent earnings-related headline
+							if 'pubDate' in content:
+								try:
+									pub_date = date_parser.parse(content['pubDate'])
+									
+									# Ensure pub_date is offset-aware
+									if pub_date.tzinfo is None:
+										pub_date = pub_date.replace(tzinfo=timezone.utc)
+									
+									days_old = (current_time - pub_date).days
+									
+									# Tag earnings headlines from last 90 days
+									title_lower = title.lower()
+									is_earnings_related = any(keyword in title_lower for keyword in earnings_keywords)
+									
+									if days_old <= 90 and is_earnings_related:
+										headlines.append(f"[RECENT EARNINGS - {days_old}d ago] {title}")
+									elif is_earnings_related:
+										headlines.append(f"[EARNINGS - {days_old}d ago] {title}")
+									elif days_old <= 7:
+										headlines.append(f"[{days_old}d ago] {title}")
+									else:
+										headlines.append(title)
+								except Exception as date_err:
+									# If date parsing fails, just use the title as-is
+									headlines.append(title)
+							else:
+								headlines.append(title)
 				
 				if headlines:
 					securities_to_evaluate.append({
@@ -769,31 +812,94 @@ def process_evaluate_holdings_news(portfolio_name, user):
 				return True
 			
 			# Build the prompt with actual security data
-			prompt = """I own the following stocks **that I previously evaluated based on fundamentals**.  
-Analyze their recent headlines **only for material changes** that could alter their valuation.  
+			prompt = """I own the following stocks that I previously evaluated based on fundamentals.  
+Analyze their recent **NEWS HEADLINES** (not full articles) for material changes that could alter valuation.
+
+⚠️ **Important**: You're analyzing headlines only, which may lack context. Be conservative - 
+when headlines are vague or could be routine, default to "No" unless clearly material.
+
+📅 **Headline Tags Explained**:
+- **[RECENT EARNINGS - Xd ago]** = Earnings/results announced within last 90 days (HIGH PRIORITY)
+- **[EARNINGS - Xd ago]** = Older earnings-related news (>90 days)
+- **[Xd ago]** = Recent non-earnings news (within 7 days)
+- No tag = Older general news
 
 ### **Strict Evaluation Criteria**  
-Flag for re-evaluation **ONLY** if any of these occur:  
-1. **Earnings/Guidance Shifts**:  
-   - EPS/revenue miss/beat >5% vs. estimates.  
-   - FY guidance raised/lowered significantly.  
-2. **Business Risks/Opportunities**:  
-   - M&A, major partnerships, or divestitures.  
-   - Product launches with >10% revenue impact.  
-3. **Financial Health Changes**:  
-   - New debt/equity issuance or credit downgrades.  
-   - Cash flow warnings or liquidity risks.  
-4. **Management/Legal Risks**:  
-   - CEO/CFO departure or fraud allegations.  
-   - Major lawsuits/regulatory actions.
+Flag for re-evaluation **ONLY** if any of these occur:
 
-**Response Format (Strict JSON):**
+1. **Quarterly/Annual Earnings Reports**:
+	- **ANY quarterly or annual earnings release** (always material - updates valuation inputs)
+	- EPS/revenue miss/beat >5% vs. estimates (especially important)
+	- FY/quarterly guidance raised/lowered (any amount)
+	- Margin expansion/compression >200bps year-over-year
+	- Sequential revenue decline >10% (Q-over-Q)
+	- Major earnings restatements or accounting changes
+	- Management commentary on business outlook changes
+
+2. **Business Risks/Opportunities**:
+	- M&A, major partnerships, or divestitures (>$100M or >10% market cap)
+	- Product launches with >10% revenue impact potential
+	- Loss/gain of major customers (>10% revenue)
+
+3. **Financial Health Changes**:
+	- New debt/equity issuance changing capital structure >15%
+	- Credit rating downgrades (by major agencies)
+	- Cash flow warnings, liquidity crises, or covenant breaches
+	- Dividend cuts/suspensions or major buyback changes
+
+4. **Management/Legal Risks**:
+	- CEO/CFO/Chairman departure (especially unexpected)
+	- Fraud allegations, SEC investigations, or major lawsuits
+	- Criminal charges against executives
+
+5. **Strategic/Operational Changes**:
+	- Business model pivots or major restructuring
+	- Geographic expansion into major new markets
+	- Supply chain disruptions materially affecting production
+	- Facility closures or major layoffs (>10% workforce)
+
+6. **Regulatory/Political** (if applicable):
+	- FDA approvals/rejections (healthcare/pharma)
+	- Antitrust actions, regulatory bans, or license revocations
+	- Major policy changes materially affecting the business
+
+### **IGNORE These (Not Material)**
+- Routine analyst upgrades/downgrades without thesis changes
+- Minor price target adjustments (<15%)
+- General market commentary or sector trends
+- Insider trading <5% ownership or routine planned sales
+- Conference attendance or presentations
+- Awards, rankings, ESG scores, or "best company" lists
+- Stock splits or minor corporate actions
+
+### **Decision Rule**
+- When in doubt → default to **"No"** to avoid alert fatigue
+- Only flag clear, unambiguous material changes
+- If headline suggests materiality but lacks details → mark "Yes" with note
+
+**Response Format (Strict JSON Array):**
 [
 	{
 		"Company": "Company name",
-		"Symbol": "ticker symbol",
+		"Symbol": "Ticker symbol",
 		"Evaluate": "Yes/No",
-		"Reasoning": "Explain why need re-evaluation"
+		"Reasoning": "Criterion # (1-6) + one-sentence impact summary, or 'Insufficient detail in headline - requires follow-up'"
+	}
+]
+
+**Example:**
+[
+	{
+		"Company": "Acme Corp",
+		"Symbol": "ACME",
+		"Evaluate": "Yes",
+		"Reasoning": "Criterion 1: Q3 earnings beat by 8% with FY guidance raised 12%, indicating stronger-than-expected demand"
+	},
+	{
+		"Company": "Beta Inc",
+		"Symbol": "BETA",
+		"Evaluate": "No",
+		"Reasoning": "Analyst price target increase is routine, no fundamental change"
 	}
 ]
 
@@ -835,6 +941,11 @@ Flag for re-evaluation **ONLY** if any of these occur:
 			if not isinstance(json_content, list):
 				raise ValueError("AI response is not a valid JSON array")
 
+			# Track results for reporting
+			flagged_count = 0
+			cleared_count = 0
+			failed_saves = []
+
 			for item in json_content:
 				if not isinstance(item, dict):
 					raise ValueError("AI response item is not a valid JSON object")
@@ -844,31 +955,46 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					raise ValueError("AI response item is missing required fields")
 				
 				# Find the security document from our evaluated securities list by symbol
+				security_found = None
+				for eval_item in securities_to_evaluate:
+					if eval_item['security_doc'].symbol == item['Symbol']:
+						security_found = eval_item['security_doc']
+						break
+				
+				if not security_found:
+					err_msg = f"Symbol not found in evaluated list: {item['Symbol']}"
+					frappe.log_error(message=err_msg, title="Security Not Found")
+					continue
+				
+				# Update security based on evaluation result
+				current_time = frappe.utils.now_datetime()
+				
 				if item['Evaluate'].lower() == 'yes':
-					security_found = None
-					for eval_item in securities_to_evaluate:
-						if eval_item['security_doc'].symbol == item['Symbol']:
-							security_found = eval_item['security_doc']
-							break
-					
-					if security_found:
-						# Convert datetime to MySQL compatible format
-						current_time = frappe.utils.now_datetime()
-						security_found.need_evaluation = True
-						security_found.news_reasoning = item['Reasoning']
-						security_found.ai_modified = current_time.strftime('%Y-%m-%d %H:%M:%S')
-						try:
-							security_found.save()
-						except Exception as save_err:
-							# Use shorter error message
-							err_msg = f"Save failed for {item['Symbol']}: {str(save_err)[:50]}..."
-							frappe.log_error(message=err_msg, title="Security Save Error")
-					else:
-						# Use shorter error message
-						err_msg = f"Symbol not found: {item['Symbol']}"
-						frappe.log_error(message=err_msg, title="Security Not Found")
+					# Flag for re-evaluation
+					security_found.need_evaluation = True
+					security_found.news_reasoning = item['Reasoning']
+					security_found.ai_modified = current_time.strftime('%Y-%m-%d %H:%M:%S')
+					flagged_count += 1
+				else:
+					# Cleared - no material changes found
+					security_found.need_evaluation = False
+					security_found.news_reasoning = f"Cleared: {item['Reasoning']}"
+					security_found.ai_modified = current_time.strftime('%Y-%m-%d %H:%M:%S')
+					cleared_count += 1
+				
+				try:
+					security_found.save()
+				except Exception as save_err:
+					err_msg = f"Save failed for {item['Symbol']}: {str(save_err)[:50]}..."
+					frappe.log_error(message=err_msg, title="Security Save Error")
+					failed_saves.append(item['Symbol'])
 
 			frappe.db.commit()  # Single commit for all changes
+			
+			# Build success message with details
+			success_msg = _(f"Portfolio '{portfolio_name}' AI news evaluation completed: {flagged_count} flagged for re-evaluation, {cleared_count} cleared.")
+			if failed_saves:
+				success_msg += f" Failed to save: {', '.join(failed_saves)}"
 			
 			# Notify the user that the analysis is complete
 			frappe.publish_realtime(
@@ -876,7 +1002,10 @@ Flag for re-evaluation **ONLY** if any of these occur:
 				message={
 					'portfolio_id': portfolio_name,
 					'status': 'success',
-					'message': _(f"Portfolio '{portfolio_name}' AI news evaluation has been successfully completed.")
+					'message': success_msg,
+					'flagged_count': flagged_count,
+					'cleared_count': cleared_count,
+					'failed_saves': failed_saves
 				},
 				user=user
 			)
