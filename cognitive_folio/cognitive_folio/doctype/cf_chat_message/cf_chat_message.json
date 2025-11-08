@@ -9,6 +9,7 @@
   "status",
   "model",
   "web_search",
+  "fetch_urls",
   "column_break_cbjh",
   "system_prompt",
   "template_prompt",
@@ -116,6 +117,12 @@
    "fieldname": "web_search",
    "fieldtype": "Check",
    "label": "Web Search"
+  },
+  {
+    "default": "1",
+   "fieldname": "fetch_urls",
+   "fieldtype": "Check",
+   "label": "Fetch URLs"
   }
  ],
  "grid_page_length": 50,
