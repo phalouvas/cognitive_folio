@@ -3,6 +3,7 @@ from frappe.model.document import Document
 import re
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables
+from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
 
 class CFChatMessage(Document):
 
@@ -149,6 +150,13 @@ class CFChatMessage(Document):
 		
 		# Process current message prompt first to know how much space it needs
 		self.prompt = self.prepare_prompt(portfolio, security)
+
+		# Detect URLs and embed their content (guarded by optional checkbox)
+		if getattr(self, 'fetch_urls', False):
+			try:
+				self.prompt = fetch_and_embed_url_content(self.prompt, self)
+			except Exception as e:
+				frappe.log_error(f"URL embedding failed for message {self.name}: {str(e)}", "URL Fetch Error")
 		
 		# Extract PDF text and replace file references if available
 		try:
