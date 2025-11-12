@@ -74,19 +74,81 @@ def _truncate_text(text: str, limit: int) -> str:
     return text
 
 
-def _process_html_to_text(html: str) -> str:
+def _table_to_markdown(table_data: List[List[str]]) -> str:
+    """Convert a list of lists (table data) to markdown table format.
+    
+    Args:
+        table_data: List of lists where first row is treated as headers
+        
+    Returns:
+        Markdown formatted table string
+    """
+    if not table_data or len(table_data) < 2:
+        return ""
+    
+    # Clean and prepare data
+    cleaned_data = []
+    for row in table_data:
+        cleaned_row = [str(cell).strip() if cell else "" for cell in row]
+        cleaned_data.append(cleaned_row)
+    
+    # Determine column widths
+    col_count = max(len(row) for row in cleaned_data)
+    
+    # Normalize all rows to have same number of columns
+    for row in cleaned_data:
+        while len(row) < col_count:
+            row.append("")
+    
+    # Build markdown table
+    lines = []
+    
+    # Header row
+    header = cleaned_data[0]
+    lines.append("| " + " | ".join(header) + " |")
+    
+    # Separator row
+    lines.append("| " + " | ".join(["---"] * col_count) + " |")
+    
+    # Data rows
+    for row in cleaned_data[1:]:
+        lines.append("| " + " | ".join(row) + " |")
+    
+    return "\n".join(lines)
+
+
+def _process_html_to_markdown(html: str) -> str:
+    """Convert HTML to markdown, preserving table structure.
+    
+    Uses markdownify library for better table handling.
+    Falls back to basic text extraction if markdownify fails.
+    """
     try:
-        from bs4 import BeautifulSoup  # type: ignore
-        soup = BeautifulSoup(html, "html.parser")
-        for tag in soup(["script", "style", "noscript"]):
-            tag.decompose()
-        text = soup.get_text(separator="\n")
-    except Exception:
-        text = re.sub(r"<[^>]+>", " ", html)
-    lines = [ln.strip() for ln in text.splitlines()]
-    text = "\n".join(ln for ln in lines if ln)
-    text = re.sub(r"\n{3,}", "\n\n", text)
-    return text
+        from markdownify import markdownify as md
+        # Convert HTML to markdown with table support
+        markdown = md(
+            html,
+            heading_style="ATX",  # Use # style headings
+            strip=['script', 'style', 'noscript'],
+        )
+        # Clean up excessive newlines
+        markdown = re.sub(r"\n{3,}", "\n\n", markdown)
+        return markdown.strip()
+    except Exception as e:
+        # Fallback to basic text extraction
+        frappe.log_error(f"Markdownify conversion failed: {str(e)}", "URL Fetch HTML Processing")
+        try:
+            from bs4 import BeautifulSoup  # type: ignore
+            soup = BeautifulSoup(html, "html.parser")
+            for tag in soup(["script", "style", "noscript"]):
+                tag.decompose()
+            text = soup.get_text(separator="\n")
+        except Exception:
+            text = re.sub(r"<[^>]+>", " ", html)
+        lines = [ln.strip() for ln in text.splitlines()]
+        text = "\n".join(ln for ln in lines if ln)
+        text = re.sub(r"\n{3,}", "\n\n", text)
+        return text
 
 
 def _download_with_limit(resp, max_bytes: int) -> Tuple[bytes, bool]:
@@ -211,7 +273,7 @@ def fetch_and_embed_url_content(prompt: str, doc) -> str:
                 text = content.decode(encoding, errors="replace")
             except Exception:
                 text = content.decode("utf-8", errors="replace")
-            extracted = _process_html_to_text(text)
+            extracted = _process_html_to_markdown(text)
             extracted = _truncate_text(extracted, max_html_chars)
             if extracted.strip():
                 block = f"--- Fetched URL Content: {url} ---\n{extracted}\n--- End URL Content ---"

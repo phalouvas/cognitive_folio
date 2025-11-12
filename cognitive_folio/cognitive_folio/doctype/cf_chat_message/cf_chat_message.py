@@ -158,12 +158,11 @@ class CFChatMessage(Document):
 			except Exception as e:
 				frappe.log_error(f"URL embedding failed for message {self.name}: {str(e)}", "URL Fetch Error")
 		
-		# Extract PDF text and replace file references if available
+		# Extract PDF text and tables, convert to markdown if available
 		try:
-			from PyPDF2 import PdfReader
 			self.prompt = self.extract_pdf_text()
-		except ImportError:
-			pass
+		except Exception as e:
+			frappe.log_error(f"PDF extraction failed for message {self.name}: {str(e)}", "PDF Extraction Error")
 		
 		# NEW: Perform web search if checkbox is enabled
 		if getattr(self, 'web_search', False):  # Check if web_search field exists and is True
@@ -331,12 +330,16 @@ class CFChatMessage(Document):
 		return prompt
 
 	def extract_pdf_text(self):
-		"""Extract text from specific PDF files referenced in the prompt"""
+		"""Extract text and tables from specific PDF files referenced in the prompt.
+		
+		Uses pdfplumber for better table extraction and converts tables to markdown format.
+		"""
 		try:
-			from PyPDF2 import PdfReader
+			import pdfplumber
 			import os
 			import html
 		except ImportError:
+			frappe.log_error("pdfplumber not installed", "PDF Extraction Error")
 			return self.prompt
 		
 		prompt = self.prompt
@@ -386,26 +389,21 @@ class CFChatMessage(Document):
 					file_path = frappe.get_site_path() + file_info.file_url
                     
 					if os.path.exists(file_path):
-						# Extract text from PDF
-						with open(file_path, 'rb') as pdf_file:
-							pdf_reader = PdfReader(pdf_file)
-							text_content = ""
+						# Extract text and tables from PDF using pdfplumber
+						markdown_content = self._extract_pdf_with_tables(file_path)
 							
-							for page in pdf_reader.pages:
-								text_content += page.extract_text() + "\n"
+						if markdown_content.strip():
+							# Replace the reference with the file content
+							replacement = f"--- Content of {file_info.file_name} ---\n{markdown_content.strip()}\n--- End of {file_info.file_name} ---"
 							
-							if text_content.strip():
-								# Replace the reference with the file content
-								replacement = f"--- Content of {file_info.file_name} ---\n{text_content.strip()}"
-								
-								# Replace both normal and encoded versions
-								prompt = prompt.replace(f"<<{pdf_filename}>>", replacement)
-								prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", replacement)
-							else:
-								# Replace with message indicating no text found
-								no_text_msg = f"[No readable text found in {file_info.file_name}]"
-								prompt = prompt.replace(f"<<{pdf_filename}>>", no_text_msg)
-								prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", no_text_msg)
+							# Replace both normal and encoded versions
+							prompt = prompt.replace(f"<<{pdf_filename}>>", replacement)
+							prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", replacement)
+						else:
+							# Replace with message indicating no text found
+							no_text_msg = f"[No readable text found in {file_info.file_name}]"
+							prompt = prompt.replace(f"<<{pdf_filename}>>", no_text_msg)
+							prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", no_text_msg)
 				
 				except Exception as e:
 					frappe.log_error(f"Error extracting PDF text from {file_info.file_name}: {str(e)}")
@@ -420,6 +418,94 @@ class CFChatMessage(Document):
 				prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", not_found_msg)
 		
 		return prompt
+
+	def _extract_pdf_with_tables(self, file_path: str) -> str:
+		"""Extract text and tables from PDF, converting tables to markdown.
+		
+		Args:
+			file_path: Path to the PDF file
+			
+		Returns:
+			Markdown-formatted content with tables
+		"""
+		import pdfplumber
+		
+		content_parts = []
+		
+		with pdfplumber.open(file_path) as pdf:
+			for page_num, page in enumerate(pdf.pages, start=1):
+				page_content = []
+				
+				# Extract tables from the page
+				tables = page.extract_tables()
+				
+				if tables:
+					# If page has tables, extract them as markdown
+					for table_idx, table in enumerate(tables, start=1):
+						if table and len(table) > 1:  # Ensure table has headers and data
+							markdown_table = self._table_to_markdown(table)
+							if markdown_table:
+								page_content.append(f"\n{markdown_table}\n")
+				
+				# Extract regular text (non-table content)
+				text = page.extract_text()
+				if text:
+					# Remove excessive whitespace
+					text = re.sub(r'\n{3,}', '\n\n', text)
+					page_content.append(text)
+				
+				# Combine page content
+				if page_content:
+					page_text = "\n\n".join(page_content)
+					content_parts.append(page_text)
+		
+		return "\n\n".join(content_parts)
+
+	def _table_to_markdown(self, table_data) -> str:
+		"""Convert a list of lists (table data) to markdown table format.
+		
+		Args:
+			table_data: List of lists where first row is treated as headers
+			
+		Returns:
+			Markdown formatted table string
+		"""
+		if not table_data or len(table_data) < 2:
+			return ""
+		
+		# Clean and prepare data
+		cleaned_data = []
+		for row in table_data:
+			cleaned_row = [str(cell).strip() if cell else "" for cell in row]
+			cleaned_data.append(cleaned_row)
+		
+		# Determine column widths
+		col_count = max(len(row) for row in cleaned_data)
+		
+		# Skip tables that are too narrow (likely parsing errors)
+		if col_count < 2:
+			return ""
+		
+		# Normalize all rows to have same number of columns
+		for row in cleaned_data:
+			while len(row) < col_count:
+				row.append("")
+		
+		# Build markdown table
+		lines = []
+		
+		# Header row
+		header = cleaned_data[0]
+		lines.append("| " + " | ".join(header) + " |")
+		
+		# Separator row
+		lines.append("| " + " | ".join(["---"] * col_count) + " |")
+		
+		# Data rows
+		for row in cleaned_data[1:]:
+			lines.append("| " + " | ".join(row) + " |")
+		
+		return "\n".join(lines)
 
 	def extract_search_query(self):
 		"""Use OpenAI to intelligently extract search query from prompt"""
