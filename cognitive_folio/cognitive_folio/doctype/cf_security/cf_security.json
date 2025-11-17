@@ -602,11 +602,15 @@
    "link_fieldname": "security"
   },
   {
+   "link_doctype": "CF Financial Period",
+   "link_fieldname": "security"
+  },
+  {
    "link_doctype": "CF Chat",
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-17 10:06:39.841265",
+ "modified": "2025-11-17 09:57:20.758618",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

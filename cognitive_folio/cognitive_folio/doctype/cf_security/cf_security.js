@@ -121,6 +121,51 @@ frappe.ui.form.on('CF Security', {
                     }
                 });
             }, __('Actions'));
+
+            // Add button to import financial data to structured periods
+            frm.add_custom_button(__('Import to Financial Periods'), function() {
+                frappe.confirm(
+                    __('This will import Yahoo Finance data into structured CF Financial Period records. Continue?'),
+                    function() {
+                        frappe.dom.freeze(__('Importing financial periods...'));
+                        
+                        frappe.call({
+                            method: 'cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.import_from_yahoo_finance',
+                            args: {
+                                security_name: frm.doc.name
+                            },
+                            callback: function(r) {
+                                frappe.dom.unfreeze();
+                                
+                                if (r.message && r.message.success) {
+                                    frappe.msgprint({
+                                        title: __('Import Complete'),
+                                        indicator: 'green',
+                                        message: __('Imported {0} financial periods', [r.message.imported_count])
+                                    });
+                                    
+                                    if (r.message.errors && r.message.errors.length > 0) {
+                                        frappe.msgprint({
+                                            title: __('Warnings'),
+                                            indicator: 'orange',
+                                            message: r.message.errors.join('<br>')
+                                        });
+                                    }
+                                } else {
+                                    frappe.msgprint({
+                                        title: __('Import Failed'),
+                                        indicator: 'red',
+                                        message: r.message.error || __('Unknown error occurred')
+                                    });
+                                }
+                            },
+                            error: function(r) {
+                                frappe.dom.unfreeze();
+                            }
+                        });
+                    }
+                );
+            }, __('Actions'));
             
             // Add a new button for generating AI suggestion
             frm.add_custom_button(__('Generate AI Suggestion'), function() {
