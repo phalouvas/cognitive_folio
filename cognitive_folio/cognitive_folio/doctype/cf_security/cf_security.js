@@ -141,6 +141,11 @@ frappe.ui.form.on('CF Security', {
                     }
                 });
             }, __('Actions'));
+
+            // Add button to upload and parse financial statement PDF
+            frm.add_custom_button(__('Upload Financial Statement'), function() {
+                show_pdf_upload_dialog(frm);
+            }, __('Actions'));
             
             // Add a new button for generating AI suggestion
             frm.add_custom_button(__('Generate AI Suggestion'), function() {
@@ -1233,5 +1238,90 @@ function perform_import(frm, replace_existing, respect_override) {
             frappe.dom.unfreeze();
         }
     });
+}
+
+// Show dialog for PDF upload and parsing
+function show_pdf_upload_dialog(frm) {
+    let d = new frappe.ui.Dialog({
+        title: __('Upload Financial Statement PDF'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                options: `<div style="padding: 10px; background: #f8f9fa; border-radius: 4px; margin-bottom: 15px;">
+                    <strong>Supported formats:</strong> 10-Q, 10-K, Annual Reports<br>
+                    <small style="color: #666;">The parser will extract Income Statement, Balance Sheet, and Cash Flow data.</small>
+                </div>`
+            },
+            {
+                fieldtype: 'Attach',
+                label: 'Financial Statement PDF',
+                fieldname: 'pdf_file',
+                reqd: 1
+            },
+            {
+                fieldtype: 'Select',
+                label: 'Period Type',
+                fieldname: 'period_type',
+                options: 'Annual\nQuarterly',
+                default: 'Annual',
+                reqd: 1
+            },
+            {
+                fieldtype: 'HTML',
+                fieldname: 'preview_area',
+                options: '<div id="pdf-parse-preview" style="margin-top: 15px;"></div>'
+            }
+        ],
+        primary_action_label: __('Parse and Import'),
+        primary_action(values) {
+            if (!values.pdf_file) {
+                frappe.msgprint(__('Please upload a PDF file'));
+                return;
+            }
+            
+            frappe.dom.freeze(__('Parsing PDF and creating financial periods...'));
+            
+            frappe.call({
+                method: 'cognitive_folio.utils.pdf_financial_parser.upload_and_parse_financial_pdf',
+                args: {
+                    security: frm.doc.name,
+                    file_url: values.pdf_file,
+                    period_type: values.period_type
+                },
+                callback: function(r) {
+                    frappe.dom.unfreeze();
+                    
+                    if (r.message && r.message.success) {
+                        frappe.msgprint({
+                            title: __('Import Successful'),
+                            indicator: 'green',
+                            message: `Successfully imported ${r.message.created_count} period(s) from ${r.message.extracted_periods} extracted period(s)`
+                        });
+                        
+                        d.hide();
+                        
+                        // Refresh to show the import result if stored
+                        frm.reload_doc();
+                    } else {
+                        frappe.msgprint({
+                            title: __('Parse Failed'),
+                            indicator: 'red',
+                            message: r.message.error || __('Failed to parse PDF')
+                        });
+                    }
+                },
+                error: function(r) {
+                    frappe.dom.unfreeze();
+                    frappe.msgprint({
+                        title: __('Error'),
+                        indicator: 'red',
+                        message: __('An error occurred while parsing the PDF')
+                    });
+                }
+            });
+        }
+    });
+    
+    d.show();
 }
 
