@@ -421,6 +421,127 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 		}
 
 
+	@frappe.whitelist()
+	def bulk_import_financial_periods(security_names, replace_existing=False, respect_override=True, stop_on_error=False, progress_id=None):
+		"""Bulk import financial periods for multiple securities with optional realtime progress.
+
+		Args:
+			security_names (list|str): List of CF Security names or JSON/CSV string
+			replace_existing (bool): Replace ALL existing periods regardless of quality
+			respect_override (bool): Skip periods with override_yahoo=1 when updating
+			stop_on_error (bool): Abort remaining imports after first error
+			progress_id (str): If provided, will publish realtime events on channel 'bulk_import_progress_<progress_id>'
+
+		Returns:
+			Dict summary including per-security results and aggregate counts.
+		"""
+		import json
+
+		# Normalize list input
+		if isinstance(security_names, str):
+			try:
+				parsed = frappe.parse_json(security_names)
+				if isinstance(parsed, list):
+					security_names = parsed
+				else:
+					security_names = [s.strip() for s in security_names.split(',') if s.strip()]
+			except Exception:
+				security_names = [s.strip() for s in security_names.split(',') if s.strip()]
+
+		results = []
+		total_imported = 0
+		total_updated = 0
+		total_skipped = 0
+		total_errors = 0
+		aborted = False
+
+		channel = None
+		if progress_id:
+			channel = f"bulk_import_progress_{progress_id}"
+			frappe.publish_realtime(channel, {
+				'total': len(security_names),
+				'current_index': -1,
+				'security': None,
+				'imported': 0,
+				'updated': 0,
+				'skipped': 0,
+				'errors_count': 0,
+				'finished': False
+			})
+
+		for idx, sec in enumerate(security_names):
+			if aborted:
+				break
+			try:
+				res = import_from_yahoo_finance(
+					security_name=sec,
+					replace_existing=replace_existing,
+					respect_override=respect_override
+				)
+				imported = res.get('imported_count', 0)
+				updated = res.get('updated_count', 0)
+				skipped = res.get('skipped_count', 0)
+				errors_list = res.get('errors') or []
+				results.append({
+					'security': sec,
+					'imported': imported,
+					'updated': updated,
+					'skipped': skipped,
+					'errors': errors_list
+				})
+				total_imported += imported
+				total_updated += updated
+				total_skipped += skipped
+				total_errors += len(errors_list)
+			except Exception as e:
+				frappe.log_error(f"Bulk import error for {sec}: {str(e)}", "Bulk Financial Period Import")
+				results.append({
+					'security': sec,
+					'imported': 0,
+					'updated': 0,
+					'skipped': 0,
+					'errors': [str(e)]
+				})
+				total_errors += 1
+				if stop_on_error:
+					aborted = True
+
+			if channel:
+				frappe.publish_realtime(channel, {
+					'total': len(security_names),
+					'current_index': idx,
+					'security': sec,
+					'imported': imported if 'imported' in locals() else 0,
+					'updated': updated if 'updated' in locals() else 0,
+					'skipped': skipped if 'skipped' in locals() else 0,
+					'errors_count': len(errors_list) if 'errors_list' in locals() else (1 if aborted else 0),
+					'finished': False
+				})
+
+		# Final event
+		if channel:
+			frappe.publish_realtime(channel, {
+				'total': len(security_names),
+				'current_index': len(security_names)-1 if security_names else -1,
+				'security': None,
+				'imported': total_imported,
+				'updated': total_updated,
+				'skipped': total_skipped,
+				'errors_count': total_errors,
+				'finished': True
+			})
+
+		return {
+			'success': True,
+			'total_imported': total_imported,
+			'total_updated': total_updated,
+			'total_skipped': total_skipped,
+			'total_errors': total_errors,
+			'aborted': aborted,
+			'results': results
+		}
+
+
 @frappe.whitelist()
 def format_periods_for_ai(
 	security_name, 

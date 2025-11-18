@@ -159,16 +159,18 @@ The new **CF Financial Period** DocType stores financial data in structured fiel
 +- Optional field copy allows cherry-picking data from previous period
 
 #### Task 3.4: Bulk Import Utility
-**Status:** NOT STARTED  
-**Location:** `cognitive_folio/doctype/cf_security/cf_security_list.js`  
-**Requirements:**
-- Add list view action: "Import All to Financial Periods"
-- Multi-select securities, click action to batch import
-- Show progress dialog with progress bar
-- Process securities one by one, show status for each
-- Summary report: X successful, Y failed, Z skipped
-- Option to continue on errors or stop on first error
-- Export error log if failures occur
+**Status:** COMPLETED  
+**Location:** `cognitive_folio/doctype/cf_security/cf_security_list.js` & server method in `cf_financial_period.py`  
+**Implementation Summary:**
+- Added list view action "Bulk Import Periods" for multi-selected securities.
+- Dialog options: Replace Existing Periods, Respect Override Yahoo, Stop on First Error.
+- Server method `bulk_import_financial_periods` enhanced with realtime progress events (`progress_id` channel) and stop-on-error logic.
+- Progress dialog shows per-security status (imported, updated, skipped, errors) and dynamic progress bar.
+- Final summary includes aggregate counts and abort indication if stopped early.
+- Provides JSON download of detailed results for audit/troubleshooting.
+- Respects existing conflict resolution (override_yahoo, data source priority via underlying import function).
+- Error handling: logs to Error Log, continues unless stop-on-error selected.
+**Next Enhancements (Optional):** enqueue as background job for very large batches; add filtering (sector/portfolio) mass selection.
 
 ---
 
