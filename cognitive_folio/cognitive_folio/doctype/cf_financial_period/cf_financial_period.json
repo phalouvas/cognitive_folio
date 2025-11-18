@@ -16,6 +16,9 @@
   "column_break_basic",
   "currency",
   "shares_outstanding",
+  "override_yahoo",
+  "data_quality_score",
+  "verified_by_pdf",
   "section_income_statement",
   "total_revenue",
   "cost_of_revenue",
@@ -142,6 +145,26 @@
    "fieldtype": "Float",
    "label": "Shares Outstanding",
    "precision": "0"
+  },
+  {
+   "fieldname": "override_yahoo",
+   "fieldtype": "Check",
+   "label": "Override Yahoo",
+   "default": "0",
+   "description": "Prevent Yahoo Finance from overwriting this data in future updates"
+  },
+  {
+   "fieldname": "data_quality_score",
+   "fieldtype": "Int",
+   "label": "Data Quality Score",
+   "read_only": 1,
+   "description": "Auto-calculated: Manual=100, PDF=95, SEC=90, Yahoo=85"
+  },
+  {
+   "fieldname": "verified_by_pdf",
+   "fieldtype": "Attach",
+   "label": "Verified by PDF",
+   "description": "Link to original filing document (10-Q, 10-K, etc.)"
   },
   {
    "fieldname": "section_income_statement",

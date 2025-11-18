@@ -124,47 +124,22 @@ frappe.ui.form.on('CF Security', {
 
             // Add button to import financial data to structured periods
             frm.add_custom_button(__('Import to Financial Periods'), function() {
-                frappe.confirm(
-                    __('This will import Yahoo Finance data into structured CF Financial Period records. Continue?'),
-                    function() {
-                        frappe.dom.freeze(__('Importing financial periods...'));
-                        
-                        frappe.call({
-                            method: 'cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.import_from_yahoo_finance',
-                            args: {
-                                security_name: frm.doc.name
-                            },
-                            callback: function(r) {
-                                frappe.dom.unfreeze();
-                                
-                                if (r.message && r.message.success) {
-                                    frappe.msgprint({
-                                        title: __('Import Complete'),
-                                        indicator: 'green',
-                                        message: __('Imported {0} financial periods', [r.message.imported_count])
-                                    });
-                                    
-                                    if (r.message.errors && r.message.errors.length > 0) {
-                                        frappe.msgprint({
-                                            title: __('Warnings'),
-                                            indicator: 'orange',
-                                            message: r.message.errors.join('<br>')
-                                        });
-                                    }
-                                } else {
-                                    frappe.msgprint({
-                                        title: __('Import Failed'),
-                                        indicator: 'red',
-                                        message: r.message.error || __('Unknown error occurred')
-                                    });
-                                }
-                            },
-                            error: function(r) {
-                                frappe.dom.unfreeze();
-                            }
-                        });
+                // First check for conflicts
+                frappe.call({
+                    method: 'cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.check_import_conflicts',
+                    args: {
+                        security_name: frm.doc.name
+                    },
+                    callback: function(r) {
+                        if (r.message && r.message.length > 0) {
+                            // Show conflict dialog
+                            show_import_conflict_dialog(frm, r.message);
+                        } else {
+                            // No conflicts, proceed with import
+                            perform_import(frm, false, true);
+                        }
                     }
-                );
+                });
             }, __('Actions'));
             
             // Add a new button for generating AI suggestion
@@ -1140,5 +1115,123 @@ function getCurrencySymbol(currency) {
     };
     
     return currencySymbols[currency] || currency + ' ';
+}
+
+// Helper function to show conflict dialog
+function show_import_conflict_dialog(frm, conflicts) {
+    let conflict_html = `
+        <div style="margin-bottom: 15px;">
+            <strong>⚠️ ${conflicts.length} period(s) already exist from higher-priority sources:</strong>
+        </div>
+        <table class="table table-bordered" style="margin-bottom: 15px;">
+            <thead>
+                <tr>
+                    <th>Period</th>
+                    <th>Source</th>
+                    <th>Quality</th>
+                    <th>Override Set</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+    
+    conflicts.forEach(c => {
+        conflict_html += `
+            <tr>
+                <td>${c.fiscal_year}${c.fiscal_quarter ? ' ' + c.fiscal_quarter : ''}</td>
+                <td>${c.source}</td>
+                <td>${c.quality_score}</td>
+                <td>${c.override_set ? '✓' : ''}</td>
+            </tr>
+        `;
+    });
+    
+    conflict_html += `
+            </tbody>
+        </table>
+        <div style="color: #666; font-size: 12px;">
+            Yahoo Finance (quality: 85) will not overwrite these higher-quality periods.
+        </div>
+    `;
+    
+    let d = new frappe.ui.Dialog({
+        title: __('Import Conflicts Detected'),
+        fields: [
+            {
+                fieldtype: 'HTML',
+                options: conflict_html
+            },
+            {
+                fieldtype: 'Select',
+                label: 'Action',
+                fieldname: 'action',
+                options: [
+                    {label: 'Skip existing periods (recommended)', value: 'skip'},
+                    {label: 'Replace ALL periods with Yahoo data', value: 'replace'}
+                ],
+                default: 'skip'
+            }
+        ],
+        primary_action_label: __('Proceed with Import'),
+        primary_action(values) {
+            let replace_existing = values.action === 'replace';
+            perform_import(frm, replace_existing, true);
+            d.hide();
+        }
+    });
+    d.show();
+}
+
+// Helper function to perform the import
+function perform_import(frm, replace_existing, respect_override) {
+    frappe.dom.freeze(__('Importing financial periods...'));
+    
+    frappe.call({
+        method: 'cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.import_from_yahoo_finance',
+        args: {
+            security_name: frm.doc.name,
+            replace_existing: replace_existing,
+            respect_override: respect_override
+        },
+        callback: function(r) {
+            frappe.dom.unfreeze();
+            
+            if (r.message && r.message.success) {
+                let message = '';
+                if (r.message.imported_count > 0) {
+                    message += `✓ Imported ${r.message.imported_count} new period(s)<br>`;
+                }
+                if (r.message.updated_count > 0) {
+                    message += `✓ Updated ${r.message.updated_count} existing period(s)<br>`;
+                }
+                if (r.message.skipped_count > 0) {
+                    message += `⊘ Skipped ${r.message.skipped_count} period(s) (higher priority source)<br>`;
+                }
+                
+                frappe.msgprint({
+                    title: __('Import Complete'),
+                    indicator: 'green',
+                    message: message
+                });
+                
+                if (r.message.errors && r.message.errors.length > 0) {
+                    frappe.msgprint({
+                        title: __('Warnings'),
+                        indicator: 'orange',
+                        message: r.message.errors.join('<br>')
+                    });
+                }
+            } else {
+                frappe.msgprint({
+                    title: __('Import Failed'),
+                    indicator: 'red',
+                    message: r.message.error || __('Unknown error occurred')
+                });
+            }
+        },
+        error: function(r) {
+            frappe.dom.unfreeze();
+        }
+    });
 }
 
