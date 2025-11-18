@@ -718,6 +718,60 @@ def _format_number(value, currency, short=False):
 
 
 @frappe.whitelist()
+def get_previous_period(security, period_type, fiscal_year, fiscal_quarter=None):
+	"""Get the previous period for comparison or copying
+	
+	Args:
+		security: Security name
+		period_type: "Annual" or "Quarterly"
+		fiscal_year: Current fiscal year
+		fiscal_quarter: Current fiscal quarter (if Quarterly)
+	
+	Returns:
+		Dict with previous period data or None
+	"""
+	fiscal_year = int(fiscal_year)
+	
+	if period_type == "Quarterly" and fiscal_quarter:
+		# For quarterly, get previous quarter
+		quarter_map = {"Q1": None, "Q2": "Q1", "Q3": "Q2", "Q4": "Q3"}
+		prev_quarter = quarter_map.get(fiscal_quarter)
+		
+		if prev_quarter:
+			# Same year, previous quarter
+			filters = {
+				"security": security,
+				"period_type": period_type,
+				"fiscal_year": fiscal_year,
+				"fiscal_quarter": prev_quarter
+			}
+		else:
+			# Q1, so get Q4 of previous year
+			filters = {
+				"security": security,
+				"period_type": period_type,
+				"fiscal_year": fiscal_year - 1,
+				"fiscal_quarter": "Q4"
+			}
+	else:
+		# For annual, get previous year
+		filters = {
+			"security": security,
+			"period_type": period_type,
+			"fiscal_year": fiscal_year - 1
+		}
+	
+	prev_period = frappe.db.get_value(
+		"CF Financial Period",
+		filters,
+		["*"],
+		as_dict=True
+	)
+	
+	return prev_period
+
+
+@frappe.whitelist()
 def test_function(security_name):
 	"""Test function to return sample AI prompt"""
 	
