@@ -85,35 +85,36 @@ The new **CF Financial Period** DocType stores financial data in structured fiel
 - Added test helper `test_portfolio_prompt_expansion()` for deterministic verification without invoking external AI.
 **Follow-Ups (Deferred):** snapshot caching on portfolio doc, batch query optimization, extended ranking (margin expansion, ROE ordering). These can be scheduled as minor enhancements without blocking Task 2.4.
 
-#### Task 2.4: Update CF Chat Message Context
-**Status:** NOT STARTED  
+#### Task 2.4: Update CF Chat Message Context ✓
+**Status:** COMPLETED  
 **Priority:** MEDIUM  
 **Location:** `cognitive_folio/doctype/cf_chat_message/cf_chat_message.py`  
 **Function:** `prepare_prompt(portfolio, security)`  
-**Current:** Only basic field substitution via `((field))`; periods syntax not yet supported in chat prompts.  
-**Changes Needed:**
-- Support existing security periods syntax `{{periods:type:count[:format]}}` when a security is linked
-- After Task 2.3, enable portfolio aggregate periods via `((periods:annual:3))`
-- Shorthand `((periods:latest))` → latest annual + last 4 quarterly summary
-- Fallback message if no periods found instead of empty block
-- Future comparison syntax placeholder: `((periods:compare:2024Q3:2024Q2))`
-- Centralize variable replacement to shared utility (avoid duplicated regex logic)
-- Basic token budgeting (warn if estimated > 1000 tokens before send)
+**Details:** Implemented periods syntax for security (`{{periods:annual:3}}`, quarterly, ttm) and portfolio (`((periods:annual:3))`, `((periods:latest))`). Latest shorthand produces portfolio summary plus latest annual + last 4 quarterly per holding. Fallback messages for missing contexts. Regex replacements centralized with error logging.
+
+#### Task 2.5: Chat Period Comparisons ✓
+**Status:** COMPLETED  
+**Priority:** MEDIUM  
+**Location:** `cognitive_folio/doctype/cf_chat_message/cf_chat_message.py`  
+**Function:** `prepare_prompt(portfolio, security)`  
+**Details:** Added comparison syntax for security `{{periods:compare:2025:2024}}` and portfolio `((periods:compare:2025:2024))` including revenue & net income change %, margin point deltas, and aggregate weighted gross margin Δ for portfolio. Quarterly variants supported (e.g. `((periods:compare:2024Q3:2024Q2))`). Natural language parsing of “compare Q3 vs Q2” remains future (see Phase 5.3).
 
 ---
 
 ### 🔧 Phase 3: Automation & Data Entry (MEDIUM PRIORITY)
 
-#### Task 3.1: Auto-Import on Fetch Data
-**Status:** NOT STARTED  
+#### Task 3.1: Auto-Import on Fetch Data ✓
+**Status:** COMPLETED  
 **Location:** `cognitive_folio/doctype/cf_security/cf_security.py`  
 **Function:** `fetch_data(with_fundamentals=False)`  
-**Changes Needed:**
-- After successful Yahoo Finance fetch with fundamentals=True, automatically call `import_from_yahoo_finance(self.name)`
-- Add setting in CF Settings: "Auto Import Financial Periods" (default: True)
-- Show notification: "Financial data fetched and imported to X periods"
-- Handle errors gracefully, don't fail main fetch if import has issues
-- Log any import warnings/errors for user review
+**Details:**
+- Added `auto_import_financial_periods` checkbox field to CF Settings (default: 1/True)
+- Auto-import triggers AFTER saving fundamentals to ensure JSON blobs exist
+- Result stored in `last_period_import_result` field (Long Text) for audit trail
+- User notification shows: "X new, Y updated, Z skipped" via msgprint with green indicator
+- Errors logged to Error Log and shown as orange warning notification without failing main fetch
+- Uses `db_set()` to persist result without triggering full save cycle
+- Respects conflict resolution (skips higher-quality existing periods)
 
 #### Task 3.2: PDF Financial Statement Parser
 **Status:** NOT STARTED  
@@ -306,4 +307,4 @@ Before marking implementation complete, verify:
 
 **Last Updated:** 2025-11-18  
 **Current Phase:** Phase 2 - AI Integration  
-**Next Task:** Task 2.4 - Update CF Chat Message Context (enable periods syntax)
+**Next Task:** Task 3.2 - PDF Financial Statement Parser

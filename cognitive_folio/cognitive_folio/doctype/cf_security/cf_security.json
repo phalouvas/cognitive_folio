@@ -91,7 +91,8 @@
   "quarterly_cash_flow",
   "cash_flow",
   "dividends_section",
-  "dividends"
+  "dividends",
+  "last_period_import_result"
  ],
  "fields": [
   {
@@ -374,6 +375,13 @@
    "fieldtype": "JSON",
    "label": "Dividends",
    "read_only": 1
+  },
+  {
+   "fieldname": "last_period_import_result",
+   "fieldtype": "Long Text",
+   "label": "Last Period Import Result",
+   "read_only": 1,
+   "description": "JSON summary of the last auto-import of CF Financial Periods"
   },
   {
    "collapsible": 1,

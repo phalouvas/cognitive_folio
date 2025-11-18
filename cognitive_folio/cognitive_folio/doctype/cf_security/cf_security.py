@@ -128,6 +128,27 @@ class CFSecurity(Document):
 			if not self.region:
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
+			
+			# Auto-import structured periods AFTER saving fundamentals
+			if with_fundamentals:
+				settings = frappe.get_single("CF Settings")
+				auto_import_enabled = getattr(settings, 'auto_import_financial_periods', 1)
+				if auto_import_enabled:
+					try:
+						from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import import_from_yahoo_finance
+						result = import_from_yahoo_finance(self.name, replace_existing=False, respect_override=True)
+						# Store summary - use db_set to update without triggering full save cycle
+						self.db_set('last_period_import_result', frappe.as_json(result), update_modified=False)
+						frappe.msgprint(
+							f"Financial periods imported: {result.get('imported_count', 0)} new, "
+							f"{result.get('updated_count', 0)} updated, {result.get('skipped_count', 0)} skipped",
+							alert=True, indicator='green'
+						)
+					except Exception as ie:
+						error_msg = f"Auto import financial periods failed for {self.name}: {str(ie)}"
+						frappe.log_error(error_msg, "Auto Import Periods Error")
+						# Still show error to user
+						frappe.msgprint(f"Warning: Period auto-import failed - {str(ie)[:100]}", alert=True, indicator='orange')
 	
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
