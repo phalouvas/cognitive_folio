@@ -170,6 +170,9 @@ The new **CF Financial Period** DocType stores financial data in structured fiel
 - Provides JSON download of detailed results for audit/troubleshooting.
 - Respects existing conflict resolution (override_yahoo, data source priority via underlying import function).
 - Error handling: logs to Error Log, continues unless stop-on-error selected.
+ - Added background enqueue support (`enqueue_bulk_import_financial_periods`) with polling retrieval (`get_bulk_import_job_result`).
+ - Implemented daily scheduled task `daily_bulk_import_all_securities` registered in `hooks.py` (non-destructive: replace_existing=False, respect_override=True).
+ - Added second list action "Enqueue Bulk Import (Background)" allowing import of all securities or selection without blocking UI.
 **Next Enhancements (Optional):** enqueue as background job for very large batches; add filtering (sector/portfolio) mass selection.
 
 ---

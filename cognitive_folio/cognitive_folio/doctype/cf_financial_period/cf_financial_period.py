@@ -542,6 +542,104 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 		}
 
 
+	def daily_bulk_import_all_securities():
+		"""Scheduled task: import periods for all securities (non-destructive).
+
+		Runs with conservative defaults: replace_existing=False, respect_override=True.
+		Skips entirely if any exception arises early or if optional settings flag disables it.
+		"""
+		try:
+			# Optional settings toggle (field may not exist yet)
+			try:
+				settings = frappe.get_single('CF Settings')
+				flag = getattr(settings, 'enable_daily_bulk_import_periods', 1)
+				if not flag:
+					return
+			except Exception:
+				# If settings doc or field missing, proceed by default
+				pass
+
+			security_names = [d.name for d in frappe.get_all('CF Security', fields=['name'])]
+			if not security_names:
+				return
+			result = bulk_import_financial_periods(
+				security_names=security_names,
+				replace_existing=False,
+				respect_override=True,
+				stop_on_error=False,
+				progress_id=None
+			)
+			# Log summary (avoid large payload in log)
+			frappe.log_error(
+				f"Daily bulk import completed: Imported {result['total_imported']} Updated {result['total_updated']} Skipped {result['total_skipped']} Errors {result['total_errors']}",
+				"Daily Financial Period Bulk Import"
+			)
+		except Exception as e:
+			frappe.log_error(f"Daily bulk import failed: {str(e)}", "Daily Financial Period Bulk Import Error")
+
+
+	@frappe.whitelist()
+	def enqueue_bulk_import_financial_periods(security_names=None, replace_existing=False, respect_override=True, stop_on_error=False):
+		"""Enqueue background job for bulk import.
+
+		If security_names is None, import all securities.
+		Returns: job name and cache key for polling results.
+		"""
+		import json, uuid
+		if security_names is None:
+			security_names = [d.name for d in frappe.get_all('CF Security', fields=['name'])]
+		elif isinstance(security_names, str):
+			try:
+				parsed = frappe.parse_json(security_names)
+				if isinstance(parsed, list):
+					security_names = parsed
+				else:
+					security_names = [s.strip() for s in security_names.split(',') if s.strip()]
+			except Exception:
+				security_names = [s.strip() for s in security_names.split(',') if s.strip()]
+
+		job_id = uuid.uuid4().hex[:12]
+		cache_key = f"bulk_import_job_result_{job_id}"
+
+		frappe.enqueue(
+			"cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.run_bulk_import_job",
+			queue='long',
+			job_name=f"bulk_import_{job_id}",
+			security_names=security_names,
+			replace_existing=replace_existing,
+			respect_override=respect_override,
+			stop_on_error=stop_on_error,
+			cache_key=cache_key
+		)
+		return {"job_id": job_id, "cache_key": cache_key}
+
+
+	def run_bulk_import_job(security_names, replace_existing=False, respect_override=True, stop_on_error=False, cache_key=None):
+		"""Background job runner writes result to cache for later retrieval."""
+		result = bulk_import_financial_periods(
+			security_names=security_names,
+			replace_existing=replace_existing,
+			respect_override=respect_override,
+			stop_on_error=stop_on_error,
+			progress_id=None
+		)
+		if cache_key:
+			frappe.cache().set_value(cache_key, frappe.as_json(result))
+		return result
+
+
+	@frappe.whitelist()
+	def get_bulk_import_job_result(cache_key):
+		"""Retrieve cached bulk import result if available."""
+		data = frappe.cache().get_value(cache_key)
+		if not data:
+			return {"ready": False}
+		try:
+			return {"ready": True, "result": frappe.parse_json(data)}
+		except Exception:
+			return {"ready": False, "error": "Malformed cache data"}
+
+
 @frappe.whitelist()
 def format_periods_for_ai(
 	security_name, 
