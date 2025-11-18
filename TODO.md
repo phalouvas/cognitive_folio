@@ -72,31 +72,33 @@ The new **CF Financial Period** DocType stores financial data in structured fiel
 - Legacy JSON field variables still supported for backward compatibility
 - Tested with multiple securities and prompt templates for accuracy
 
-#### Task 2.3: Update CF Portfolio AI Analysis
-**Status:** NOT STARTED  
+#### Task 2.3: Update CF Portfolio AI Analysis ✓
+**Status:** COMPLETED  
 **Priority:** HIGH  
 **Location:** `cognitive_folio/doctype/cf_portfolio/cf_portfolio.py`  
-**Functions:** `process_portfolio_ai_analysis()`, `process_evaluate_holdings_news()`  
-**Current:** Aggregates data from holdings using JSON parsing  
-**Changes Needed:**
-- Query CF Financial Period for all holdings in portfolio
-- Aggregate metrics: total revenue, weighted average margins, portfolio-level ratios
-- Format summary for AI: portfolio composition, sector allocation, financial health metrics
-- Add comparison: best/worst performers by revenue growth, margin trends, etc.
-- Use `format_periods_for_ai()` for individual holdings when needed
+**Functions:** `process_portfolio_ai_analysis()`, `build_portfolio_financial_summary()`, `test_portfolio_prompt_expansion()`  
+**Details:**
+- Implemented `build_portfolio_financial_summary()` generating: total revenue, weighted gross/operating/net margins (properly scaled from stored decimals), total operating & free cash flow, average ROE, average debt/equity, revenue growth ranking (top & lowest), sector allocation block.
+- Injects summary block ahead of holdings in both analysis flow and test helper; confirmed presence of lines (Weighted Gross Margin, Growth Ranking, Sector Allocation) via console test.
+- Fixed field usage (`total_revenue` instead of non-existent `revenue`); corrected worst_growth logic; applied percentage scaling (*100) for margins and ROE to match period display formatting.
+- Holding-level periods expansion uses existing `format_periods_for_ai()` ensuring consistent formatting across security and portfolio contexts.
+- Added test helper `test_portfolio_prompt_expansion()` for deterministic verification without invoking external AI.
+**Follow-Ups (Deferred):** snapshot caching on portfolio doc, batch query optimization, extended ranking (margin expansion, ROE ordering). These can be scheduled as minor enhancements without blocking Task 2.4.
 
 #### Task 2.4: Update CF Chat Message Context
 **Status:** NOT STARTED  
 **Priority:** MEDIUM  
 **Location:** `cognitive_folio/doctype/cf_chat_message/cf_chat_message.py`  
 **Function:** `prepare_prompt(portfolio, security)`  
-**Current:** Uses regex `\(\((\w+)\)\)` to replace variables from document fields  
+**Current:** Only basic field substitution via `((field))`; periods syntax not yet supported in chat prompts.  
 **Changes Needed:**
-- Add special handling for financial period variables: `((periods:last_4_quarters))`, `((periods:annual:5))`, `((periods:latest))`
-- When security context exists, automatically include latest financial period summary
-- When portfolio context exists, include portfolio-level aggregated metrics
-- Add period comparison syntax: `((periods:compare:2024Q3:2024Q2))`
-- Update helper.py `replace_variables()` to recognize period syntax
+- Support existing security periods syntax `{{periods:type:count[:format]}}` when a security is linked
+- After Task 2.3, enable portfolio aggregate periods via `((periods:annual:3))`
+- Shorthand `((periods:latest))` → latest annual + last 4 quarterly summary
+- Fallback message if no periods found instead of empty block
+- Future comparison syntax placeholder: `((periods:compare:2024Q3:2024Q2))`
+- Centralize variable replacement to shared utility (avoid duplicated regex logic)
+- Basic token budgeting (warn if estimated > 1000 tokens before send)
 
 ---
 
@@ -292,13 +294,16 @@ Before marking implementation complete, verify:
 
 ### Modified Files:
 - `cognitive_folio/doctype/cf_security/cf_security.js` - Added import button and conflict dialog
-- (To be modified in Phase 2+): cf_security.py, cf_portfolio.py, cf_chat_message.py
+- `cognitive_folio/doctype/cf_security/cf_security.py` - Implemented periods variable expansion for AI prompts
+- `cognitive_folio/doctype/cf_portfolio/cf_portfolio.py` - Added holding-level periods injection (aggregate pending)
+- (Pending) `cognitive_folio/doctype/cf_chat_message/cf_chat_message.py` - To add periods support & comparisons
 
 ### Utility Files:
 - (To be created): `cognitive_folio/utils/pdf_financial_parser.py`
+- `cognitive_folio/www/variable_reference.md` - Public variable reference page (wrapped in `{% raw %}` to prevent Jinja parsing)
 
 ---
 
-**Last Updated:** 2024-11-17  
+**Last Updated:** 2025-11-18  
 **Current Phase:** Phase 2 - AI Integration  
-**Next Task:** Task 2.1 - Create Helper Function for AI Queries
+**Next Task:** Task 2.4 - Update CF Chat Message Context (enable periods syntax)
