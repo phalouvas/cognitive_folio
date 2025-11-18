@@ -92,5 +92,26 @@ frappe.listview_settings['CF Security'] = {
 				}
 			});
 		}
+	},
+
+	get_indicator(doc) {
+		if (doc.needs_update) {
+			return [__("Needs Update"), "red", "needs_update,=,1"];
+		}
+		if (doc.days_since_last_period <= 30) {
+			return [__("Fresh"), "green", "days_since_last_period,<=,30"];
+		} else if (doc.days_since_last_period <= 90) {
+			return [__("Stale"), "orange", "days_since_last_period,>,30|days_since_last_period,<=,90"];
+		} else {
+			return [__("Very Stale"), "red", "days_since_last_period,>,90"];
+		}
+	},
+
+	add_filter: function(listview) {
+		listview.page.add_menu_item(__("Needs Financial Update"), function() {
+			listview.filter_area.add([
+				["CF Security", "needs_update", "=", 1]
+			]);
+		});
 	}
 };

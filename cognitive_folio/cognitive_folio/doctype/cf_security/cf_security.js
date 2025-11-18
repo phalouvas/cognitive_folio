@@ -203,6 +203,15 @@ frappe.ui.form.on('CF Security', {
         }
     },
 
+    onload: function(frm) {
+        // Show warning banner if financial data is stale
+        if (frm.doc.needs_update && frm.doc.days_since_last_period) {
+            const days = frm.doc.days_since_last_period;
+            const message = __(`⚠️ Financial data is ${days} days old. Consider updating to ensure accurate analysis.`);
+            frm.dashboard.add_indicator(message, 'orange');
+        }
+    },
+
     // Add an event handler for security_name field
     security_name: function(frm) {
         // Only search if security_name has at least 3 characters

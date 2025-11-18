@@ -33,6 +33,56 @@ class CFSecurity(Document):
 			self.calculate_fair_value()
 			self.set_alert()
 
+	def on_update(self):
+		"""Update data freshness indicators"""
+		self.update_data_freshness()
+
+	def update_data_freshness(self):
+		"""Calculate and set data freshness fields"""
+		from datetime import datetime, date
+		
+		# Get the latest financial period date
+		latest_period = frappe.get_all(
+			"CF Financial Period",
+			filters={"security": self.name},
+			fields=["period_end_date"],
+			order_by="period_end_date DESC",
+			limit=1
+		)
+		
+		if latest_period:
+			latest_date = latest_period[0].period_end_date
+			self.last_financial_period_date = latest_date
+			
+			# Calculate days since last period
+			today = date.today()
+			if isinstance(latest_date, str):
+				latest_date = datetime.strptime(latest_date, '%Y-%m-%d').date()
+			
+			days_since = (today - latest_date).days
+			self.days_since_last_period = days_since
+			
+			# Determine if needs update
+			# For quarterly data: >90 days, for annual: >365 days
+			# Check if we have quarterly data
+			has_quarterly = frappe.get_all(
+				"CF Financial Period",
+				filters={"security": self.name, "period_type": "Quarterly"},
+				limit=1
+			)
+			
+			if has_quarterly:
+				# Quarterly updates expected
+				self.needs_update = days_since > 90
+			else:
+				# Annual updates expected
+				self.needs_update = days_since > 365
+		else:
+			# No periods found
+			self.last_financial_period_date = None
+			self.days_since_last_period = None
+			self.needs_update = True
+
 	def on_change(self):
 		"""Save all holdings"""
 		holdings = frappe.get_all(

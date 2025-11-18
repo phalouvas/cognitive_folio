@@ -1,0 +1,41 @@
+{
+	"name": "Financial Metrics Dashboard",
+	"doctype": "Dashboard",
+	"is_standard": "Yes",
+	"module": "Cognitive Folio",
+	"dashboard_name": "Financial Metrics Dashboard",
+	"charts": [
+		{
+			"chart_name": "Revenue Trend",
+			"label": "Revenue Trend"
+		},
+		{
+			"chart_name": "Margin Trends",
+			"label": "Margin Trends"
+		},
+		{
+			"chart_name": "Cash Flow Trend",
+			"label": "Cash Flow Trend"
+		},
+		{
+			"chart_name": "Quarterly Comparison",
+			"label": "Quarterly Comparison"
+		},
+		{
+			"chart_name": "YoY Growth Rates",
+			"label": "YoY Growth Rates"
+		},
+		{
+			"chart_name": "Financial Ratios",
+			"label": "Financial Ratios"
+		}
+	],
+	"roles": [
+		{
+			"role": "System Manager"
+		},
+		{
+			"role": "User"
+		}
+	]
+}

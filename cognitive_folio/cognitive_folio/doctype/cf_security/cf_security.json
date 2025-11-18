@@ -92,7 +92,11 @@
   "cash_flow",
   "dividends_section",
   "dividends",
-  "last_period_import_result"
+  "last_period_import_result",
+  "data_freshness_section",
+  "last_financial_period_date",
+  "days_since_last_period",
+  "needs_update"
  ],
  "fields": [
   {
@@ -382,6 +386,35 @@
    "label": "Last Period Import Result",
    "read_only": 1,
    "description": "JSON summary of the last auto-import of CF Financial Periods"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "data_freshness_section",
+   "fieldtype": "Section Break",
+   "label": "Data Freshness"
+  },
+  {
+   "fieldname": "last_financial_period_date",
+   "fieldtype": "Date",
+   "label": "Last Financial Period Date",
+   "read_only": 1,
+   "description": "Date of the most recent CF Financial Period"
+  },
+  {
+   "fieldname": "days_since_last_period",
+   "fieldtype": "Int",
+   "label": "Days Since Last Period",
+   "read_only": 1,
+   "description": "Days since the last financial period was added/updated"
+  },
+  {
+   "default": "0",
+   "fieldname": "needs_update",
+   "fieldtype": "Check",
+   "in_filter": 1,
+   "label": "Needs Update",
+   "read_only": 1,
+   "description": "True if financial data is stale (>90 days for quarterly, >365 for annual)"
   },
   {
    "collapsible": 1,
