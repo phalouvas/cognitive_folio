@@ -1587,8 +1587,25 @@ def process_security_ai_suggestion(security_name, user):
 
 			prompt = security.ai_prompt or ""
 
-			# Update regex to handle more complex paths including array indices
-			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
+			# Enhanced variable replacement: support {{periods:annual:5}}, {{periods:quarterly:4}}, etc.
+			def ai_variable_replacer(match):
+				var = match.group(1)
+				if var.startswith("periods:"):
+					# Parse: periods:period_type:num_periods[:format]
+					parts = var.split(":")
+					period_type = parts[1].capitalize() if len(parts) > 1 else "Annual"
+					num_periods = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 4
+					fmt = parts[3] if len(parts) > 3 else "markdown"
+					try:
+						from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+						return format_periods_for_ai(security_name, period_type=period_type, num_periods=num_periods, format=fmt)
+					except Exception as e:
+						return f"[Error: {e}]"
+				else:
+					# Fallback to legacy variable replacement
+					return replace_variables(match, security)
+
+			prompt = re.sub(r'\{\{([\w\.:]+)\}\}', ai_variable_replacer, prompt)
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},

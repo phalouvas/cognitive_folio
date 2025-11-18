@@ -419,3 +419,341 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 			"success": False,
 			"error": str(e)
 		}
+
+
+@frappe.whitelist()
+def format_periods_for_ai(
+	security_name, 
+	period_type="Annual", 
+	num_periods=5, 
+	include_growth=True,
+	format="markdown",
+	fields=None
+):
+	"""
+	Format financial period data for AI consumption
+	
+	Args:
+		security_name: Name of the CF Security
+		period_type: "Annual", "Quarterly", or "TTM" (default: "Annual")
+		num_periods: Number of periods to retrieve (default: 5)
+		include_growth: Include YoY growth metrics (default: True)
+		format: Output format - "markdown", "text", "json", or "table" (default: "markdown")
+		fields: List of specific field names to include (default: None = all key fields)
+	
+	Returns:
+		Formatted string ready for AI prompt injection
+	
+	Example:
+		format_periods_for_ai("MSFT", period_type="Annual", num_periods=5, format="markdown")
+	"""
+	
+	# Get the security details
+	security = frappe.get_doc("CF Security", security_name)
+	currency = security.currency or "USD"
+	
+	# Build filter
+	filters = {
+		"security": security_name,
+		"period_type": period_type
+	}
+	
+	# Define default fields if none specified
+	if fields is None:
+		fields = [
+			"name", "fiscal_year", "fiscal_quarter", "period_end_date",
+			"total_revenue", "cost_of_revenue", "gross_profit", 
+			"operating_expenses", "operating_income", "net_income",
+			"diluted_eps", "basic_eps",
+			"total_assets", "current_assets", "cash_and_equivalents",
+			"total_liabilities", "current_liabilities", "total_debt",
+			"shareholders_equity",
+			"operating_cash_flow", "free_cash_flow", "capital_expenditures",
+			"gross_margin", "operating_margin", "net_margin",
+			"roe", "roa", "current_ratio", "debt_to_equity",
+			"revenue_growth_yoy", "net_income_growth_yoy", "eps_growth_yoy"
+		]
+	
+	# Query periods
+	periods = frappe.get_all(
+		"CF Financial Period",
+		filters=filters,
+		fields=fields,
+		order_by="fiscal_year DESC, fiscal_quarter DESC",
+		limit=num_periods
+	)
+	
+	if not periods:
+		return f"No {period_type} financial periods found for {security_name}."
+	
+	# Format based on requested format
+	if format == "json":
+		import json
+		return json.dumps(periods, indent=2, default=str)
+	
+	elif format == "text":
+		return _format_as_text(periods, security_name, period_type, currency, include_growth)
+	
+	elif format == "table":
+		return _format_as_table(periods, security_name, period_type, currency, include_growth)
+	
+	else:  # markdown (default)
+		return _format_as_markdown(periods, security_name, period_type, currency, include_growth)
+
+
+def _format_as_markdown(periods, security_name, period_type, currency, include_growth):
+	"""Format periods as markdown"""
+	output = [f"## Financial Data for {security_name} ({period_type})\n"]
+	output.append(f"*All monetary values in {currency}*\n")
+	
+	for period in periods:
+		# Period header
+		period_label = f"{period.fiscal_year}"
+		if period.fiscal_quarter:
+			period_label += f" {period.fiscal_quarter}"
+		output.append(f"### {period_label}\n")
+		
+		# Income Statement
+		output.append("**Income Statement:**")
+		if period.total_revenue:
+			output.append(f"- Revenue: {_format_number(period.total_revenue, currency)}")
+		if period.gross_profit:
+			output.append(f"- Gross Profit: {_format_number(period.gross_profit, currency)}")
+		if period.operating_income:
+			output.append(f"- Operating Income: {_format_number(period.operating_income, currency)}")
+		if period.net_income:
+			output.append(f"- Net Income: {_format_number(period.net_income, currency)}")
+		if period.diluted_eps:
+			output.append(f"- EPS (Diluted): {currency} {period.diluted_eps:.2f}")
+		
+		# Margins
+		if period.gross_margin or period.operating_margin or period.net_margin:
+			output.append("\n**Profitability Margins:**")
+			if period.gross_margin:
+				output.append(f"- Gross Margin: {period.gross_margin*100:.2f}%")
+			if period.operating_margin:
+				output.append(f"- Operating Margin: {period.operating_margin*100:.2f}%")
+			if period.net_margin:
+				output.append(f"- Net Margin: {period.net_margin*100:.2f}%")
+		
+		# Balance Sheet
+		if period.total_assets or period.shareholders_equity:
+			output.append("\n**Balance Sheet:**")
+			if period.total_assets:
+				output.append(f"- Total Assets: {_format_number(period.total_assets, currency)}")
+			if period.current_assets:
+				output.append(f"- Current Assets: {_format_number(period.current_assets, currency)}")
+			if period.cash_and_equivalents:
+				output.append(f"- Cash: {_format_number(period.cash_and_equivalents, currency)}")
+			if period.total_liabilities:
+				output.append(f"- Total Liabilities: {_format_number(period.total_liabilities, currency)}")
+			if period.total_debt:
+				output.append(f"- Total Debt: {_format_number(period.total_debt, currency)}")
+			if period.shareholders_equity:
+				output.append(f"- Shareholders' Equity: {_format_number(period.shareholders_equity, currency)}")
+		
+		# Cash Flow
+		if period.operating_cash_flow or period.free_cash_flow:
+			output.append("\n**Cash Flow:**")
+			if period.operating_cash_flow:
+				output.append(f"- Operating Cash Flow: {_format_number(period.operating_cash_flow, currency)}")
+			if period.free_cash_flow:
+				output.append(f"- Free Cash Flow: {_format_number(period.free_cash_flow, currency)}")
+			if period.capital_expenditures:
+				output.append(f"- CapEx: {_format_number(period.capital_expenditures, currency)}")
+		
+		# Financial Ratios
+		if period.roe or period.roa or period.current_ratio:
+			output.append("\n**Key Ratios:**")
+			if period.roe:
+				output.append(f"- Return on Equity (ROE): {period.roe*100:.2f}%")
+			if period.roa:
+				output.append(f"- Return on Assets (ROA): {period.roa*100:.2f}%")
+			if period.current_ratio:
+				output.append(f"- Current Ratio: {period.current_ratio:.2f}")
+			if period.debt_to_equity:
+				output.append(f"- Debt-to-Equity: {period.debt_to_equity:.2f}")
+		
+		# YoY Growth
+		if include_growth and (period.revenue_growth_yoy or period.net_income_growth_yoy):
+			output.append("\n**Year-over-Year Growth:**")
+			if period.revenue_growth_yoy:
+				growth_sign = "+" if period.revenue_growth_yoy > 0 else ""
+				output.append(f"- Revenue Growth: {growth_sign}{period.revenue_growth_yoy*100:.2f}%")
+			if period.net_income_growth_yoy:
+				growth_sign = "+" if period.net_income_growth_yoy > 0 else ""
+				output.append(f"- Net Income Growth: {growth_sign}{period.net_income_growth_yoy*100:.2f}%")
+			if period.eps_growth_yoy:
+				growth_sign = "+" if period.eps_growth_yoy > 0 else ""
+				output.append(f"- EPS Growth: {growth_sign}{period.eps_growth_yoy*100:.2f}%")
+		
+		output.append("")  # Blank line between periods
+	
+	return "\n".join(output)
+
+
+def _format_as_text(periods, security_name, period_type, currency, include_growth):
+	"""Format periods as plain text"""
+	output = [f"Financial Data for {security_name} ({period_type})"]
+	output.append(f"All monetary values in {currency}")
+	output.append("=" * 60)
+	
+	for period in periods:
+		period_label = f"{period.fiscal_year}"
+		if period.fiscal_quarter:
+			period_label += f" {period.fiscal_quarter}"
+		
+		output.append(f"\n{period_label}")
+		output.append("-" * 40)
+		
+		if period.total_revenue:
+			output.append(f"Revenue: {_format_number(period.total_revenue, currency)}")
+		if period.net_income:
+			output.append(f"Net Income: {_format_number(period.net_income, currency)}")
+		if period.diluted_eps:
+			output.append(f"EPS: {currency} {period.diluted_eps:.2f}")
+		
+		if period.gross_margin:
+			output.append(f"Gross Margin: {period.gross_margin*100:.1f}%")
+		if period.net_margin:
+			output.append(f"Net Margin: {period.net_margin*100:.1f}%")
+		
+		if period.roe:
+			output.append(f"ROE: {period.roe*100:.1f}%")
+		if period.free_cash_flow:
+			output.append(f"Free Cash Flow: {_format_number(period.free_cash_flow, currency)}")
+		
+		if include_growth and period.revenue_growth_yoy:
+			growth_sign = "+" if period.revenue_growth_yoy > 0 else ""
+			output.append(f"Revenue Growth YoY: {growth_sign}{period.revenue_growth_yoy*100:.1f}%")
+	
+	return "\n".join(output)
+
+
+def _format_as_table(periods, security_name, period_type, currency, include_growth):
+	"""Format periods as ASCII table"""
+	output = [f"Financial Data for {security_name} ({period_type}) - All values in {currency}\n"]
+	
+	# Table header
+	header = ["Period", "Revenue", "Net Income", "EPS", "Gross Margin", "Net Margin", "ROE"]
+	if include_growth:
+		header.append("Rev Growth")
+	
+	# Build rows
+	rows = []
+	for period in periods:
+		period_label = str(period.fiscal_year)
+		if period.fiscal_quarter:
+			period_label += f" {period.fiscal_quarter}"
+		
+		row = [
+			period_label,
+			_format_number(period.total_revenue, currency, short=True) if period.total_revenue else "-",
+			_format_number(period.net_income, currency, short=True) if period.net_income else "-",
+			f"{period.diluted_eps:.2f}" if period.diluted_eps else "-",
+			f"{period.gross_margin*100:.1f}%" if period.gross_margin else "-",
+			f"{period.net_margin*100:.1f}%" if period.net_margin else "-",
+			f"{period.roe*100:.1f}%" if period.roe else "-"
+		]
+		
+		if include_growth:
+			if period.revenue_growth_yoy:
+				growth_sign = "+" if period.revenue_growth_yoy > 0 else ""
+				row.append(f"{growth_sign}{period.revenue_growth_yoy*100:.1f}%")
+			else:
+				row.append("-")
+		
+		rows.append(row)
+	
+	# Calculate column widths
+	col_widths = [max(len(str(row[i])) for row in [header] + rows) for i in range(len(header))]
+	
+	# Format table
+	separator = "+" + "+".join("-" * (w + 2) for w in col_widths) + "+"
+	
+	output.append(separator)
+	output.append("| " + " | ".join(header[i].ljust(col_widths[i]) for i in range(len(header))) + " |")
+	output.append(separator)
+	
+	for row in rows:
+		output.append("| " + " | ".join(str(row[i]).ljust(col_widths[i]) for i in range(len(row))) + " |")
+	
+	output.append(separator)
+	
+	return "\n".join(output)
+
+
+def _format_number(value, currency, short=False):
+	"""Format a number with currency symbol and optional abbreviation"""
+	if value is None:
+		return "N/A"
+	
+	# Currency symbols
+	currency_symbols = {
+		'USD': '$', 'EUR': '€', 'GBP': '£', 'JPY': '¥',
+		'CNY': '¥', 'HKD': 'HK$', 'AUD': 'A$', 'CAD': 'C$'
+	}
+	symbol = currency_symbols.get(currency, currency + ' ')
+	
+	if short:
+		# Short format with abbreviations
+		if abs(value) >= 1e12:
+			return f"{symbol}{value/1e12:.2f}T"
+		elif abs(value) >= 1e9:
+			return f"{symbol}{value/1e9:.2f}B"
+		elif abs(value) >= 1e6:
+			return f"{symbol}{value/1e6:.2f}M"
+		elif abs(value) >= 1e3:
+			return f"{symbol}{value/1e3:.2f}K"
+		else:
+			return f"{symbol}{value:,.2f}"
+	else:
+		# Full format with commas
+		if abs(value) >= 1e9:
+			return f"{symbol}{value/1e9:.2f}B"
+		elif abs(value) >= 1e6:
+			return f"{symbol}{value/1e6:.2f}M"
+		else:
+			return f"{symbol}{value:,.2f}"
+
+
+@frappe.whitelist()
+def test_function(security_name):
+	"""Test function to return sample AI prompt"""
+	
+	# Get the last 4 quarterly periods and 1 annual period
+	quarterly_periods = frappe.get_all(
+		"CF Financial Period",
+		filters={"security": security_name, "period_type": "Quarterly"},
+		fields=["fiscal_year", "fiscal_quarter", "total_revenue", "net_income", "diluted_eps"],
+		order_by="fiscal_year DESC, fiscal_quarter DESC",
+		limit=4
+	)
+	
+	annual_period = frappe.get_all(
+		"CF Financial Period",
+		filters={"security": security_name, "period_type": "Annual"},
+		fields=["fiscal_year", "total_revenue", "net_income", "diluted_eps"],
+		order_by="fiscal_year DESC",
+		limit=1
+	)
+	
+	# Combine periods
+	periods = quarterly_periods + annual_period
+	
+	if not periods:
+		return "No financial data found for this security."
+	
+	# Format for AI
+	formatted_periods = format_periods_for_ai(security_name, period_type="Quarterly", num_periods=4, format="markdown")
+	
+	# Sample prompt using the formatted data
+	prompt = f"""
+	You are an expert financial analyst. Based on the following data for the last 4 quarters and 1 annual period for {security_name}, provide a comprehensive analysis including trends, growth metrics, and any red flags.
+	
+	{formatted_periods}
+	
+	Please structure your analysis with headings, bullet points, and clear metrics. Highlight any significant changes or concerns.
+	"""
+	
+	return prompt
