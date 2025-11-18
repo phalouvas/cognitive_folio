@@ -253,6 +253,8 @@ function show_period_comparison_dialog(frm) {
 			if (r.message) {
 				let prev = r.message;
 				let current = frm.doc;
+				let prevLabel = `${prev.fiscal_year}${prev.fiscal_quarter ? ' ' + prev.fiscal_quarter : ''}`;
+				let currLabel = `${current.fiscal_year}${current.fiscal_quarter ? ' ' + current.fiscal_quarter : ''}`;
 				
 				// Build comparison HTML
 				let comparison_html = `
@@ -273,8 +275,8 @@ function show_period_comparison_dialog(frm) {
 						<thead>
 							<tr>
 								<th>Metric</th>
-								<th>${prev.period}</th>
-								<th>${current.period}</th>
+								<th>${prevLabel}</th>
+								<th>${currLabel}</th>
 								<th>Change</th>
 							</tr>
 						</thead>

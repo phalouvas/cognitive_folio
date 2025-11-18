@@ -357,7 +357,7 @@ This implementation successfully migrated Cognitive Folio from JSON blob storage
 
 ## Testing Checklist
 
-Implementation verified through:
+### Automated Testing (Completed)
 
 - [x] Import from Yahoo Finance works for both Annual and Quarterly periods (✓ Tested with AAPL, MSFT)
 - [x] Conflict resolution correctly skips higher-priority sources (✓ Quality scoring verified)
@@ -368,6 +368,350 @@ Implementation verified through:
 - [x] Valuation methods use structured data (✓ Helper method tested, field mapping corrected)
 - [x] Natural language comparison detection implemented (✓ Syntax validated)
 - [x] Documentation is complete and examples work (✓ README comprehensive with API examples)
+
+---
+
+## Manual Testing Guide
+
+Perform these tests to verify all functionality in the production environment:
+
+### Phase 1: Foundation - Import & Data Quality
+
+#### Test 1.1: Yahoo Finance Import
+1. Navigate to **CF Security** → Open any stock security (e.g., AAPL)
+2. Click **Actions** → **Import to Financial Periods**
+3. **Expected:** Dialog appears showing any conflicts (if data exists)
+4. Click **Import** or **Replace All**
+5. **Expected:** Success message with counts: "Imported: X, Updated: Y, Skipped: Z"
+6. Navigate to **CF Financial Period** list
+7. Filter by the security name
+8. **Expected:** See multiple periods (Annual and Quarterly) with complete data
+
+**Success Criteria:**
+- ✅ Import completes without errors
+- ✅ Both Annual and Quarterly periods created
+- ✅ Computed fields populated (margins, ROE, growth rates)
+
+#### Test 1.2: Conflict Resolution
+1. Open a **CF Security** that already has financial periods
+2. Click **Actions** → **Import to Financial Periods**
+3. **Expected:** Dialog shows existing periods with their data sources and quality scores
+4. Check **Replace Existing Periods**
+5. Click **Import**
+6. **Expected:** Periods are updated, success message shows updated count
+7. Open one of the updated periods
+8. Check `data_source` field shows "Yahoo Finance"
+9. Check `override_yahoo` checkbox to lock the period
+10. Try importing again
+11. **Expected:** That period is skipped, message shows "skipped: 1"
+
+**Success Criteria:**
+- ✅ Conflict dialog displays existing periods
+- ✅ Quality scores visible (Manual=100, PDF=95, Yahoo=85)
+- ✅ Override flag prevents updates
+- ✅ Higher quality data not overwritten by lower quality
+
+#### Test 1.3: Auto-Import on Fetch
+1. Open **CF Settings**
+2. Ensure **Auto Import Financial Periods** is checked
+3. Save settings
+4. Open a **CF Security** without periods
+5. Click **Actions** → **Fetch Fundamentals**
+6. Wait for fetch to complete
+7. **Expected:** Success notification with import counts
+8. Navigate to **CF Financial Period** list
+9. Filter by the security
+10. **Expected:** Periods automatically created
+
+**Success Criteria:**
+- ✅ Auto-import triggers after fetch
+- ✅ Notification shows import results
+- ✅ Periods created without manual import step
+
+---
+
+### Phase 2: AI Integration
+
+#### Test 2.1: Security AI Suggestions with Periods
+1. Open a **CF Security** with financial periods
+2. Scroll to **AI Prompt** field
+3. Add this text: `Analyze {{periods:annual:3}} and provide insights`
+4. Click **Actions** → **Generate AI Suggestion**
+5. Wait for processing
+6. Check **AI Suggestion** field
+7. **Expected:** Response includes financial data from last 3 annual periods
+
+**Success Criteria:**
+- ✅ Prompt variable expands correctly
+- ✅ AI receives structured financial data
+- ✅ Response references specific period metrics
+
+#### Test 2.2: Portfolio AI Analysis with Periods
+1. Open a **CF Portfolio** with multiple holdings
+2. Click **AI Analysis** tab
+3. Modify the prompt to include: `((periods:annual:2))`
+4. Click **Generate Analysis**
+5. **Expected:** Analysis includes financial summary for the portfolio
+6. Check for weighted margins, total revenue, growth rankings
+
+**Success Criteria:**
+- ✅ Portfolio-level financial summary included
+- ✅ Holdings show individual period data
+- ✅ Aggregate metrics calculated correctly
+
+#### Test 2.3: Chat Period Comparisons
+1. Open or create a **CF Chat** linked to a security
+2. Send message: `compare Q3 2024 vs Q2 2024`
+3. **Expected:** System transforms to comparison syntax
+4. **Expected:** Response shows side-by-side comparison with deltas
+5. Try: `compare 2024 vs 2023`
+6. **Expected:** Annual comparison with YoY changes
+
+**Success Criteria:**
+- ✅ Natural language detected and transformed
+- ✅ Comparison formatted with revenue, income, margin changes
+- ✅ Both quarterly and annual comparisons work
+
+---
+
+### Phase 3: Automation & Data Entry
+
+#### Test 3.1: PDF Upload
+1. Open a **CF Security**
+2. Click **Actions** → **Upload Financial Statement**
+3. Select a financial statement PDF (10-Q or 10-K)
+4. Choose **Period Type** (Quarterly or Annual)
+5. Click **Upload and Parse**
+6. **Expected:** Success message with import counts
+7. Check **CF Financial Period** list for new periods
+8. Open a period created from PDF
+9. **Expected:** `data_source` shows "PDF", `data_quality_score` is 95
+
+**Success Criteria:**
+- ✅ PDF uploads successfully
+- ✅ Data extracted and structured
+- ✅ Higher quality score than Yahoo Finance
+
+#### Test 3.2: Manual Entry with Auto-Calculate
+1. Click **New** → **CF Financial Period**
+2. Fill in:
+   - Security: Choose any
+   - Period Type: Annual
+   - Fiscal Year: 2024
+   - Total Revenue: 1000000
+   - Cost of Revenue: 600000
+   - Operating Expenses: 200000
+3. Save the document
+4. **Expected:** Alert shows "Auto-calculated: Gross Profit, Operating Income..."
+5. Check the fields:
+   - **Expected:** Gross Profit = 400,000
+   - **Expected:** Gross Margin = 40%
+   - **Expected:** Operating Income = 200,000
+6. Add more fields:
+   - Net Income: 150000
+   - Total Assets: 2000000
+   - Shareholders Equity: 1200000
+7. Save again
+8. **Expected:** ROE, ROA calculated automatically
+
+**Success Criteria:**
+- ✅ Missing fields auto-calculated on save
+- ✅ Margins computed correctly
+- ✅ Validation warnings for unusual values
+
+#### Test 3.3: Copy from Previous Period
+1. Open an existing **CF Financial Period**
+2. Click **Copy from Previous Period**
+3. **Expected:** Dialog shows side-by-side comparison with previous period
+4. **Expected:** Percentage changes displayed (green positive, red negative)
+5. Check boxes to copy specific sections (Income Statement, Balance Sheet, etc.)
+6. Click **Copy Selected**
+7. **Expected:** Fields populated with previous period values
+8. Modify some values and save
+9. **Expected:** New period saved with updated data
+
+**Success Criteria:**
+- ✅ Previous period found correctly (handles Q1→Q4 transition)
+- ✅ Comparison table formatted with changes
+- ✅ Selective copy works for each section
+
+#### Test 3.4: Bulk Import
+1. Navigate to **CF Security** list
+2. Select multiple securities (3-5)
+3. Click **Actions** → **Bulk Import Periods**
+4. Configure options:
+   - Replace Existing: No
+   - Respect Override: Yes
+   - Stop on Error: No
+5. Click **Start Import**
+6. **Expected:** Progress dialog shows per-security status
+7. **Expected:** Progress bar updates in real-time
+8. Wait for completion
+9. **Expected:** Summary shows totals: imported, updated, skipped, errors
+10. Download JSON details
+11. **Expected:** Detailed results for each security
+
+**Success Criteria:**
+- ✅ Multiple securities processed
+- ✅ Real-time progress updates
+- ✅ Summary accurate
+- ✅ No UI blocking during import
+
+---
+
+### Phase 4: Reporting & Visualization
+
+#### Test 4.1: Financial Period Comparison Report
+1. Navigate to **Reports** → **Financial Period Comparison**
+2. Set filters:
+   - Security: Select one with periods
+   - Period Type: Annual
+   - Number of Periods: 5
+3. Click **Run**
+4. **Expected:** Table shows periods with revenue, income, margins, growth rates
+5. **Expected:** Sparkline charts visible in Trend column
+6. Click on a period row
+7. **Expected:** Drill-down to CF Financial Period form
+
+**Success Criteria:**
+- ✅ Report loads with correct data
+- ✅ Growth percentages calculated
+- ✅ Sparklines render correctly
+- ✅ Color coding for positive/negative growth
+
+#### Test 4.2: Security Comparison Report
+1. Navigate to **Reports** → **Security Comparison**
+2. Set filters:
+   - Sector: Technology (or any sector with multiple companies)
+   - Period Type: Annual
+3. Click **Run**
+4. **Expected:** Table shows multiple securities side-by-side
+5. **Expected:** Sector average row at bottom
+6. Check metrics: Revenue, Margins, ROE, Debt/Equity
+7. **Expected:** All percentages and ratios display correctly
+
+**Success Criteria:**
+- ✅ Multiple securities compared
+- ✅ Latest period used for each
+- ✅ Sector averages calculated
+- ✅ Formatting consistent
+
+#### Test 4.3: Financial Metrics Dashboard
+1. Navigate to **Dashboards** → **Financial Metrics**
+2. Select a security with multiple periods
+3. Choose Period Type: Annual
+4. Choose Years: 5
+5. **Expected:** Multiple charts render:
+   - Revenue Trend (line chart)
+   - Margin Trends (line chart with 3 lines)
+   - Cash Flow Trend (line chart)
+   - YoY Growth Rates (bar chart)
+   - Financial Ratios (cards with color coding)
+6. Change filters to Quarterly
+7. **Expected:** Charts update with quarterly data
+8. Click **Refresh**
+9. **Expected:** Data reloads
+
+**Success Criteria:**
+- ✅ All chart types render
+- ✅ Data accurate for selected filters
+- ✅ Interactive filters work
+- ✅ Ratio color coding (green/orange/red)
+
+---
+
+### Phase 5: Advanced Features
+
+#### Test 5.1: Data Freshness Indicators
+1. Navigate to **CF Security** list
+2. **Expected:** Color indicators on rows:
+   - Green: Fresh data (<30 days)
+   - Orange: Stale (30-90 days)
+   - Red: Very stale (>90 days)
+3. Click **Menu** → **Needs Financial Update**
+4. **Expected:** Filter applied, showing only securities with `needs_update=True`
+5. Open a red/orange security
+6. **Expected:** Warning banner at top: "⚠️ Financial data is X days old..."
+7. Click **Actions** → **Import to Financial Periods** to update
+8. Reload the security
+9. **Expected:** Banner disappears, color changes to green in list
+
+**Success Criteria:**
+- ✅ List view color coding accurate
+- ✅ Filter works correctly
+- ✅ Warning banner shows in form
+- ✅ Updates after import
+
+#### Test 5.2: Valuation Using Structured Data
+1. Open a **CF Security** with financial periods
+2. Scroll to **Valuation** section
+3. Check **Intrinsic Value** and **Fair Value**
+4. **Expected:** Values calculated (not zero or null)
+5. Open browser console (F12)
+6. Check for any errors related to financial period queries
+7. **Expected:** No errors, clean execution
+
+**Success Criteria:**
+- ✅ Valuation calculations complete
+- ✅ No console errors
+- ✅ Values reasonable compared to current price
+
+#### Test 5.3: Natural Language Comparisons
+1. Open a **CF Chat** with security context
+2. Type: `Show me how Q4 compares to Q3`
+3. Send message
+4. **Expected:** System detects comparison intent
+5. **Expected:** Response shows Q4 vs Q3 comparison table
+6. Try: `compare this year to last year`
+7. **Expected:** Annual comparison with 2024 vs 2023
+8. Try: `compare Q2 vs previous quarter`
+9. **Expected:** Q2 vs Q1 comparison
+
+**Success Criteria:**
+- ✅ Natural language detected
+- ✅ Correct periods compared
+- ✅ Formatted comparison tables in response
+- ✅ Works with various phrasings
+
+---
+
+## Test Results Summary
+
+After completing all tests, fill in:
+
+### Critical Issues Found
+- [ ] None / List any critical bugs
+
+### Minor Issues Found
+- [ ] None / List any minor issues
+
+### Performance Notes
+- [ ] Import speed acceptable for typical securities
+- [ ] Reports load in <3 seconds
+- [ ] Bulk import handles 10+ securities smoothly
+
+### User Experience
+- [ ] Dialogs clear and informative
+- [ ] Error messages helpful
+- [ ] Workflows intuitive
+
+### Data Quality
+- [ ] Calculations accurate vs manual verification
+- [ ] Conflict resolution behaves as expected
+- [ ] No data loss during imports
+
+---
+
+## Sign-Off
+
+**Tested By:** _______________  
+**Date:** _______________  
+**Environment:** _______________  
+**Overall Status:** ✅ Pass / ⚠️ Pass with Minor Issues / ❌ Fail  
+
+**Ready for Production:** [ ] Yes [ ] No
+
+**Notes:**
 
 ---
 
