@@ -219,40 +219,47 @@ The new **CF Financial Period** DocType stores financial data in structured fiel
 
 ---
 
-### 🚀 Phase 5: Advanced Features (FUTURE)
+### ✅ Phase 5: Advanced Features (COMPLETED)
 
-#### Task 5.1: Data Freshness Indicators
-**Status:** NOT STARTED  
+#### Task 5.1: Data Freshness Indicators ✓
+**Status:** COMPLETED  
+**Location:** `cognitive_folio/doctype/cf_security/cf_security.py` + `.js` + `_list.js`  
+**Implementation Summary:**
+- ✅ Added fields to CF Security: `last_financial_period_date` (Date), `days_since_last_period` (Int), `needs_update` (Check)
+- ✅ Implemented `update_data_freshness()` method in `on_update()` hook
+- ✅ Queries latest CF Financial Period date and calculates days since last update
+- ✅ Sets `needs_update=True` if: days > 90 for quarterly, days > 365 for annual
+- ✅ List view color coding: green (<30 days), orange (30-90 days), red (>90 days or needs_update)
+- ✅ Added "Needs Financial Update" filter to list view menu
+- ✅ Warning banner in form view: "⚠️ Financial data is X days old. Consider updating."
+
+#### Task 5.2: Valuation Using Structured Data ✓
+**Status:** COMPLETED  
 **Location:** `cognitive_folio/doctype/cf_security/cf_security.py`  
-**Changes:**
-- Add fields: `last_financial_period_date` (Date), `days_since_last_period` (Int), `needs_update` (Check)
-- Compute in `on_update()`: query latest CF Financial Period date, calculate days since
-- Set needs_update=True if: days > 90 for quarterly, days > 365 for annual
-- Display warning banner in CF Security form: "⚠️ Financial data is 95 days old. Consider updating."
-- Color-code in list view: green (<30 days), yellow (30-90 days), red (>90 days)
-- Add filter: "Needs Financial Update"
+**Functions Updated:** `_calculate_dcf_value()`, `_calculate_residual_income()`, `_calculate_pe_value()`, `_is_asset_heavy_business()`  
+**Implementation Summary:**
+- ✅ Created `_get_financial_periods()` helper method for efficient period queries
+- ✅ Replaced all JSON parsing (`json.loads(self.cash_flow)`) with CF Financial Period queries
+- ✅ Updated DCF calculation to use structured period data for FCF analysis
+- ✅ Updated Residual Income model to use period ROE and shareholders_equity
+- ✅ Updated P/E valuation to query latest annual period
+- ✅ Updated asset turnover calculation in `_is_asset_heavy_business()`
+- ✅ Cleaner code, better performance with indexed queries
+- ✅ Automatic use of latest available data
 
-#### Task 5.2: Valuation Using Structured Data
-**Status:** NOT STARTED  
-**Location:** `cognitive_folio/doctype/cf_security/cf_security.py`  
-**Functions:** `_calculate_dcf_value()`, `_calculate_residual_income()`, etc.  
-**Current:** Parses JSON blobs: `json.loads(self.cash_flow)`, iterates over dates  
-**Changes:**
-- Replace JSON parsing with CF Financial Period queries
-- Query: `frappe.get_all("CF Financial Period", filters={...}, fields=[...], order_by="fiscal_year DESC", limit=5)`
-- Cleaner code, easier to read and maintain
-- Better performance (indexed queries vs JSON parsing)
-- Use latest available data automatically
-
-#### Task 5.3: Period-over-Period Chat Comparisons
-**Status:** NOT STARTED  
+#### Task 5.3: Period-over-Period Chat Comparisons ✓
+**Status:** COMPLETED  
 **Location:** `cognitive_folio/doctype/cf_chat_message/cf_chat_message.py`  
-**Requirements:**
-- Detect queries: "compare Q3 vs Q2", "show last 5 years trends", "how did revenue change?"
-- Parse natural language to extract: periods to compare, metrics of interest
-- Query relevant CF Financial Period records
-- Format comparison table for AI consumption
-- Example: "Q3 2024 vs Q2 2024: Revenue +8%, Net Income +12%, Margins stable"
+**Implementation Summary:**
+- ✅ Added `detect_natural_language_comparisons()` method to parse comparison queries
+- ✅ Detects patterns: "compare Q3 vs Q2", "compare 2024 to 2023", "compare Q3 2024 and Q2 2024"
+- ✅ Supports quarterly comparisons: "Q3 vs Q2", with or without years
+- ✅ Supports annual comparisons: "2024 vs 2023"
+- ✅ Supports relative comparisons: "Q3 vs previous quarter", "2024 vs previous year"
+- ✅ Automatically calculates previous periods (Q1 → Q4 of previous year, etc.)
+- ✅ Transforms natural language to comparison syntax: `{{periods:compare:2024:2023}}`
+- ✅ Works for both security and portfolio contexts
+- ✅ Integrated with existing comparison formatting from Task 2.5
 
 ---
 

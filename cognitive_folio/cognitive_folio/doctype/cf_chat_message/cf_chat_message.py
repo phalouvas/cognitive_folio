@@ -1,6 +1,7 @@
 import frappe
 from frappe.model.document import Document
 import re
+import datetime
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
@@ -273,9 +274,108 @@ class CFChatMessage(Document):
 				"total_tokens": total_tokens
 			}
 
+	def detect_natural_language_comparisons(self, prompt, security):
+		"""Detect natural language comparison queries and transform them to comparison syntax"""
+		# Pattern: "compare <period1> vs/to/and <period2>"
+		# Examples: "compare Q3 vs Q2", "compare 2024 to 2023", "compare Q3 2024 and Q2 2024"
+		
+		patterns = [
+			# Quarterly: "Q3 vs Q2", "Q3 2024 vs Q2 2024"
+			r'compare\s+(?:Q|q)(\d)\s+(\d{4})?\s*(?:vs|to|and)\s+(?:Q|q)(\d)\s+(\d{4})?',
+			r'compare\s+(?:Q|q)(\d)\s*(?:vs|to|and)\s+(?:Q|q)(\d)',
+			# Annual: "2024 vs 2023", "compare 2024 to 2023"
+			r'compare\s+(\d{4})\s*(?:vs|to|and)\s+(\d{4})',
+			# Quarter vs previous: "Q3 vs previous quarter"
+			r'compare\s+(?:Q|q)(\d)(?:\s+(\d{4}))?\s*(?:vs|to|and)\s+(?:previous|last)\s+quarter',
+			# Year vs previous: "2024 vs previous year"
+			r'compare\s+(\d{4})\s*(?:vs|to|and)\s+(?:previous|last)\s+year',
+		]
+		
+		modified = prompt
+		
+		for pattern in patterns:
+			match = re.search(pattern, modified, re.IGNORECASE)
+			if match:
+				groups = match.groups()
+				
+				if 'Q' in match.group(0) or 'q' in match.group(0):
+					# Quarterly comparison
+					if len(groups) >= 3:
+						q1, year1, q2, year2 = groups if len(groups) == 4 else (groups[0], groups[1], groups[2], None)
+						
+						# Handle cases where year is not specified
+						if not year1 and not year2:
+							# Use current year
+							import datetime
+							current_year = datetime.datetime.now().year
+							year1 = year2 = current_year
+						elif year1 and not year2:
+							year2 = year1
+						elif year2 and not year1:
+							year1 = year2
+						
+						period1 = f"{year1}Q{q1}"
+						period2 = f"{year2}Q{q2}"
+						
+						if security:
+							replacement = f"{{{{periods:compare:{period1}:{period2}}}}}"
+						else:
+							replacement = f"((periods:compare:{period1}:{period2}))"
+						
+						modified = modified[:match.start()] + replacement + modified[match.end():]
+					elif 'previous' in match.group(0).lower() or 'last' in match.group(0).lower():
+						# Handle "Q3 vs previous quarter"
+						q1 = groups[0]
+						year = groups[1] if len(groups) > 1 and groups[1] else datetime.datetime.now().year
+						
+						# Calculate previous quarter
+						q1_int = int(q1)
+						if q1_int == 1:
+							q2 = 4
+							year2 = int(year) - 1
+						else:
+							q2 = q1_int - 1
+							year2 = year
+						
+						period1 = f"{year}Q{q1}"
+						period2 = f"{year2}Q{q2}"
+						
+						if security:
+							replacement = f"{{{{periods:compare:{period1}:{period2}}}}}"
+						else:
+							replacement = f"((periods:compare:{period1}:{period2}))"
+						
+						modified = modified[:match.start()] + replacement + modified[match.end():]
+				else:
+					# Annual comparison
+					if len(groups) >= 2:
+						year1, year2 = groups[0], groups[1] if len(groups) > 1 else None
+						
+						if year2:
+							period1 = year1
+							period2 = year2
+						elif 'previous' in match.group(0).lower() or 'last' in match.group(0).lower():
+							period1 = year1
+							period2 = str(int(year1) - 1)
+						else:
+							continue
+						
+						if security:
+							replacement = f"{{{{periods:compare:{period1}:{period2}}}}}"
+						else:
+							replacement = f"((periods:compare:{period1}:{period2}))"
+						
+						modified = modified[:match.start()] + replacement + modified[match.end():]
+				
+				break  # Process one comparison at a time
+		
+		return modified
+
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
-		prompt = self.prompt
+		# First, detect and transform natural language comparisons (Task 5.3)
+		prompt = self.detect_natural_language_comparisons(self.prompt, security)
+		
 		# --- Comparison helpers (Task 2.5) ---
 		def _parse_period_label(label):
 			label = label.strip()

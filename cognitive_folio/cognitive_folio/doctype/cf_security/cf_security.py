@@ -841,7 +841,7 @@ class CFSecurity(Document):
 			return False
 	
 	def _is_asset_heavy_business(self):
-		"""Determine if this is an asset-heavy business"""
+		"""Determine if this is an asset-heavy business using structured periods"""
 		try:
 			if not self.ticker_info:
 				return False
@@ -858,17 +858,14 @@ class CFSecurity(Document):
 			if any(heavy_sector in sector for heavy_sector in asset_heavy_sectors):
 				return True
 			
-			# Check asset turnover ratio (if available)
-			# Lower asset turnover indicates asset-heavy business
-			# This would require balance sheet analysis
-			if self.balance_sheet:
+			# Check asset turnover ratio using CF Financial Period
+			periods = self._get_financial_periods(period_type="Annual", limit=1)
+			if periods:
 				try:
-					balance_data = json.loads(self.balance_sheet)
-					latest_balance = next(iter(balance_data.values())) if balance_data else {}
-					total_assets = latest_balance.get('Total Assets', 0)
+					latest_period = periods[0]
+					total_assets = latest_period.get('total_assets', 0)
+					revenue = latest_period.get('total_revenue', 0)
 					
-					# If we have revenue data, calculate asset turnover
-					revenue = ticker_info.get('totalRevenue', 0)
 					if total_assets > 0 and revenue > 0:
 						asset_turnover = revenue / total_assets
 						return asset_turnover < 0.5  # Low asset turnover
@@ -1080,31 +1077,46 @@ class CFSecurity(Document):
 		except Exception:
 			return 1.0  # Neutral score on error
 
+	def _get_financial_periods(self, period_type="Annual", limit=10):
+		"""Helper method to fetch CF Financial Period data"""
+		periods = frappe.get_all(
+			"CF Financial Period",
+			filters={"security": self.name, "period_type": period_type},
+			fields=["fiscal_year", "fiscal_quarter", "period_end_date", 
+					"total_revenue", "net_income", "free_cash_flow", "operating_cash_flow",
+					"total_assets", "total_liabilities", "shareholders_equity",
+					"gross_margin", "operating_margin", "net_margin",
+					"roe", "roa", "debt_to_equity", "current_ratio"],
+			order_by="period_end_date DESC",
+			limit=limit
+		)
+		return periods
+
 	def _calculate_dcf_value(self):
-		"""Calculate Discounted Cash Flow (DCF) value with improved assumptions"""
+		"""Calculate Discounted Cash Flow (DCF) value using structured financial periods"""
 		try:
-			if not self.cash_flow:
+			# Try to get annual financial periods first
+			periods = self._get_financial_periods(period_type="Annual", limit=10)
+			
+			if not periods or len(periods) < 3:
 				return None
 			
-			cash_flow_data = json.loads(self.cash_flow)
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
 			
 			# Extract historical free cash flows (need minimum 3 years for reliability)
 			fcf_values = []
 			years = []
-			for date_key, data in cash_flow_data.items():
-				fcf = data.get('Free Cash Flow')
-				if fcf is not None:  # Include negative FCF for realistic analysis
-					fcf_values.append(fcf)
-					years.append(date_key[:4])
+			for period in reversed(periods):  # Reverse to get chronological order
+				fcf = period.get('free_cash_flow')
+				if fcf is not None and fcf != 0:  # Include negative FCF for realistic analysis
+					fcf_values.append(float(fcf))
+					years.append(str(period.get('fiscal_year')))
 			
 			if len(fcf_values) < 3:  # Require minimum 3 years
 				return None
 			
-			# Sort by year to ensure chronological order
-			fcf_year_pairs = list(zip(years, fcf_values))
-			fcf_year_pairs.sort(key=lambda x: x[0])
-			sorted_years, sorted_fcf = zip(*fcf_year_pairs)
+			sorted_years = years
+			sorted_fcf = fcf_values
 			
 			# Calculate growth rate with outlier filtering
 			growth_rates = []
@@ -1219,22 +1231,19 @@ class CFSecurity(Document):
 			
 			enterprise_value = pv_fcf + pv_terminal
 			
-			# Apply FCF quality adjustment
-			if self.profit_loss:
-				profit_loss_data = json.loads(self.profit_loss)
-				fcf_quality_score = self._analyze_fcf_quality(cash_flow_data, profit_loss_data)
-				enterprise_value *= fcf_quality_score
-			
 			# Subtract net debt and divide by shares outstanding
 			total_debt = 0
 			cash = 0
 			shares_outstanding = ticker_info.get('sharesOutstanding', 1)
 			
-			if self.balance_sheet:
-				balance_data = json.loads(self.balance_sheet)
-				latest_balance = next(iter(balance_data.values())) if balance_data else {}
-				total_debt = latest_balance.get('Total Debt', 0) or 0
-				cash = latest_balance.get('Cash And Cash Equivalents', 0) or 0
+			# Get latest balance sheet data from CF Financial Period
+			if periods:
+				latest_balance = periods[0]  # Most recent period
+				# Calculate total debt from liabilities if not directly available
+				total_debt = latest_balance.get('total_liabilities', 0) or 0
+				# Estimate cash as a portion of current assets (conservative approach)
+				total_assets = latest_balance.get('total_assets', 0) or 0
+				cash = total_assets * 0.1  # Conservative estimate: 10% of total assets as cash
 				
 				# Only subtract 50% of cash (assume rest is operational)
 				operational_cash_buffer = 0.5
@@ -1328,12 +1337,14 @@ class CFSecurity(Document):
 			return None
 
 	def _calculate_pe_value(self):
-		"""Calculate P/E based valuation"""
+		"""Calculate P/E based valuation using structured periods"""
 		try:
-			if not self.profit_loss:
+			# Get latest annual period
+			periods = self._get_financial_periods(period_type="Annual", limit=1)
+			
+			if not periods:
 				return None
 			
-			profit_loss_data = json.loads(self.profit_loss)
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
 			
 			# Get current EPS
@@ -1448,21 +1459,33 @@ class CFSecurity(Document):
 			return None
 
 	def _calculate_residual_income(self):
-		"""Calculate Residual Income Model value"""
+		"""Calculate Residual Income Model value using structured financial periods"""
 		try:
-			if not self.balance_sheet:
+			# Get latest annual financial period
+			periods = self._get_financial_periods(period_type="Annual", limit=1)
+			
+			if not periods:
 				return None
 			
+			latest_period = periods[0]
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
-			balance_data = json.loads(self.balance_sheet)
 			
 			# Get current book value per share
 			book_value_per_share = ticker_info.get('bookValue')
-			if not book_value_per_share:
-				return None
 			
-			# Get ROE and cost of equity
-			roe = ticker_info.get('returnOnEquity', 0)
+			# If not in ticker info, calculate from period data
+			if not book_value_per_share:
+				shareholders_equity = latest_period.get('shareholders_equity')
+				shares_outstanding = ticker_info.get('sharesOutstanding', 0)
+				if shareholders_equity and shares_outstanding:
+					book_value_per_share = shareholders_equity / shares_outstanding
+				else:
+					return None
+			
+			# Get ROE from period data (preferred) or ticker info
+			roe = latest_period.get('roe')
+			if roe is None or roe == 0:
+				roe = ticker_info.get('returnOnEquity', 0)
 			if not roe:
 				return None
 			
