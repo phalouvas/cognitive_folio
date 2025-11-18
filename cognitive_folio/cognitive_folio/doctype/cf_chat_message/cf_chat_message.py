@@ -642,14 +642,33 @@ class CFChatMessage(Document):
 	def extract_pdf_text(self):
 		"""Extract text and tables from specific PDF files referenced in the prompt.
 		
-		Uses pdfplumber for better table extraction and converts tables to markdown format.
+		Uses pdfplumber for table extraction, falls back to PyPDF2 for text extraction.
 		"""
 		try:
-			import pdfplumber
 			import os
 			import html
 		except ImportError:
-			frappe.log_error("pdfplumber not installed", "PDF Extraction Error")
+			frappe.log_error("Required modules not available", "PDF Extraction Error")
+			return self.prompt
+		
+		# Check availability of PDF libraries
+		pdfplumber_available = False
+		pypdf2_available = False
+		
+		try:
+			import pdfplumber
+			pdfplumber_available = True
+		except ImportError:
+			pass
+		
+		try:
+			import PyPDF2
+			pypdf2_available = True
+		except ImportError:
+			pass
+		
+		if not pdfplumber_available and not pypdf2_available:
+			frappe.log_error("No PDF library available (pdfplumber or PyPDF2)", "PDF Extraction Error")
 			return self.prompt
 		
 		prompt = self.prompt
@@ -732,44 +751,79 @@ class CFChatMessage(Document):
 	def _extract_pdf_with_tables(self, file_path: str) -> str:
 		"""Extract text and tables from PDF, converting tables to markdown.
 		
+		Tries pdfplumber first for table extraction, falls back to PyPDF2 for text-only.
+		
 		Args:
 			file_path: Path to the PDF file
 			
 		Returns:
 			Markdown-formatted content with tables
 		"""
-		import pdfplumber
-		
 		content_parts = []
 		
-		with pdfplumber.open(file_path) as pdf:
-			for page_num, page in enumerate(pdf.pages, start=1):
-				page_content = []
+		# Try pdfplumber first (best for tables)
+		try:
+			import pdfplumber
+			
+			with pdfplumber.open(file_path) as pdf:
+				for page_num, page in enumerate(pdf.pages, start=1):
+					page_content = []
+					
+					# Extract tables from the page
+					tables = page.extract_tables()
+					
+					if tables:
+						# If page has tables, extract them as markdown
+						for table_idx, table in enumerate(tables, start=1):
+							if table and len(table) > 1:  # Ensure table has headers and data
+								markdown_table = self._table_to_markdown(table)
+								if markdown_table:
+									page_content.append(f"\n{markdown_table}\n")
+					
+					# Extract regular text (non-table content)
+					text = page.extract_text()
+					if text:
+						# Remove excessive whitespace
+						text = re.sub(r'\n{3,}', '\n\n', text)
+						page_content.append(text)
+					
+					# Combine page content
+					if page_content:
+						page_text = "\n\n".join(page_content)
+						content_parts.append(page_text)
+						
+			return "\n\n".join(content_parts)
+						
+		except Exception as e:
+			# pdfplumber failed, try PyPDF2
+			frappe.log_error(
+				title="PDF Extraction Info",
+				message=f"pdfplumber failed, trying PyPDF2: {str(e)}"
+			)
+			
+		try:
+			import PyPDF2
+			
+			with open(file_path, 'rb') as file:
+				reader = PyPDF2.PdfReader(file)
 				
-				# Extract tables from the page
-				tables = page.extract_tables()
+				for page_num in range(len(reader.pages)):
+					page = reader.pages[page_num]
+					text = page.extract_text()
+					
+					if text:
+						# Remove excessive whitespace
+						text = re.sub(r'\n{3,}', '\n\n', text)
+						content_parts.append(text)
 				
-				if tables:
-					# If page has tables, extract them as markdown
-					for table_idx, table in enumerate(tables, start=1):
-						if table and len(table) > 1:  # Ensure table has headers and data
-							markdown_table = self._table_to_markdown(table)
-							if markdown_table:
-								page_content.append(f"\n{markdown_table}\n")
+			return "\n\n".join(content_parts)
 				
-				# Extract regular text (non-table content)
-				text = page.extract_text()
-				if text:
-					# Remove excessive whitespace
-					text = re.sub(r'\n{3,}', '\n\n', text)
-					page_content.append(text)
-				
-				# Combine page content
-				if page_content:
-					page_text = "\n\n".join(page_content)
-					content_parts.append(page_text)
-		
-		return "\n\n".join(content_parts)
+		except Exception as e:
+			frappe.log_error(
+				title="PDF Extraction Error",
+				message=f"Both pdfplumber and PyPDF2 failed: {str(e)}"
+			)
+			return ""
 
 	def _table_to_markdown(self, table_data) -> str:
 		"""Convert a list of lists (table data) to markdown table format.
