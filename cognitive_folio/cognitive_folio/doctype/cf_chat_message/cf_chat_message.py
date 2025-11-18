@@ -276,6 +276,215 @@ class CFChatMessage(Document):
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
 		prompt = self.prompt
+		# --- Comparison helpers (Task 2.5) ---
+		def _parse_period_label(label):
+			label = label.strip()
+			quarter = ""
+			if "Q" in label:
+				parts = label.split("Q")
+				try:
+					year = int(parts[0])
+					q_part = "Q" + parts[1]
+					if q_part in ["Q1","Q2","Q3","Q4"]:
+						quarter = q_part
+					period_type = "Quarterly"
+				except Exception:
+					return None
+			else:
+				try:
+					year = int(label)
+					period_type = "Annual"
+				except Exception:
+					return None
+			return {"year": year, "quarter": quarter, "period_type": period_type}
+
+		def _fetch_period(security_name, spec):
+			if not spec:
+				return None
+			filters = {"security": security_name, "period_type": spec["period_type"], "fiscal_year": spec["year"]}
+			if spec["period_type"] == "Quarterly":
+				filters["fiscal_quarter"] = spec["quarter"]
+			return frappe.get_all(
+				"CF Financial Period",
+				filters=filters,
+				fields=["fiscal_year","fiscal_quarter","total_revenue","net_income","gross_margin","operating_margin","net_margin"],
+				limit=1
+			)
+
+		def _format_compare(current, previous, security_label):
+			if not current or not previous:
+				return f"[Insufficient data to compare for {security_label}]"
+			c = current[0]; p = previous[0]
+			rev_c = c.total_revenue or 0; rev_p = p.total_revenue or 0
+			ni_c = c.net_income or 0; ni_p = p.net_income or 0
+			gm_c = (c.gross_margin or 0)*100; gm_p = (p.gross_margin or 0)*100
+			om_c = (c.operating_margin or 0)*100; om_p = (p.operating_margin or 0)*100
+			nm_c = (c.net_margin or 0)*100; nm_p = (p.net_margin or 0)*100
+			def pct_change(new, old):
+				return ((new - old)/old*100) if old else 0
+			lines = [f"### Comparison for {security_label}"]
+			lines.append(f"Current Period: {c.fiscal_year}{(' '+c.fiscal_quarter) if c.fiscal_quarter else ''}")
+			lines.append(f"Previous Period: {p.fiscal_year}{(' '+p.fiscal_quarter) if p.fiscal_quarter else ''}")
+			lines.append("")
+			lines.append("**Revenue & Net Income:**")
+			lines.append(f"- Revenue: ${rev_c:,.2f} (Prev: ${rev_p:,.2f}, Change: {pct_change(rev_c, rev_p):+.2f}%)")
+			lines.append(f"- Net Income: ${ni_c:,.2f} (Prev: ${ni_p:,.2f}, Change: {pct_change(ni_c, ni_p):+.2f}%)")
+			lines.append("")
+			lines.append("**Margins (percentage points):**")
+			lines.append(f"- Gross Margin: {gm_c:.2f}% (Prev: {gm_p:.2f}%, Δ: {(gm_c-gm_p):+.2f}pp)")
+			lines.append(f"- Operating Margin: {om_c:.2f}% (Prev: {om_p:.2f}%, Δ: {(om_c-om_p):+.2f}pp)")
+			lines.append(f"- Net Margin: {nm_c:.2f}% (Prev: {nm_p:.2f}%, Δ: {(nm_c-nm_p):+.2f}pp)")
+			return "\n".join(lines)
+
+		def _replace_security_compare(m):
+			if not security:
+				return "[No security context for comparison]"
+			parts = m.group(1).split(":")
+			if len(parts) < 2:
+				return "[Compare syntax requires two period labels]"
+			label_a = _parse_period_label(parts[0])
+			label_b = _parse_period_label(parts[1])
+			if not label_a or not label_b:
+				return "[Invalid period labels for comparison]"
+			try:
+				cur = _fetch_period(security.name, label_a)
+				prev = _fetch_period(security.name, label_b)
+				return _format_compare(cur, prev, security.security_name or security.name)
+			except Exception as e:
+				frappe.log_error(f"Security compare expansion error: {e}")
+				return f"[Error expanding security comparison: {e}]"
+
+		def _replace_portfolio_compare(m):
+			if not portfolio:
+				return "[No portfolio context for comparison]"
+			parts = m.group(1).split(":")
+			if len(parts) < 2:
+				return "[Compare syntax requires two period labels]"
+			label_a = _parse_period_label(parts[0])
+			label_b = _parse_period_label(parts[1])
+			if not label_a or not label_b:
+				return "[Invalid period labels for comparison]"
+			try:
+				# Holdings
+				holdings = frappe.get_all("CF Portfolio Holding", filters={"portfolio": portfolio.name}, fields=["name","security"])
+				sections = [f"### Portfolio Comparison ({parts[0]} vs {parts[1]})"]
+				agg_current_rev = agg_previous_rev = 0
+				agg_current_gm = agg_previous_gm = 0
+				for h in holdings:
+					try:
+						sec_doc = frappe.get_doc("CF Security", h.security)
+						cur = _fetch_period(sec_doc.name, label_a)
+						prev = _fetch_period(sec_doc.name, label_b)
+						comp = _format_compare(cur, prev, sec_doc.security_name or sec_doc.name)
+						sections.append(comp)
+						if cur and prev:
+							c = cur[0]; p = prev[0]
+							rev_c = c.total_revenue or 0; rev_p = p.total_revenue or 0
+							gm_c = (c.gross_margin or 0); gm_p = (p.gross_margin or 0)
+							agg_current_rev += rev_c; agg_previous_rev += rev_p
+							agg_current_gm += gm_c * rev_c; agg_previous_gm += gm_p * rev_p
+					except Exception:
+						continue
+					sections.append("")
+				if agg_current_rev and agg_previous_rev:
+					weighted_gm_current = (agg_current_gm / agg_current_rev)*100 if agg_current_rev else 0
+					weighted_gm_previous = (agg_previous_gm / agg_previous_rev)*100 if agg_previous_rev else 0
+					sections.insert(1, f"**Aggregate Weighted Gross Margin Change:** {weighted_gm_current:.2f}% vs {weighted_gm_previous:.2f}% (Δ {(weighted_gm_current-weighted_gm_previous):+.2f}pp)")
+				return "\n\n".join(sections)
+			except Exception as e:
+				frappe.log_error(f"Portfolio compare expansion error: {e}")
+				return f"[Error expanding portfolio comparison: {e}]"
+
+		# Apply comparison expansions before normal periods
+		prompt = re.sub(r'\(\(periods:compare:([^\)]+)\)\)', lambda m: _replace_portfolio_compare(m), prompt)
+		prompt = re.sub(r'\{\{periods:compare:([^}]+)\}\}', lambda m: _replace_security_compare(m), prompt)
+
+		# Security-level periods syntax: {{periods:annual:3[:format]}} or quarterly/ttm
+		def _replace_security_periods(m):
+			if not security:
+				return "[No security context for periods]"
+			parts = m.group(1).split(":")
+			# m.group(1) already excludes initial 'periods:' per regex below; we split after periods:
+			period_type = parts[0].capitalize() if parts else "Annual"
+			count = 4
+			fmt = "markdown"
+			if len(parts) > 1 and parts[1].isdigit():
+				count = int(parts[1])
+			if len(parts) > 2:
+				fmt = parts[2]
+			try:
+				from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+				return format_periods_for_ai(security.name, period_type=period_type, num_periods=count, format=fmt)
+			except Exception as e:
+				frappe.log_error(f"Security periods expansion error: {e}")
+				return f"[Error expanding security periods: {e}]"
+
+		# Portfolio-level periods syntax: ((periods:annual:3[:format])) and shorthand ((periods:latest))
+		def _replace_portfolio_periods(m):
+			if not portfolio:
+				return "[No portfolio context for periods]"
+			instruction = m.group(1)
+			parts = instruction.split(":")
+			key = parts[0].lower() if parts else "annual"
+			fmt = "markdown"
+			count = 3
+			if key == "latest":
+				# Latest annual + last 4 quarterly for each holding
+				try:
+					from cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio import build_portfolio_financial_summary
+					from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+					# Build holdings list
+					holdings = frappe.get_all(
+						"CF Portfolio Holding",
+						filters={"portfolio": portfolio.name},
+						fields=["name", "security"]
+					)
+					summary = build_portfolio_financial_summary(portfolio, holdings)
+					sections = [summary, "", "### Latest Annual + Quarterly Overview"]
+					for h in holdings:
+						try:
+							sec_doc = frappe.get_doc("CF Security", h.security)
+							annual_block = format_periods_for_ai(sec_doc.name, period_type="Annual", num_periods=1, format="markdown")
+							q_block = format_periods_for_ai(sec_doc.name, period_type="Quarterly", num_periods=4, format="markdown")
+							sections.append(f"#### {sec_doc.security_name} ({sec_doc.symbol})\n" + annual_block + "\n" + q_block)
+						except Exception:
+							continue
+					return "\n\n".join(sections)
+				except Exception as e:
+					frappe.log_error(f"Portfolio latest periods expansion error: {e}")
+					return f"[Error expanding portfolio latest periods: {e}]"
+			else:
+				# Specific period type
+				if len(parts) > 1 and parts[1].isdigit():
+					count = int(parts[1])
+				if len(parts) > 2:
+					fmt = parts[2]
+				try:
+					from cognitive_folio.cognitive_folio.doctype.cf_portfolio.cf_portfolio import build_portfolio_financial_summary
+					from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+					holdings = frappe.get_all(
+						"CF Portfolio Holding",
+						filters={"portfolio": portfolio.name},
+						fields=["name", "security"]
+					)
+					summary = build_portfolio_financial_summary(portfolio, holdings)
+					sections = [summary, "", f"### {key.capitalize()} Periods (per holding)"]
+					for h in holdings:
+						try:
+							sec_doc = frappe.get_doc("CF Security", h.security)
+							p_block = format_periods_for_ai(sec_doc.name, period_type=key.capitalize(), num_periods=count, format=fmt)
+							sections.append(f"#### {sec_doc.security_name} ({sec_doc.symbol})\n" + p_block)
+						except Exception:
+							continue
+					return "\n\n".join(sections)
+				except Exception as e:
+					frappe.log_error(f"Portfolio periods expansion error: {e}")
+					return f"[Error expanding portfolio periods: {e}]"
+
+		# Apply portfolio-level periods first so summary precedes other replacements
+		prompt = re.sub(r'\(\(periods:([^\)]+)\)\)', lambda m: _replace_portfolio_periods(m), prompt)
+		# Apply security-level periods
+		prompt = re.sub(r'\{\{periods:([^}]+)\}\}', lambda m: _replace_security_periods(m), prompt)
 		
 		# Replace ((variable)) with portfolio fields
 		if portfolio:
@@ -326,6 +535,7 @@ class CFChatMessage(Document):
 		
 		elif security:
 			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
+			# Security-level periods already handled above; other variables replaced here
 		
 		return prompt
 
