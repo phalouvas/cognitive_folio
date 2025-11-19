@@ -543,8 +543,30 @@ class CFSecurity(Document):
 				auto_import_enabled = getattr(settings, 'auto_import_financial_periods', 1)
 				if auto_import_enabled:
 					try:
-						# Use new inline period creation
-						result = self._create_financial_periods_from_yahoo()
+						# Phase 2: Use SEC Edgar for US companies with CIK, otherwise Yahoo Finance
+						if self.country == 'United States' and self.sec_cik:
+							# Try SEC Edgar first (higher quality: 95)
+							try:
+								from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+								result = fetch_sec_edgar_financials(self.name, self.sec_cik)
+								
+								# If SEC Edgar fails or returns no data, fallback to Yahoo
+								if not result.get('success') or result.get('total_periods', 0) == 0:
+									frappe.log_error(
+										title=f"SEC Edgar fallback for {self.name}",
+										message=f"SEC Edgar result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
+									)
+									result = self._create_financial_periods_from_yahoo()
+							except Exception as e:
+								# Fallback to Yahoo Finance if SEC Edgar fails
+								frappe.log_error(
+									title=f"SEC Edgar Error for {self.name}",
+									message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+								)
+								result = self._create_financial_periods_from_yahoo()
+						else:
+							# Use Yahoo Finance for non-US or companies without CIK
+							result = self._create_financial_periods_from_yahoo()
 						
 						# Store result summary - use db_set to avoid triggering full save cycle
 						self.db_set('last_period_import_result', frappe.as_json(result), update_modified=False)
@@ -555,8 +577,10 @@ class CFSecurity(Document):
 							upgraded = result.get('upgraded_count', 0)
 							imported = result.get('imported_count', 0)
 							updated = result.get('updated_count', 0)
+							data_source = result.get('data_source_used', 'Yahoo Finance')
+							quality = 95 if data_source == 'SEC Edgar' else 85
 							
-							msg = f"Fetched {total} financial periods from Yahoo Finance (quality: 85)"
+							msg = f"Fetched {total} financial periods from {data_source} (quality: {quality})"
 							if upgraded > 0:
 								msg += f" | Upgraded {upgraded} periods from lower quality"
 							if imported > 0:

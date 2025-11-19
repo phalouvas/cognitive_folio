@@ -4,22 +4,32 @@
 
 This document describes the deployment requirements and phased rollout strategy for the Cognitive Folio financial data fetching system.
 
-## Current Implementation (Phase 1)
+## Current Implementation (Phase 1 & 2)
 
 ### Required Libraries
 
 The following Python libraries are **currently required** and must be installed in production:
 
 ```bash
-# Install via pip
+# Phase 1 - Yahoo Finance (Required for all)
 pip install yfinance openai
+
+# Phase 2 - SEC Edgar (Optional, for US companies - IN PROGRESS)
+pip install sec-edgar-downloader ixbrl-parse lxml pdfplumber
 ```
 
 Or add to `requirements.txt` / `pyproject.toml`:
 
 ```txt
+# Phase 1 - Required
 yfinance>=0.2.0
 openai>=1.0.0
+
+# Phase 2 - Optional (US companies - IN PROGRESS)
+sec-edgar-downloader>=5.0.0
+ixbrl-parse>=0.10.0
+lxml>=4.9.0
+pdfplumber>=0.9.0
 ```
 
 ### Features Available
@@ -64,16 +74,17 @@ This simplifies the user experience and reduces confusion.
 Phase 2 will introduce **optional** XBRL parsing capabilities for higher-quality data from regulatory filings:
 
 ```bash
-# Phase 2 - SEC Edgar (United States)
+# Phase 2 - SEC Edgar (United States) - IN PROGRESS
 pip install sec-edgar-downloader>=5.0.0
 
-# Phase 2 - XBRL Parsing
-pip install python-xbrl>=1.1.0
-# OR
-pip install xbrlreader>=1.2.0
+# Phase 2 - Inline XBRL Parsing
+pip install ixbrl-parse>=0.10.0 lxml>=4.9.0
 
 # Phase 2 - Enhanced PDF fallback
 pip install pdfplumber>=0.9.0 PyPDF2>=3.0.0
+
+# Note: Using ixbrl-parse for inline XBRL (iXBRL) files from SEC Edgar
+# SEC filings use iXBRL embedded in HTML, not standalone XBRL XML
 ```
 
 ### Planned Data Sources
@@ -123,21 +134,46 @@ Phase 2 will implement taxonomy mapping logic to normalize these into our standa
 - ~85% accuracy for most global exchanges
 - No additional infrastructure requirements
 
-### Phase 2: SEC Edgar (United States)
+### Phase 2: SEC Edgar (United States) 🚧 IN PROGRESS
 
 **Goal**: Achieve 95%+ accuracy for US-listed companies
 
-**Changes**:
-- Add `sec-edgar-downloader` library
-- Add `python-xbrl` or `xbrlreader` library
-- Implement XBRL parser for US-GAAP taxonomy
-- Auto-select SEC Edgar when `sec_cik` field is populated
-- Fallback to Yahoo Finance if XBRL unavailable
+**Changes** (PARTIALLY IMPLEMENTED):
+- ✅ Added `sec-edgar-downloader` library (v5.0.3)
+- ✅ Added `ixbrl-parse` library (v0.10.1) for inline XBRL parsing
+- ✅ Implemented SEC Edgar file download infrastructure
+- ✅ Auto-downloads SEC filings when `sec_cik` field is populated
+- ⏳ XBRL fact extraction **NOT YET COMPLETE** - currently falls back to Yahoo Finance
+- ✅ Fallback to Yahoo Finance working correctly
+  
+**Current Status** (as of Nov 2025):
+- SEC Edgar integration downloads 10-K and 10-Q filings successfully
+- Files are saved to `private/files/sec_edgar/sec-edgar-filings/{CIK}/`
+- XBRL parsing infrastructure is in place but fact extraction needs completion
+- **Currently using Yahoo Finance** for actual data until XBRL parsing is complete
 
-**Benefits**:
+**How to Verify SEC Edgar is Working**:
+```bash
+# Check if files are being downloaded
+ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/
+
+# For AAPL (CIK 0000320193):
+ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/0000320193/10-K/
+ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/0000320193/10-Q/
+```
+
+Note: There is only one user action "Fetch Fundamentals". The app automatically tries SEC Edgar first for US companies, then falls back to Yahoo Finance. No separate button is presented.
+
+**Pending Work**:
+- Complete XBRL fact extraction from XbrlInstance objects
+- Map US-GAAP concepts to CF Financial Period fields
+- Handle different fiscal period variations
+
+**Benefits** (when complete):
 - 95%+ accuracy for US companies
-- Regulatory-quality data
-- Automatic source selection
+- Regulatory-quality data from official SEC filings
+- Automatic source selection (SEC Edgar → Yahoo Finance fallback)
+- Intelligent auto-upgrade: replaces Yahoo data (85) with SEC data (95)
 
 ### Phase 3: Major Global Exchanges
 
