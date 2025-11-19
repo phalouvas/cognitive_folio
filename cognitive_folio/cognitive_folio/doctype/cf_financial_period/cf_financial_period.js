@@ -31,6 +31,16 @@ frappe.ui.form.on("CF Financial Period", {
 		if (frm.is_new()) {
 			frm.set_intro(__('Quick Tip: Fill in Revenue, Net Income, and Total Assets for basic analysis. Other fields will auto-calculate.'), 'blue');
 		}
+		
+		// Show auto-calculated fields notification after save
+		if (frm.doc.__calculated_fields_msg) {
+			frappe.show_alert({
+				message: frm.doc.__calculated_fields_msg,
+				indicator: 'blue'
+			}, 5);
+			// Clear the message so it doesn't show again on next refresh
+			delete frm.doc.__calculated_fields_msg;
+		}
 	},
 	
 	onload(frm) {
@@ -38,6 +48,11 @@ frappe.ui.form.on("CF Financial Period", {
 		if (!frm.is_new()) {
 			auto_calculate_missing_fields(frm);
 		}
+	},
+	
+	before_save(frm) {
+		// Trigger auto-calculation before save
+		auto_calculate_missing_fields(frm);
 	},
 	
 	total_revenue(frm) {
@@ -420,6 +435,14 @@ function auto_calculate_missing_fields(frm) {
 		calculated.push('Operating Income');
 	}
 	
+	// Calculate operating income if we have all the pieces
+	if (!frm.doc.operating_income && frm.doc.total_revenue && frm.doc.cost_of_revenue && frm.doc.operating_expenses) {
+		frm.set_value('operating_income', frm.doc.total_revenue - frm.doc.cost_of_revenue - frm.doc.operating_expenses);
+		if (calculated.indexOf('Operating Income') === -1) {
+			calculated.push('Operating Income');
+		}
+	}
+	
 	// Calculate free cash flow if missing
 	if (!frm.doc.free_cash_flow && frm.doc.operating_cash_flow && frm.doc.capital_expenditures) {
 		frm.set_value('free_cash_flow', frm.doc.operating_cash_flow - frm.doc.capital_expenditures);
@@ -432,11 +455,6 @@ function auto_calculate_missing_fields(frm) {
 		calculated.push('Cost of Revenue');
 	}
 	
-	// Show notification if fields were calculated
-	if (calculated.length > 0 && !frm.is_new()) {
-		frappe.show_alert({
-			message: __('Auto-calculated: {0}', [calculated.join(', ')]),
-			indicator: 'blue'
-		}, 3);
-	}
+	// Note: Notification is now handled server-side via msgprint in auto_calculate_missing_fields()
+	// No need to show duplicate alert here
 }

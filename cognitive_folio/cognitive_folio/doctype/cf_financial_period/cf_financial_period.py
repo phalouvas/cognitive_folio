@@ -9,6 +9,7 @@ from frappe.utils import flt
 class CFFinancialPeriod(Document):
 	def validate(self):
 		"""Validate and compute derived metrics"""
+		self.auto_calculate_missing_fields()
 		self.compute_margins()
 		self.compute_ratios()
 		self.set_data_quality_score()
@@ -24,40 +25,80 @@ class CFFinancialPeriod(Document):
 		}
 		self.data_quality_score = quality_scores.get(self.data_source, 50)
 	
+	def auto_calculate_missing_fields(self):
+		"""Auto-calculate missing fields from available data"""
+		calculated_fields = []
+		
+		# Calculate Gross Profit: Revenue - Cost of Revenue
+		if not self.gross_profit and self.total_revenue and self.cost_of_revenue:
+			self.gross_profit = self.total_revenue - self.cost_of_revenue
+			calculated_fields.append("Gross Profit")
+		
+		# Calculate Cost of Revenue: Revenue - Gross Profit
+		if not self.cost_of_revenue and self.total_revenue and self.gross_profit:
+			self.cost_of_revenue = self.total_revenue - self.gross_profit
+			calculated_fields.append("Cost of Revenue")
+		
+		# Calculate Operating Income: Gross Profit - Operating Expenses
+		if not self.operating_income and self.gross_profit and self.operating_expenses:
+			self.operating_income = self.gross_profit - self.operating_expenses
+			calculated_fields.append("Operating Income")
+		
+		# Calculate Operating Income: Revenue - Cost of Revenue - Operating Expenses
+		if not self.operating_income and self.total_revenue and self.cost_of_revenue and self.operating_expenses:
+			self.operating_income = self.total_revenue - self.cost_of_revenue - self.operating_expenses
+			if "Operating Income" not in calculated_fields:
+				calculated_fields.append("Operating Income")
+		
+		# Calculate Free Cash Flow: Operating Cash Flow - Capital Expenditures
+		if not self.free_cash_flow and self.operating_cash_flow and self.capital_expenditures:
+			self.free_cash_flow = self.operating_cash_flow - abs(self.capital_expenditures)
+			calculated_fields.append("Free Cash Flow")
+		
+		# Store calculated fields for notification
+		if calculated_fields:
+			# Set a message that can be displayed to the user after save
+			self.__calculated_fields_msg = f"Auto-calculated: {', '.join(calculated_fields)}"
+			frappe.msgprint(
+				msg=f"Auto-calculated: {', '.join(calculated_fields)}",
+				title="Fields Calculated",
+				indicator="blue"
+			)
+	
 	def compute_margins(self):
-		"""Compute margin percentages (stored as decimals, e.g., 0.6882 for 68.82%)"""
+		"""Compute margin percentages (stored as percentages, e.g., 68.82 for 68.82%)"""
 		if self.total_revenue and self.total_revenue != 0:
 			if self.gross_profit:
-				self.gross_margin = self.gross_profit / self.total_revenue
+				self.gross_margin = (self.gross_profit / self.total_revenue) * 100
 			if self.operating_income:
-				self.operating_margin = self.operating_income / self.total_revenue
+				self.operating_margin = (self.operating_income / self.total_revenue) * 100
 			if self.net_income:
-				self.net_margin = self.net_income / self.total_revenue
+				self.net_margin = (self.net_income / self.total_revenue) * 100
 	
 	def compute_ratios(self):
-		"""Compute financial ratios (stored as decimals, e.g., 0.15 for 15%)"""
-		# ROE
+		"""Compute financial ratios (percentages stored as 15 for 15%, ratios as decimals)"""
+		# ROE (stored as percentage)
 		if self.shareholders_equity and self.shareholders_equity != 0 and self.net_income:
-			self.roe = self.net_income / self.shareholders_equity
+			self.roe = (self.net_income / self.shareholders_equity) * 100
 		
-		# ROA
+		# ROA (stored as percentage)
 		if self.total_assets and self.total_assets != 0 and self.net_income:
-			self.roa = self.net_income / self.total_assets
+			self.roa = (self.net_income / self.total_assets) * 100
 		
-		# Debt to Equity
+		# Debt to Equity (stored as ratio, not percentage)
 		if self.shareholders_equity and self.shareholders_equity != 0 and self.total_debt:
 			self.debt_to_equity = self.total_debt / self.shareholders_equity
 		
-		# Current Ratio
+		# Current Ratio (stored as ratio, not percentage)
 		if self.current_liabilities and self.current_liabilities != 0 and self.current_assets:
 			self.current_ratio = self.current_assets / self.current_liabilities
 		
-		# Quick Ratio (Current Assets - Inventory) / Current Liabilities
+		# Quick Ratio (stored as ratio, not percentage)
 		if self.current_liabilities and self.current_liabilities != 0 and self.current_assets:
 			inventory = self.inventory or 0
 			self.quick_ratio = (self.current_assets - inventory) / self.current_liabilities
 		
-		# Asset Turnover
+		# Asset Turnover (stored as ratio, not percentage)
 		if self.total_assets and self.total_assets != 0 and self.total_revenue:
 			self.asset_turnover = self.total_revenue / self.total_assets
 	
@@ -421,40 +462,40 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 		}
 
 
-	@frappe.whitelist()
-	def bulk_import_financial_periods(security_names, replace_existing=False, respect_override=True, stop_on_error=False, progress_id=None):
-		"""Bulk import financial periods for multiple securities with optional realtime progress.
+@frappe.whitelist()
+def bulk_import_financial_periods(security_names, replace_existing=False, respect_override=True, stop_on_error=False, progress_id=None):
+	"""Bulk import financial periods for multiple securities with optional realtime progress.
 
-		Args:
-			security_names (list|str): List of CF Security names or JSON/CSV string
-			replace_existing (bool): Replace ALL existing periods regardless of quality
-			respect_override (bool): Skip periods with override_yahoo=1 when updating
-			stop_on_error (bool): Abort remaining imports after first error
-			progress_id (str): If provided, will publish realtime events on channel 'bulk_import_progress_<progress_id>'
+	Args:
+		security_names (list|str): List of CF Security names or JSON/CSV string
+		replace_existing (bool): Replace ALL existing periods regardless of quality
+		respect_override (bool): Skip periods with override_yahoo=1 when updating
+		stop_on_error (bool): Abort remaining imports after first error
+		progress_id (str): If provided, will publish realtime events on channel 'bulk_import_progress_<progress_id>'
 
 		Returns:
 			Dict summary including per-security results and aggregate counts.
 		"""
-		import json
-
-		# Normalize list input
-		if isinstance(security_names, str):
-			try:
-				parsed = frappe.parse_json(security_names)
-				if isinstance(parsed, list):
-					security_names = parsed
-				else:
-					security_names = [s.strip() for s in security_names.split(',') if s.strip()]
-			except Exception:
+	import json
+	
+	# Normalize list input
+	if isinstance(security_names, str):
+		try:
+			parsed = frappe.parse_json(security_names)
+			if isinstance(parsed, list):
+				security_names = parsed
+			else:
 				security_names = [s.strip() for s in security_names.split(',') if s.strip()]
-
+		except Exception:
+			security_names = [s.strip() for s in security_names.split(',') if s.strip()]
+	
 		results = []
 		total_imported = 0
 		total_updated = 0
 		total_skipped = 0
 		total_errors = 0
 		aborted = False
-
+	
 		channel = None
 		if progress_id:
 			channel = f"bulk_import_progress_{progress_id}"
@@ -468,7 +509,7 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 				'errors_count': 0,
 				'finished': False
 			})
-
+	
 		for idx, sec in enumerate(security_names):
 			if aborted:
 				break
@@ -505,7 +546,7 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 				total_errors += 1
 				if stop_on_error:
 					aborted = True
-
+	
 			if channel:
 				frappe.publish_realtime(channel, {
 					'total': len(security_names),
@@ -517,7 +558,7 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 					'errors_count': len(errors_list) if 'errors_list' in locals() else (1 if aborted else 0),
 					'finished': False
 				})
-
+	
 		# Final event
 		if channel:
 			frappe.publish_realtime(channel, {
@@ -530,7 +571,7 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 				'errors_count': total_errors,
 				'finished': True
 			})
-
+	
 		return {
 			'success': True,
 			'total_imported': total_imported,
@@ -539,105 +580,105 @@ def import_from_yahoo_finance(security_name, replace_existing=False, respect_ove
 			'total_errors': total_errors,
 			'aborted': aborted,
 			'results': results
-		}
+}
 
 
-	def daily_bulk_import_all_securities():
-		"""Scheduled task: import periods for all securities (non-destructive).
+def daily_bulk_import_all_securities():
+	"""Scheduled task: import periods for all securities (non-destructive).
 
-		Runs with conservative defaults: replace_existing=False, respect_override=True.
-		Skips entirely if any exception arises early or if optional settings flag disables it.
-		"""
+	Runs with conservative defaults: replace_existing=False, respect_override=True.
+	Skips entirely if any exception arises early or if optional settings flag disables it.
+	"""
+	try:
+		# Optional settings toggle (field may not exist yet)
 		try:
-			# Optional settings toggle (field may not exist yet)
-			try:
-				settings = frappe.get_single('CF Settings')
-				flag = getattr(settings, 'enable_daily_bulk_import_periods', 1)
-				if not flag:
-					return
-			except Exception:
-				# If settings doc or field missing, proceed by default
-				pass
-
-			security_names = [d.name for d in frappe.get_all('CF Security', fields=['name'])]
-			if not security_names:
+			settings = frappe.get_single('CF Settings')
+			flag = getattr(settings, 'enable_daily_bulk_import_periods', 1)
+			if not flag:
 				return
-			result = bulk_import_financial_periods(
-				security_names=security_names,
-				replace_existing=False,
-				respect_override=True,
-				stop_on_error=False,
-				progress_id=None
-			)
-			# Log summary (avoid large payload in log)
-			frappe.log_error(
-				f"Daily bulk import completed: Imported {result['total_imported']} Updated {result['total_updated']} Skipped {result['total_skipped']} Errors {result['total_errors']}",
-				"Daily Financial Period Bulk Import"
-			)
-		except Exception as e:
-			frappe.log_error(f"Daily bulk import failed: {str(e)}", "Daily Financial Period Bulk Import Error")
+		except Exception:
+			# If settings doc or field missing, proceed by default
+			pass
 
-
-	@frappe.whitelist()
-	def enqueue_bulk_import_financial_periods(security_names=None, replace_existing=False, respect_override=True, stop_on_error=False):
-		"""Enqueue background job for bulk import.
-
-		If security_names is None, import all securities.
-		Returns: job name and cache key for polling results.
-		"""
-		import json, uuid
-		if security_names is None:
-			security_names = [d.name for d in frappe.get_all('CF Security', fields=['name'])]
-		elif isinstance(security_names, str):
-			try:
-				parsed = frappe.parse_json(security_names)
-				if isinstance(parsed, list):
-					security_names = parsed
-				else:
-					security_names = [s.strip() for s in security_names.split(',') if s.strip()]
-			except Exception:
-				security_names = [s.strip() for s in security_names.split(',') if s.strip()]
-
-		job_id = uuid.uuid4().hex[:12]
-		cache_key = f"bulk_import_job_result_{job_id}"
-
-		frappe.enqueue(
-			"cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.run_bulk_import_job",
-			queue='long',
-			job_name=f"bulk_import_{job_id}",
-			security_names=security_names,
-			replace_existing=replace_existing,
-			respect_override=respect_override,
-			stop_on_error=stop_on_error,
-			cache_key=cache_key
-		)
-		return {"job_id": job_id, "cache_key": cache_key}
-
-
-	def run_bulk_import_job(security_names, replace_existing=False, respect_override=True, stop_on_error=False, cache_key=None):
-		"""Background job runner writes result to cache for later retrieval."""
+		security_names = [d.name for d in frappe.get_all('CF Security', fields=['name'])]
+		if not security_names:
+			return
 		result = bulk_import_financial_periods(
 			security_names=security_names,
-			replace_existing=replace_existing,
-			respect_override=respect_override,
-			stop_on_error=stop_on_error,
+			replace_existing=False,
+			respect_override=True,
+			stop_on_error=False,
 			progress_id=None
 		)
-		if cache_key:
-			frappe.cache().set_value(cache_key, frappe.as_json(result))
-		return result
+		# Log summary (avoid large payload in log)
+		frappe.log_error(
+			f"Daily bulk import completed: Imported {result['total_imported']} Updated {result['total_updated']} Skipped {result['total_skipped']} Errors {result['total_errors']}",
+			"Daily Financial Period Bulk Import"
+		)
+	except Exception as e:
+		frappe.log_error(f"Daily bulk import failed: {str(e)}", "Daily Financial Period Bulk Import Error")
 
 
-	@frappe.whitelist()
-	def get_bulk_import_job_result(cache_key):
-		"""Retrieve cached bulk import result if available."""
-		data = frappe.cache().get_value(cache_key)
-		if not data:
-			return {"ready": False}
+@frappe.whitelist()
+def enqueue_bulk_import_financial_periods(security_names=None, replace_existing=False, respect_override=True, stop_on_error=False):
+	"""Enqueue background job for bulk import.
+
+	If security_names is None, import all securities.
+	Returns: job name and cache key for polling results.
+	"""
+	import json, uuid
+	if security_names is None:
+		security_names = [d.name for d in frappe.get_all('CF Security', fields=['name'])]
+	elif isinstance(security_names, str):
 		try:
-			return {"ready": True, "result": frappe.parse_json(data)}
+			parsed = frappe.parse_json(security_names)
+			if isinstance(parsed, list):
+				security_names = parsed
+			else:
+				security_names = [s.strip() for s in security_names.split(',') if s.strip()]
 		except Exception:
-			return {"ready": False, "error": "Malformed cache data"}
+			security_names = [s.strip() for s in security_names.split(',') if s.strip()]
+
+	job_id = uuid.uuid4().hex[:12]
+	cache_key = f"bulk_import_job_result_{job_id}"
+
+	frappe.enqueue(
+		"cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.run_bulk_import_job",
+		queue='long',
+		job_name=f"bulk_import_{job_id}",
+		security_names=security_names,
+		replace_existing=replace_existing,
+		respect_override=respect_override,
+		stop_on_error=stop_on_error,
+		cache_key=cache_key
+	)
+	return {"job_id": job_id, "cache_key": cache_key}
+
+
+def run_bulk_import_job(security_names, replace_existing=False, respect_override=True, stop_on_error=False, cache_key=None):
+	"""Background job runner writes result to cache for later retrieval."""
+	result = bulk_import_financial_periods(
+		security_names=security_names,
+		replace_existing=replace_existing,
+		respect_override=respect_override,
+		stop_on_error=stop_on_error,
+		progress_id=None
+	)
+	if cache_key:
+		frappe.cache().set_value(cache_key, frappe.as_json(result))
+	return result
+
+
+@frappe.whitelist()
+def get_bulk_import_job_result(cache_key):
+	"""Retrieve cached bulk import result if available."""
+	data = frappe.cache().get_value(cache_key)
+	if not data:
+		return {"ready": False}
+	try:
+		return {"ready": True, "result": frappe.parse_json(data)}
+	except Exception:
+		return {"ready": False, "error": "Malformed cache data"}
 
 
 @frappe.whitelist()
