@@ -146,6 +146,13 @@
    "read_only": 1
   },
   {
+   "fieldname": "sec_cik",
+   "fieldtype": "Data",
+   "label": "SEC CIK",
+   "description": "SEC Central Index Key for US-listed companies",
+   "read_only": 1
+  },
+  {
    "fieldname": "currency",
    "fieldtype": "Link",
    "in_filter": 1,

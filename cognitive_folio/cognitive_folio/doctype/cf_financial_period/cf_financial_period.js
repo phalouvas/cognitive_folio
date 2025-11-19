@@ -387,14 +387,14 @@ function show_validation_warnings(frm) {
 		warnings.push('⚠️ Negative shareholders equity detected');
 	}
 	
-	// Check for margins > 100%
-	if (frm.doc.gross_margin && frm.doc.gross_margin > 1.0) {
+	// Check for margins > 100% (margins are stored as percentages, not decimals)
+	if (frm.doc.gross_margin && frm.doc.gross_margin > 100) {
 		warnings.push('⚠️ Gross margin exceeds 100%');
 	}
-	if (frm.doc.operating_margin && frm.doc.operating_margin > 1.0) {
+	if (frm.doc.operating_margin && frm.doc.operating_margin > 100) {
 		warnings.push('⚠️ Operating margin exceeds 100%');
 	}
-	if (frm.doc.net_margin && frm.doc.net_margin > 1.0) {
+	if (frm.doc.net_margin && frm.doc.net_margin > 100) {
 		warnings.push('⚠️ Net margin exceeds 100%');
 	}
 	
