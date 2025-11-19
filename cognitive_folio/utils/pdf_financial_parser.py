@@ -160,8 +160,8 @@ def parse_financial_pdf(
                     as_dict=True
                 )
                 
-                # PDF uploads get quality score of 90 (higher than Yahoo's 85, lower than verified 100)
-                pdf_quality_score = 90
+                # PDF uploads get quality score of 95 (same as SEC Edgar, higher than Yahoo's 85, lower than Manual 100)
+                pdf_quality_score = 95
                 
                 if existing and existing.data_quality_score >= pdf_quality_score:
                     # Skip if existing data is higher quality
@@ -195,7 +195,7 @@ def parse_financial_pdf(
                         # Annual period ends on December 31st
                         doc.period_end_date = date(period_data["fiscal_year"], 12, 31)
                 
-                # Set financial data
+                # Set financial data (updated to match deployment doc)
                 doc.data_source = data_source
                 doc.data_quality_score = pdf_quality_score
                 

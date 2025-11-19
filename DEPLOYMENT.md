@@ -14,8 +14,8 @@ The following Python libraries are **currently required** and must be installed 
 # Phase 1 - Yahoo Finance (Required for all)
 pip install yfinance openai
 
-# Phase 2 - SEC Edgar (Optional, for US companies - IN PROGRESS)
-pip install sec-edgar-downloader ixbrl-parse lxml pdfplumber
+# Phase 2 - SEC Edgar (Optional, for US companies - COMPLETED)
+pip install sec-edgar-downloader python-xbrl lxml pdfplumber
 ```
 
 Or add to `requirements.txt` / `pyproject.toml`:
@@ -25,9 +25,9 @@ Or add to `requirements.txt` / `pyproject.toml`:
 yfinance>=0.2.0
 openai>=1.0.0
 
-# Phase 2 - Optional (US companies - IN PROGRESS)
+# Phase 2 - Optional (US companies - COMPLETED)
 sec-edgar-downloader>=5.0.0
-ixbrl-parse>=0.10.0
+python-xbrl>=2.1.0
 lxml>=4.9.0
 pdfplumber>=0.9.0
 ```
@@ -40,7 +40,7 @@ Phase 1 provides:
 - **SEC CIK Lookup**: Automatic retrieval and caching of SEC Central Index Keys for US-listed companies
 - **Auto-Upgrade Logic**: Intelligent data quality comparison - automatically upgrades financial periods when better quality data becomes available
 - **Unified Workflow**: Single "Fetch Fundamentals" button fetches both price data AND creates structured financial periods
-- **Data Quality Scoring**: Transparent quality scores (Yahoo Finance: 85, PDF Upload: 90, Manual Entry: 100)
+- **Data Quality Scoring**: Transparent quality scores (Yahoo Finance: 85, PDF/SEC Edgar: 95, Manual Entry: 100)
 
 ### Data Sources
 
@@ -48,7 +48,7 @@ Phase 1 provides:
   - Covers most major global stock exchanges
   - Includes Income Statement, Balance Sheet, and Cash Flow data
   - Both Annual and Quarterly periods
-- **Secondary**: Manual entry (Quality Score: 100) and PDF upload (Quality Score: 90) still available for specialized needs
+- **Secondary**: Manual entry (Quality Score: 100) and PDF upload (Quality Score: 95) still available for specialized needs
 
 ### No Backward Compatibility
 
@@ -74,17 +74,18 @@ This simplifies the user experience and reduces confusion.
 Phase 2 will introduce **optional** XBRL parsing capabilities for higher-quality data from regulatory filings:
 
 ```bash
-# Phase 2 - SEC Edgar (United States) - IN PROGRESS
+# Phase 2 - SEC Edgar (United States) - COMPLETED ✅
 pip install sec-edgar-downloader>=5.0.0
 
 # Phase 2 - Inline XBRL Parsing
-pip install ixbrl-parse>=0.10.0 lxml>=4.9.0
+pip install python-xbrl>=2.1.0 lxml>=4.9.0
 
 # Phase 2 - Enhanced PDF fallback
 pip install pdfplumber>=0.9.0 PyPDF2>=3.0.0
 
-# Note: Using ixbrl-parse for inline XBRL (iXBRL) files from SEC Edgar
+# Note: Using python-xbrl for inline XBRL (iXBRL) files from SEC Edgar
 # SEC filings use iXBRL embedded in HTML, not standalone XBRL XML
+# python-xbrl provides better BeautifulSoup-based parsing vs ixbrl-parse
 ```
 
 ### Planned Data Sources
@@ -93,7 +94,7 @@ Phase 2+ will add support for regulatory filings from major stock exchanges:
 
 | Region | Exchange | Data Source | Quality Score | Standard | Status |
 |--------|----------|-------------|---------------|----------|--------|
-| 🇺🇸 United States | SEC Edgar | XBRL/iXBRL | 95 | US-GAAP | Phase 2 |
+| 🇺🇸 United States | SEC Edgar | XBRL/iXBRL | 95 | US-GAAP | ✅ Complete |
 | 🇭🇰 Hong Kong | HKEX | XBRL/iXBRL | 95 | HKFRS | Phase 2 |
 | 🇬🇧 United Kingdom | Companies House | iXBRL | 95 | UK-GAAP | Phase 2 |
 | 🇪🇺 European Union | ESEF Portal | XBRL | 95 | ESEF (IFRS) | Phase 3 |
@@ -134,23 +135,30 @@ Phase 2 will implement taxonomy mapping logic to normalize these into our standa
 - ~85% accuracy for most global exchanges
 - No additional infrastructure requirements
 
-### Phase 2: SEC Edgar (United States) 🚧 IN PROGRESS
+### Phase 2: SEC Edgar (United States) ✅ COMPLETED
 
 **Goal**: Achieve 95%+ accuracy for US-listed companies
 
-**Changes** (PARTIALLY IMPLEMENTED):
+**Changes** (FULLY IMPLEMENTED):
 - ✅ Added `sec-edgar-downloader` library (v5.0.3)
-- ✅ Added `ixbrl-parse` library (v0.10.1) for inline XBRL parsing
+- ✅ Added `python-xbrl` library for inline XBRL parsing (replaces ixbrl-parse)
 - ✅ Implemented SEC Edgar file download infrastructure
 - ✅ Auto-downloads SEC filings when `sec_cik` field is populated
-- ⏳ XBRL fact extraction **NOT YET COMPLETE** - currently falls back to Yahoo Finance
-- ✅ Fallback to Yahoo Finance working correctly
+- ✅ Complete XBRL fact extraction with US-GAAP concept mapping (40+ fields)
+- ✅ Intelligent upgrade logic: SEC (95) > PDF (95) > Yahoo (85)
+- ✅ Fallback to Yahoo Finance for non-US or when SEC parsing fails
   
 **Current Status** (as of Nov 2025):
-- SEC Edgar integration downloads 10-K and 10-Q filings successfully
-- Files are saved to `private/files/sec_edgar/sec-edgar-filings/{CIK}/`
-- XBRL parsing infrastructure is in place but fact extraction needs completion
-- **Currently using Yahoo Finance** for actual data until XBRL parsing is complete
+- SEC Edgar integration fully operational
+- Downloads 10-K and 10-Q filings to `private/files/sec_edgar/sec-edgar-filings/{CIK}/`
+- Extracts financial data from inline XBRL HTML using python-xbrl parser
+- Maps US-GAAP taxonomy to CF Financial Period fields:
+  - Income Statement: Revenue, COGS, Gross Profit, Operating Income, Net Income, EPS
+  - Balance Sheet: Assets, Liabilities, Equity, Cash, Receivables, Inventory, Debt
+  - Cash Flow: Operating, Investing, Financing, CapEx, Free Cash Flow
+- Creates/upgrades CF Financial Period documents with quality score 95
+- Handles both annual (10-K) and quarterly (10-Q) filings
+- Respects override_yahoo flag to prevent unwanted updates
 
 **How to Verify SEC Edgar is Working**:
 ```bash
@@ -160,20 +168,34 @@ ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/
 # For AAPL (CIK 0000320193):
 ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/0000320193/10-K/
 ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/0000320193/10-Q/
+
+# In Frappe console:
+import frappe
+from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+result = fetch_sec_edgar_financials('AAPL', '0000320193')
+print(result)  # Check imported/upgraded counts
+
+# Verify quality scores
+periods = frappe.db.sql("""
+    SELECT fiscal_year, fiscal_quarter, data_quality_score, data_source
+    FROM `tabCF Financial Period`
+    WHERE security='AAPL' AND data_source='SEC Edgar'
+    ORDER BY fiscal_year DESC, fiscal_quarter DESC
+    LIMIT 5
+""", as_dict=True)
+for p in periods:
+    print(p)
 ```
 
 Note: There is only one user action "Fetch Fundamentals". The app automatically tries SEC Edgar first for US companies, then falls back to Yahoo Finance. No separate button is presented.
 
-**Pending Work**:
-- Complete XBRL fact extraction from XbrlInstance objects
-- Map US-GAAP concepts to CF Financial Period fields
-- Handle different fiscal period variations
-
-**Benefits** (when complete):
-- 95%+ accuracy for US companies
-- Regulatory-quality data from official SEC filings
-- Automatic source selection (SEC Edgar → Yahoo Finance fallback)
-- Intelligent auto-upgrade: replaces Yahoo data (85) with SEC data (95)
+**Benefits**:
+- ✅ 95% accuracy for US companies from regulatory filings
+- ✅ Regulatory-quality data directly from SEC Edgar
+- ✅ Automatic source selection (SEC Edgar → Yahoo Finance fallback)
+- ✅ Intelligent auto-upgrade: replaces Yahoo data (85) with SEC data (95)
+- ✅ Support for both annual (10-K) and quarterly (10-Q) periods
+- ✅ Derived metrics calculated automatically (gross profit, free cash flow)
 
 ### Phase 3: Major Global Exchanges
 

@@ -19,7 +19,7 @@ class CFFinancialPeriod(Document):
 		quality_scores = {
 			"Manual Entry": 100,
 			"PDF Upload": 95,
-			"SEC Edgar": 90,
+			"SEC Edgar": 95,
 			"Yahoo Finance": 85,
 			"Other API": 70
 		}

@@ -158,7 +158,7 @@
    "fieldtype": "Int",
    "label": "Data Quality Score",
    "read_only": 1,
-   "description": "Auto-calculated: Manual=100, PDF=95, SEC=90, Yahoo=85"
+   "description": "Auto-calculated: Manual=100, PDF/SEC=95, Yahoo=85"
   },
   {
    "fieldname": "verified_by_pdf",

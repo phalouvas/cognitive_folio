@@ -59,7 +59,7 @@ The new **CF Financial Period** DocType stores financial data in structured fiel
 #### Task 1.2: Add Smart Conflict Resolution ✓
 **Status:** COMPLETED  
 **Details:**
-- Added fields: `override_yahoo` (checkbox to lock data), `data_quality_score` (auto-calculated: Manual=100, PDF=95, SEC=90, Yahoo=85), `verified_by_pdf` (attachment to source document)
+- Added fields: `override_yahoo` (checkbox to lock data), `data_quality_score` (auto-calculated: Manual=100, PDF/SEC=95, Yahoo=85), `verified_by_pdf` (attachment to source document)
 - Created `get_source_priority()` function to rank data sources
 - Created `check_import_conflicts()` function to detect existing higher-quality periods before import
 - Modified `import_from_yahoo_finance()` to accept `replace_existing` and `respect_override` parameters
