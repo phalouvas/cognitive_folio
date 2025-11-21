@@ -20,6 +20,10 @@ class CFFinancialPeriod(Document):
 			"Manual Entry": 100,
 			"PDF Upload": 95,
 			"SEC Edgar": 95,
+			"UK Companies House": 95,
+			"EU ESEF": 95,
+			"HKEX": 95,
+			"SIX Swiss Exchange": 95,
 			"Yahoo Finance": 85,
 			"Other API": 70
 		}

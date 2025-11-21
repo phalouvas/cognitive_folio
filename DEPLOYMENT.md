@@ -95,12 +95,13 @@ Phase 2+ will add support for regulatory filings from major stock exchanges:
 | Region | Exchange | Data Source | Quality Score | Standard | Status |
 |--------|----------|-------------|---------------|----------|--------|
 | 🇺🇸 United States | SEC Edgar | XBRL/iXBRL | 95 | US-GAAP | ✅ Complete |
-| 🇭🇰 Hong Kong | HKEX | XBRL/iXBRL | 95 | HKFRS | Phase 2 |
-| 🇬🇧 United Kingdom | Companies House | iXBRL | 95 | UK-GAAP | Phase 2 |
-| 🇪🇺 European Union | ESEF Portal | XBRL | 95 | ESEF (IFRS) | Phase 3 |
-| 🇨🇦 Canada | SEDAR+ | XBRL | 95 | IFRS/CA-GAAP | Phase 3 |
-| 🇯🇵 Japan | EDINET | XBRL | 95 | JGAAP | Phase 3 |
-| 🇦🇺 Australia | ASIC | XBRL | 95 | AIFRS | Phase 3 |
+| 🇬🇧 United Kingdom | Companies House | iXBRL | 95 | UK-GAAP | ✅ Phase 3 |
+| 🇪🇺 European Union | ESEF (GER/PAR/AMS/MIL/MCE) | XBRL | 95 | ESEF (IFRS) | ✅ Phase 3 |
+| 🇭🇰 Hong Kong | HKEX | XBRL/iXBRL | 95 | HKFRS | ✅ Phase 3 |
+| 🇨🇭 Switzerland | SIX | XBRL | 95 | IFRS/Swiss GAAP | ✅ Phase 3 |
+| 🇨🇦 Canada | SEDAR+ | XBRL | 95 | IFRS/CA-GAAP | Phase 4 |
+| 🇯🇵 Japan | EDINET | XBRL | 95 | JGAAP | Phase 4 |
+| 🇦🇺 Australia | ASIC | XBRL | 95 | AIFRS | Phase 4 |
 | 🇨🇳 China | CSRC | XBRL | 95 | CAS | Phase 4 |
 | 🌍 Fallback | Yahoo Finance | JSON | 85 | Proprietary | Current ✅ |
 
@@ -197,18 +198,61 @@ Note: There is only one user action "Fetch Fundamentals". The app automatically 
 - ✅ Support for both annual (10-K) and quarterly (10-Q) periods
 - ✅ Derived metrics calculated automatically (gross profit, free cash flow)
 
-### Phase 3: Major Global Exchanges
+### Phase 3: Major Global Exchanges 🚧 IN PROGRESS
 
 **Goal**: Extend 95%+ accuracy to Hong Kong, UK, EU, Canada, Japan, Australia
 
-**Changes**:
-- Extend XBRL parser to support IFRS, UK-GAAP, HKFRS, ESEF taxonomies
-- Implement exchange-specific downloaders (HKEX API, Companies House API, etc.)
-- Add taxonomy mapping layer
+**Architecture** (COMPLETED):
+- ✅ **Taxonomy Mapper** (`taxonomy_mapper.py`): Maps XBRL concepts from IFRS, UK-GAAP, HKFRS, ESEF, JGAAP, AIFRS to CF fields
+- ✅ **Base XBRL Fetcher** (`base_xbrl_fetcher.py`): Abstract class providing common XBRL parsing, context extraction, period creation
+- ✅ **Auto-taxonomy Detection**: Detects accounting standard from XBRL namespaces
+- ✅ **Regional Fetcher Framework**: Exchange-specific fetchers inherit from base class
 
-**Benefits**:
-- Consistent high-quality data across major markets
-- Reduced reliance on Yahoo Finance
+**Targeted Exchanges (based on current database):**
+- UK: `LSE`, `IOB` → Companies House API (iXBRL) ✅ High Priority
+- EU: `GER`, `PAR`, `AMS`, `MIL`, `MCE` → ESEF/IFRS via national regulators ✅ High Priority
+- Hong Kong: `HKG` → HKEXnews (scraping) ⚠️ Medium Priority
+- Switzerland: `EBS` → SIX OAM/e-Reporting (assess) ⚠️ Medium Priority
+- US OTC: `PNK`, `OQX` → Limited filings; default to Yahoo ⚠️ Low Priority
+- US: `NYQ`, `NMS` → SEC Edgar ✅ Already implemented (Phase 2)
+
+**Implementation Status**:
+- ✅ Foundation complete (taxonomy mapper, base fetcher framework)
+- ✅ UK Companies House fetcher (`uk_companies_house_fetcher.py`) - FREE API
+  - Auto-routes for LSE/IOB exchanges when `companies_house_number` is set
+  - Downloads iXBRL accounts via Companies House Document API
+  - Quality score: 95
+  - Setup: Register for free API key, add `companies_house_api_key` to site config
+- ✅ EU ESEF fetcher (`eu_esef_fetcher.py`) - Manual upload mode
+  - Supports GER, PAR, AMS, MIL, MCE exchanges
+  - Parses ESEF XHTML/XML with IFRS taxonomy
+  - Quality score: 95
+  - Requires ISIN on security
+  - Manual upload to: `sites/private/files/eu_esef/<ISIN>/Annual/<date>/report.xhtml`
+  - Future: Direct API integration with national regulators
+- ✅ Hong Kong HKEX fetcher (`hk_hkex_fetcher.py`) - Manual upload mode
+  - Auto-routes for HKG exchange
+  - Parses HKFRS XBRL with IFRS/HKFRS taxonomy
+  - Quality score: 95
+  - Stock code extracted from symbol (e.g., "0700.HK" → "0700")
+  - Manual upload to: `sites/private/files/hkex/<stock_code>/Annual/<date>/report.xhtml`
+  - Optional: Playwright automation script included
+- ✅ Switzerland SIX Swiss Exchange fetcher (`ch_six_fetcher.py`) - Manual upload mode
+  - Auto-routes for EBS exchange
+  - Parses Swiss XBRL with IFRS/Swiss GAAP FER taxonomy
+  - Quality score: 95
+  - Requires Swiss ISIN (CH + 10 digits, e.g., CH0038863350)
+  - Manual upload to: `sites/private/files/six/<ISIN>/Annual/<date>/report.xhtml`
+  - Covers: NESN.SW (Nestlé), ROG.SW (Roche)
+- ⏳ US OTC (fallback to Yahoo, optional OTC Markets paid API)
+- ⏳ Canada SEDAR+ (strategic, not yet in DB)
+
+**See**: `PHASE3_IMPLEMENTATION.md` for detailed API research, priorities, and technical requirements
+
+**Benefits** (when complete):
+- Consistent 95% quality data across major markets
+- Reduced reliance on Yahoo Finance for international stocks
+- Support for 7+ regional accounting standards (US-GAAP, IFRS, UK-GAAP, HKFRS, etc.)
 
 ### Phase 4: Emerging Markets
 

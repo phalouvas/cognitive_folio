@@ -543,7 +543,7 @@ class CFSecurity(Document):
 				auto_import_enabled = getattr(settings, 'auto_import_financial_periods', 1)
 				if auto_import_enabled:
 					try:
-						# Phase 2: Use SEC Edgar for US companies with CIK, otherwise Yahoo Finance
+						# Phase 2/3: Prioritize regulator sources (SEC/Companies House), else Yahoo Finance
 						if self.country == 'United States' and self.sec_cik:
 							# Try SEC Edgar first (higher quality: 95)
 							try:
@@ -564,11 +564,89 @@ class CFSecurity(Document):
 									message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
 								)
 								result = self._create_financial_periods_from_yahoo()
-						else:
-							# Use Yahoo Finance for non-US or companies without CIK
-							result = self._create_financial_periods_from_yahoo()
-						
-						# Store result summary - use db_set to avoid triggering full save cycle
+						elif (self.country == 'United Kingdom' or (self.stock_exchange or '').upper() in ['LSE', 'IOB']):
+							# Try UK Companies House if company number exists
+							if getattr(self, 'companies_house_number', None):
+								try:
+									from cognitive_folio.utils.uk_companies_house_fetcher import fetch_companies_house_financials
+									result = fetch_companies_house_financials(self.name)
+									if not result.get('success') or result.get('total_periods', 0) == 0:
+										frappe.log_error(
+											title=f"Companies House fallback for {self.name}",
+											message=f"Companies House result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
+										)
+										result = self._create_financial_periods_from_yahoo()
+								except Exception as e:
+									frappe.log_error(
+										title=f"Companies House Error for {self.name}",
+										message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+									)
+									result = self._create_financial_periods_from_yahoo()
+							else:
+								# No company number; fallback
+								result = self._create_financial_periods_from_yahoo()
+						elif (self.stock_exchange or '').upper() in ['GER', 'PAR', 'AMS', 'MIL', 'MCE']:
+							# Try EU ESEF for major European exchanges
+							if getattr(self, 'isin', None):
+								try:
+									from cognitive_folio.utils.eu_esef_fetcher import fetch_eu_esef_financials
+									result = fetch_eu_esef_financials(self.name)
+									if not result.get('success') or result.get('total_periods', 0) == 0:
+										frappe.log_error(
+											title=f"EU ESEF fallback for {self.name}",
+											message=f"EU ESEF result: {result.get('error', 'No data')}\\nFalling back to Yahoo Finance"
+										)
+										result = self._create_financial_periods_from_yahoo()
+								except Exception as e:
+									frappe.log_error(
+										title=f"EU ESEF Error for {self.name}",
+										message=f"Error: {str(e)}\\nFalling back to Yahoo Finance"
+									)
+									result = self._create_financial_periods_from_yahoo()
+							else:
+								# No ISIN; fallback
+								result = self._create_financial_periods_from_yahoo()
+						elif (self.stock_exchange or '').upper() == 'HKG':
+							# Try HKEX for Hong Kong stocks
+							try:
+								from cognitive_folio.utils.hk_hkex_fetcher import fetch_hkex_financials
+								result = fetch_hkex_financials(self.name)
+								if not result.get('success') or result.get('total_periods', 0) == 0:
+									frappe.log_error(
+										title=f"HKEX fallback for {self.name}",
+										message=f"HKEX result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
+									)
+									result = self._create_financial_periods_from_yahoo()
+							except Exception as e:
+								frappe.log_error(
+									title=f"HKEX Error for {self.name}",
+									message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+								)
+								result = self._create_financial_periods_from_yahoo()
+							elif (self.stock_exchange or '').upper() == 'EBS':
+								# Try SIX Swiss Exchange for Swiss stocks
+								if self.isin:
+									try:
+										from cognitive_folio.cognitive_folio.doctype.cf_security.ch_six_fetcher import fetch_six_financials
+										result = fetch_six_financials(self.name)
+										if not result.get('success') or result.get('total_periods', 0) == 0:
+											frappe.log_error(
+												title=f"SIX fallback for {self.name}",
+												message=f"SIX result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
+											)
+											result = self._create_financial_periods_from_yahoo()
+									except Exception as e:
+										frappe.log_error(
+											title=f"SIX Error for {self.name}",
+											message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+										)
+										result = self._create_financial_periods_from_yahoo()
+								else:
+									# No ISIN; fallback
+									result = self._create_financial_periods_from_yahoo()
+							else:
+								# Use Yahoo Finance for non-US or companies without CIK
+								result = self._create_financial_periods_from_yahoo()						# Store result summary - use db_set to avoid triggering full save cycle
 						self.db_set('last_period_import_result', frappe.as_json(result), update_modified=False)
 						
 						# Build success message
@@ -578,7 +656,7 @@ class CFSecurity(Document):
 							imported = result.get('imported_count', 0)
 							updated = result.get('updated_count', 0)
 							data_source = result.get('data_source_used', 'Yahoo Finance')
-							quality = 95 if data_source == 'SEC Edgar' else 85
+							quality = 95 if data_source in ('SEC Edgar', 'UK Companies House', 'EU ESEF', 'HKEX', 'SIX Swiss Exchange') else 85
 							
 							msg = f"Fetched {total} financial periods from {data_source} (quality: {quality})"
 							if upgraded > 0:

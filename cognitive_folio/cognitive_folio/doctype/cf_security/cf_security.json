@@ -14,6 +14,8 @@
   "security_type",
   "column_break_5",
   "stock_exchange",
+  "sec_cik",
+  "companies_house_number",
   "currency",
   "current_price",
   "column_break_rvai",
@@ -151,6 +153,13 @@
    "label": "SEC CIK",
    "description": "SEC Central Index Key for US-listed companies",
    "read_only": 1
+  },
+  {
+   "fieldname": "companies_house_number",
+   "fieldtype": "Data",
+   "label": "Companies House Number",
+   "description": "UK Companies House company number (for LSE/IOB)",
+   "read_only": 0
   },
   {
    "fieldname": "currency",
