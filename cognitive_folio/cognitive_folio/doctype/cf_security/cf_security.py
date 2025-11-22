@@ -623,30 +623,32 @@ class CFSecurity(Document):
 									message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
 								)
 								result = self._create_financial_periods_from_yahoo()
-							elif (self.stock_exchange or '').upper() == 'EBS':
-								# Try SIX Swiss Exchange for Swiss stocks
-								if self.isin:
-									try:
-										from cognitive_folio.cognitive_folio.doctype.cf_security.ch_six_fetcher import fetch_six_financials
-										result = fetch_six_financials(self.name)
-										if not result.get('success') or result.get('total_periods', 0) == 0:
-											frappe.log_error(
-												title=f"SIX fallback for {self.name}",
-												message=f"SIX result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
-											)
-											result = self._create_financial_periods_from_yahoo()
-									except Exception as e:
+						elif (self.stock_exchange or '').upper() == 'EBS':
+							# Try SIX Swiss Exchange for Swiss stocks
+							if self.isin:
+								try:
+									from cognitive_folio.cognitive_folio.doctype.cf_security.ch_six_fetcher import fetch_six_financials
+									result = fetch_six_financials(self.name)
+									if not result.get('success') or result.get('total_periods', 0) == 0:
 										frappe.log_error(
-											title=f"SIX Error for {self.name}",
-											message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+											title=f"SIX fallback for {self.name}",
+											message=f"SIX result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
 										)
 										result = self._create_financial_periods_from_yahoo()
-								else:
-									# No ISIN; fallback
+								except Exception as e:
+									frappe.log_error(
+										title=f"SIX Error for {self.name}",
+										message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+									)
 									result = self._create_financial_periods_from_yahoo()
 							else:
-								# Use Yahoo Finance for non-US or companies without CIK
-								result = self._create_financial_periods_from_yahoo()						# Store result summary - use db_set to avoid triggering full save cycle
+								# No ISIN; fallback
+								result = self._create_financial_periods_from_yahoo()
+						else:
+							# Use Yahoo Finance for non-US or companies without CIK
+							result = self._create_financial_periods_from_yahoo()
+
+						# Store result summary - use db_set to avoid triggering full save cycle
 						self.db_set('last_period_import_result', frappe.as_json(result), update_modified=False)
 						
 						# Build success message
