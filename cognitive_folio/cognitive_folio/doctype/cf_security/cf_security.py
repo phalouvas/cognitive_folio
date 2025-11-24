@@ -490,6 +490,232 @@ class CFSecurity(Document):
 				"data_source_used": "Yahoo Finance"
 			}
 	
+	def _detect_missing_quarters(self):
+		"""
+		Detect missing quarters in the last 2 years.
+		
+		Returns:
+			List of dicts with {fiscal_year, fiscal_quarter} for missing periods
+		"""
+		from datetime import date
+		from dateutil.relativedelta import relativedelta
+		
+		# Get current date and calculate 2 years back
+		today = date.today()
+		two_years_ago = today - relativedelta(years=2)
+		
+		# Get all quarterly periods for this security in the last 2 years
+		existing_periods = frappe.get_all(
+			"CF Financial Period",
+			filters={
+				"security": self.name,
+				"period_type": "Quarterly",
+				"period_end_date": [">=", two_years_ago]
+			},
+			fields=["fiscal_year", "fiscal_quarter"],
+			order_by="fiscal_year, fiscal_quarter"
+		)
+		
+		if not existing_periods:
+			return []
+		
+		# Build set of existing periods
+		existing_set = set()
+		for p in existing_periods:
+			existing_set.add((p.fiscal_year, p.fiscal_quarter))
+		
+		# Determine expected quarters based on date range
+		current_year = today.year
+		start_year = two_years_ago.year
+		
+		expected_quarters = []
+		for year in range(start_year, current_year + 1):
+			for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+				# Only check quarters that should have been reported by now
+				quarter_end_month = {'Q1': 3, 'Q2': 6, 'Q3': 9, 'Q4': 12}[quarter]
+				quarter_end = date(year, quarter_end_month, 28)  # Approximate
+				
+				# Allow 90 days for filing after quarter end
+				filing_deadline = quarter_end + relativedelta(days=90)
+				
+				if filing_deadline <= today and quarter_end >= two_years_ago:
+					expected_quarters.append((year, quarter))
+		
+		# Find missing quarters
+		missing = []
+		for year, quarter in expected_quarters:
+			if (year, quarter) not in existing_set:
+				missing.append({"fiscal_year": year, "fiscal_quarter": quarter})
+		
+		return missing
+	
+	def _fill_missing_quarters_from_yahoo(self, missing_quarters):
+		"""
+		Fill missing quarters using Yahoo Finance data.
+		
+		Args:
+			missing_quarters: List of dicts with fiscal_year and fiscal_quarter
+			
+		Returns:
+			Dict with import results
+		"""
+		if not missing_quarters or not self.quarterly_profit_loss:
+			return {"imported_count": 0, "errors": []}
+		
+		import json
+		from datetime import datetime
+		
+		imported_count = 0
+		errors = []
+		yahoo_quality_score = 85
+		
+		# Field mapping
+		field_mapping = {
+			"Total Revenue": "total_revenue",
+			"Cost Of Revenue": "cost_of_revenue",
+			"Gross Profit": "gross_profit",
+			"Operating Expense": "operating_expenses",
+			"Operating Income": "operating_income",
+			"EBIT": "ebit",
+			"EBITDA": "ebitda",
+			"Interest Expense": "interest_expense",
+			"Pretax Income": "pretax_income",
+			"Tax Provision": "tax_provision",
+			"Net Income": "net_income",
+			"Diluted EPS": "diluted_eps",
+			"Basic EPS": "basic_eps",
+			"Total Assets": "total_assets",
+			"Current Assets": "current_assets",
+			"Cash And Cash Equivalents": "cash_and_equivalents",
+			"Accounts Receivable": "accounts_receivable",
+			"Inventory": "inventory",
+			"Total Liabilities Net Minority Interest": "total_liabilities",
+			"Current Liabilities": "current_liabilities",
+			"Total Debt": "total_debt",
+			"Long Term Debt": "long_term_debt",
+			"Stockholders Equity": "shareholders_equity",
+			"Retained Earnings": "retained_earnings",
+			"Operating Cash Flow": "operating_cash_flow",
+			"Capital Expenditure": "capital_expenditures",
+			"Free Cash Flow": "free_cash_flow",
+			"Investing Cash Flow": "investing_cash_flow",
+			"Financing Cash Flow": "financing_cash_flow",
+		}
+		
+		try:
+			quarterly_pl_data = json.loads(self.quarterly_profit_loss)
+			quarterly_bs_data = json.loads(self.quarterly_balance_sheet) if self.quarterly_balance_sheet else {}
+			quarterly_cf_data = json.loads(self.quarterly_cash_flow) if self.quarterly_cash_flow else {}
+			
+			# Create set of missing periods for quick lookup
+			missing_set = set((m['fiscal_year'], m['fiscal_quarter']) for m in missing_quarters)
+			
+			for date_str, pl_data in quarterly_pl_data.items():
+				try:
+					period_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+					fiscal_year = period_date.year
+					month = period_date.month
+					
+					# Determine quarter from Yahoo's date
+					if month in [1, 2, 3]:
+						fiscal_quarter = "Q1"
+					elif month in [4, 5, 6]:
+						fiscal_quarter = "Q2"
+					elif month in [7, 8, 9]:
+						fiscal_quarter = "Q3"
+					else:
+						fiscal_quarter = "Q4"
+					
+					# Only process if this is a missing quarter
+					if (fiscal_year, fiscal_quarter) not in missing_set:
+						continue
+					
+					# Check if already exists (shouldn't, but safety check)
+					period_filter = {
+						"security": self.name,
+						"period_type": "Quarterly",
+						"fiscal_year": fiscal_year,
+						"fiscal_quarter": fiscal_quarter
+					}
+					
+					existing = frappe.db.get_value(
+						"CF Financial Period",
+						period_filter,
+						["name", "override_yahoo"],
+						as_dict=True
+					)
+					
+					if existing and existing.override_yahoo:
+						continue
+					
+					if existing:
+						continue  # Skip if somehow already exists
+					
+					# Create new period
+					period = frappe.new_doc("CF Financial Period")
+					period.security = self.name
+					period.period_type = "Quarterly"
+					period.fiscal_year = fiscal_year
+					period.fiscal_quarter = fiscal_quarter
+					period.period_end_date = period_date.date()
+					period.data_source = "Yahoo Finance"
+					period.data_quality_score = yahoo_quality_score
+					period.currency = self.currency or "USD"
+					
+					# Note that this filled a gap
+					notes = f"Auto-filled from Yahoo Finance due to SEC Edgar gap. "
+					notes += f"This quarter was missing from SEC filings but available from Yahoo Finance."
+					period.notes = notes
+					
+					# Map Yahoo Finance fields
+					bs_data = quarterly_bs_data.get(date_str, {})
+					cf_data = quarterly_cf_data.get(date_str, {})
+					
+					for yf_field, our_field in field_mapping.items():
+						if yf_field in pl_data and pl_data[yf_field] is not None:
+							setattr(period, our_field, pl_data[yf_field])
+						elif yf_field in bs_data and bs_data[yf_field] is not None:
+							setattr(period, our_field, bs_data[yf_field])
+						elif yf_field in cf_data and cf_data[yf_field] is not None:
+							setattr(period, our_field, cf_data[yf_field])
+					
+					# Store raw data
+					period.raw_income_statement = json.dumps(pl_data)
+					if date_str in quarterly_bs_data:
+						period.raw_balance_sheet = json.dumps(quarterly_bs_data[date_str])
+					if date_str in quarterly_cf_data:
+						period.raw_cash_flow = json.dumps(quarterly_cf_data[date_str])
+					
+					period.save()
+					imported_count += 1
+					frappe.logger().info(f"Filled gap {fiscal_year} {fiscal_quarter} for {self.name} from Yahoo Finance")
+					
+				except Exception as e:
+					errors.append(f"{fiscal_year} {fiscal_quarter}: {str(e)}")
+					frappe.log_error(
+						title=f"Yahoo Gap Fill Error: {self.name} {fiscal_year} {fiscal_quarter}",
+						message=str(e)
+					)
+			
+			frappe.db.commit()
+			
+			return {
+				"success": True,
+				"imported_count": imported_count,
+				"errors": errors if errors else None
+			}
+			
+		except Exception as e:
+			frappe.log_error(
+				title=f"Yahoo Gap Fill Error: {self.name}",
+				message=str(e)
+			)
+			return {
+				"success": False,
+				"imported_count": 0,
+				"errors": [str(e)]
+			}
+	
 	@frappe.whitelist()
 	def fetch_data(self, with_fundamentals=False):
 		# Convert string to boolean if needed (frappe.call sends booleans as strings)
@@ -549,6 +775,17 @@ class CFSecurity(Document):
 							try:
 								from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
 								result = fetch_sec_edgar_financials(self.name, self.sec_cik)
+								
+								# Check for quarter gaps after SEC import and fill with Yahoo
+								if result.get('success'):
+									missing_quarters = self._detect_missing_quarters()
+									if missing_quarters:
+										frappe.logger().info(f"Detected missing quarters for {self.name}: {missing_quarters}")
+										yahoo_result = self._fill_missing_quarters_from_yahoo(missing_quarters)
+										if yahoo_result.get('imported_count', 0) > 0:
+											result['imported_count'] = result.get('imported_count', 0) + yahoo_result['imported_count']
+											result['total_periods'] = result.get('total_periods', 0) + yahoo_result['imported_count']
+											result['data_source_used'] = 'SEC Edgar + Yahoo Finance (gaps filled)'
 								
 								# If SEC Edgar fails or returns no data, fallback to Yahoo
 								if not result.get('success') or result.get('total_periods', 0) == 0:

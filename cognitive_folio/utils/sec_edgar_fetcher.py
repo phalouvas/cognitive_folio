@@ -46,9 +46,10 @@ def fetch_sec_edgar_financials(security_name: str, cik: str) -> Dict:
 		cik_num = str(int(cik))
 		
 		# Download 10-K (annual) and 10-Q (quarterly) filings with details
+		# Limit to 3 years of annual data and 12 quarters for fundamental analysis
 		try:
-			annual_count = dl.get("10-K", cik_num, limit=5, download_details=True)
-			quarterly_count = dl.get("10-Q", cik_num, limit=20, download_details=True)
+			annual_count = dl.get("10-K", cik_num, limit=3, download_details=True)
+			quarterly_count = dl.get("10-Q", cik_num, limit=12, download_details=True)
 		except Exception as e:
 			frappe.log_error(
 				title=f"SEC Edgar Download Error: {security_name}",
@@ -396,6 +397,7 @@ def extract_usgaap_facts(xbrl, period_type: str) -> Optional[Dict]:
 		period_context_id = None
 		period_end_date = None
 		period_start_date = None
+		fiscal_period_label = None  # Will store fp metadata (Q1, Q2, Q3, Q4, FY)
 		
 		for ctx in contexts:
 			period = ctx.find('xbrli:period')
@@ -416,6 +418,20 @@ def extract_usgaap_facts(xbrl, period_type: str) -> Optional[Dict]:
 						period_end_date = end_date
 						period_start_date = start_date
 						period_context_id = ctx.get('id')
+						
+						# Try to extract fiscal period from context ID or segments
+						# SEC filings often have contextRef like "FY2025Q2" or contain fiscal period indicators
+						ctx_id = ctx.get('id', '')
+						if 'Q1' in ctx_id.upper():
+							fiscal_period_label = 'Q1'
+						elif 'Q2' in ctx_id.upper():
+							fiscal_period_label = 'Q2'
+						elif 'Q3' in ctx_id.upper():
+							fiscal_period_label = 'Q3'
+						elif 'Q4' in ctx_id.upper():
+							fiscal_period_label = 'Q4'
+						elif 'FY' in ctx_id.upper() or 'ANNUAL' in ctx_id.upper():
+							fiscal_period_label = 'FY'
 				except:
 					continue
 		
@@ -460,19 +476,23 @@ def extract_usgaap_facts(xbrl, period_type: str) -> Optional[Dict]:
 		if not financial_data:
 			return None
 		
-		# Determine fiscal year and quarter from dates
+		# Determine fiscal year and quarter
 		fiscal_year = period_end_date.year
 		month = period_end_date.month
 		
-		# Map month to quarter (approximation)
-		if month in [1, 2, 3]:
-			fiscal_quarter = "Q1"
-		elif month in [4, 5, 6]:
-			fiscal_quarter = "Q2"
-		elif month in [7, 8, 9]:
-			fiscal_quarter = "Q3"
+		# Use fiscal period label from SEC metadata if available, otherwise calculate from month
+		if fiscal_period_label and fiscal_period_label in ['Q1', 'Q2', 'Q3', 'Q4']:
+			fiscal_quarter = fiscal_period_label
 		else:
-			fiscal_quarter = "Q4"
+			# Fallback: Map month to quarter as approximation
+			if month in [1, 2, 3]:
+				fiscal_quarter = "Q1"
+			elif month in [4, 5, 6]:
+				fiscal_quarter = "Q2"
+			elif month in [7, 8, 9]:
+				fiscal_quarter = "Q3"
+			else:
+				fiscal_quarter = "Q4"
 		
 		# Calculate derived fields
 		if "gross_profit" not in financial_data and "total_revenue" in financial_data and "cost_of_revenue" in financial_data:
