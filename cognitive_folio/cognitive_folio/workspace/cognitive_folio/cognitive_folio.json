@@ -13,7 +13,7 @@
  "is_hidden": 0,
  "label": "Cognitive Folio",
  "links": [],
- "modified": "2025-11-24 16:55:32.283194",
+ "modified": "2025-11-24 17:04:11.326326",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
@@ -28,17 +28,17 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Financial Periods",
-   "link_to": "CF Financial Period",
-   "stats_filter": "[]",
-   "type": "DocType"
+   "label": "Readme",
+   "type": "URL",
+   "url": "https://kainotomo.com/cognitive_folio/readme"
   },
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Financial Data Sources",
-   "type": "URL",
-   "url": "https://kainotomo.com/financial_data_sources"
+   "label": "Financial Periods",
+   "link_to": "CF Financial Period",
+   "stats_filter": "[]",
+   "type": "DocType"
   },
   {
    "color": "Blue",
@@ -51,16 +51,9 @@
   {
    "color": "Grey",
    "doc_view": "List",
-   "label": "Readme",
+   "label": "Financial Data Sources",
    "type": "URL",
-   "url": "https://kainotomo.com/readme"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Variable Reference",
-   "type": "URL",
-   "url": "https://kainotomo.com/variable_reference"
+   "url": "https://kainotomo.com/cognitive_folio/financial_data_sources"
   },
   {
    "color": "Blue",
@@ -69,6 +62,13 @@
    "link_to": "CF Portfolio Holding",
    "stats_filter": "[]",
    "type": "DocType"
+  },
+  {
+   "color": "Grey",
+   "doc_view": "List",
+   "label": "Variable Reference",
+   "type": "URL",
+   "url": "https://kainotomo.com/cognitive_folio/variable_reference"
   },
   {
    "color": "Grey",
