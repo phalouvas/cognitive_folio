@@ -25,11 +25,31 @@ bench get-app $URL_OF_THIS_REPO --branch develop
 bench install-app cognitive_folio
 ```
 
+### Required Dependencies
+
+```bash
+# Core dependencies (required for all stocks)
+cd frappe-bench
+./env/bin/pip install yfinance openai
+
+# SEC Edgar integration (required for US stocks only)
+./env/bin/pip install sec-edgar-downloader python-xbrl lxml pdfplumber
+```
+
 ---
 
 ## Financial Data Architecture
 
 Cognitive Folio uses a **structured financial data system** built around the `CF Financial Period` DocType. This provides a queryable, consistent database for storing and analyzing financial statements - replacing the old approach of storing large JSON blobs.
+
+### Current Scope: US Stocks Only for Regulatory Filings
+
+⚠️ **Important**: The current implementation focuses on **US-listed companies** for SEC Edgar integration. This provides:
+- **High-quality data** from regulatory filings (10-K, 10-Q) with quality score 95
+- **Automatic XBRL parsing** from SEC Edgar inline XBRL HTML files
+- **Fallback to Yahoo Finance** (quality score 85) for non-US stocks or when SEC data is unavailable
+
+**Future Phases**: Integration with Hong Kong (HKEX), UK (Companies House), EU (ESEF), Canada (SEDAR+), Japan (EDINET), and Australia (ASIC) regulatory databases are planned but not yet implemented.
 
 ### Why Structured Financial Data?
 
@@ -39,7 +59,7 @@ Cognitive Folio uses a **structured financial data system** built around the `CF
 - ✅ **AI Efficiency** - Clean queries reduce token usage and improve response speed
 - ✅ **Automatic Calculations** - Margins, ratios, and growth metrics computed on save
 - ✅ **Data Quality** - Type enforcement, validation rules, and audit trails
-- ✅ **Multi-Source Support** - Import from Yahoo Finance, PDFs, or manual entry
+- ✅ **Multi-Source Support** - SEC Edgar (US only), Yahoo Finance (global), PDFs, or manual entry
 
 ### Core Components
 
@@ -70,14 +90,20 @@ Stores individual financial reporting periods with:
 
 **Source Priority Hierarchy:**
 1. **Manual Entry** (Score: 100) - User-verified data
-2. **PDF/SEC Filings** (Score: 95) - Official documents
-3. **SEC Edgar** (Score: 90) - Regulatory filings
-4. **Yahoo Finance** (Score: 85) - Third-party aggregator
+2. **SEC Edgar** (Score: 95) - US regulatory filings (10-K, 10-Q)
+3. **PDF Upload** (Score: 95) - Official documents
+4. **Yahoo Finance** (Score: 85) - Third-party aggregator (global)
+
+**Current Implementation:**
+- **US Stocks**: Automatic SEC Edgar integration with XBRL parsing
+- **Global Stocks**: Yahoo Finance fallback for all other markets
+- **Future**: Hong Kong, UK, EU, Canada, Japan, Australia regulatory filings (Phase 3+)
 
 **Conflict Resolution:**
 - Higher-quality sources take precedence
 - `override_yahoo` flag locks data from automatic updates
 - Import operations respect existing higher-priority data
+- SEC Edgar data automatically upgrades Yahoo Finance data for US companies
 
 ---
 
@@ -86,24 +112,49 @@ Stores individual financial reporting periods with:
 ### 1. Fetch Financial Data
 
 Navigate to a **CF Security** record and click:
-- **Actions → Fetch Fundamentals** (imports from Yahoo Finance)
-- **Actions → Import to Financial Periods** (converts JSON to structured format)
+- **Actions → Fetch Fundamentals**
 
 The system automatically:
+- **For US stocks**: Fetches from SEC Edgar (10-K, 10-Q filings) with XBRL parsing
+- **For other stocks**: Falls back to Yahoo Finance
 - Creates CF Financial Period records for each reporting period
 - Calculates margins, ratios, and growth metrics
-- Handles conflicts using quality scoring
+- Handles conflicts using quality scoring (SEC Edgar 95 > Yahoo 85)
+- Auto-upgrades existing Yahoo data when SEC Edgar data becomes available
 
-### 2. Upload Financial Statements (PDF)
+### 2. SEC Edgar Integration (US Stocks Only)
 
-For companies not on Yahoo Finance or to add verified data:
+**Automatic Operation:**
+- System automatically fetches SEC CIK (Central Index Key) for US-listed companies
+- Downloads 10-K (annual) and 10-Q (quarterly) filings
+- Parses inline XBRL data from HTML filings
+- Maps US-GAAP taxonomy to CF Financial Period fields
+- Quality Score: 95 (higher than Yahoo Finance 85)
+
+**Verification:**
+```bash
+# Check downloaded filings
+ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/{CIK}/
+
+# Verify in Frappe console
+import frappe
+from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+result = fetch_sec_edgar_financials('AAPL', '0000320193')
+print(result)
+```
+
+**Note:** There is only one user action "Fetch Fundamentals". The app automatically tries SEC Edgar first for US companies, then falls back to Yahoo Finance.
+
+### 3. Upload Financial Statements (PDF)
+
+For companies not covered by SEC Edgar or Yahoo Finance:
 
 1. Click **Actions → Upload Financial Statement**
 2. Select the PDF file (10-Q, 10-K, annual report)
 3. Choose period type (Annual/Quarterly)
 4. System extracts and structures the data
 
-### 3. Manual Data Entry
+### 4. Manual Data Entry
 
 Create new **CF Financial Period** records directly:
 - Link to security
@@ -113,14 +164,14 @@ Create new **CF Financial Period** records directly:
 
 **Pro Tip:** Use the "Copy from Previous Period" button to speed up entry.
 
-### 4. View Reports
+### 5. View Reports
 
 Access structured data through:
 - **Financial Period Comparison Report** - Track trends over time with sparklines
 - **Security Comparison Report** - Compare multiple companies side-by-side
 - **Financial Metrics Dashboard** - Interactive charts and visualizations
 
-### 5. AI Analysis
+### 6. AI Analysis
 
 Financial data automatically enhances AI analysis:
 
