@@ -10,6 +10,110 @@ import re
 import requests
 from dateutil import parser as date_parser
 from datetime import timezone
+def build_portfolio_financial_summary(portfolio, holdings):
+	"""Return markdown summary of portfolio aggregate latest Annual metrics across holdings."""
+	securities_docs = {}
+	for h in holdings:
+		try:
+			securities_docs[h.security] = frappe.get_doc("CF Security", h.security)
+		except Exception:
+			continue
+
+	aggregate = {
+		"total_revenue": 0.0,
+		"weighted_gross_margin": 0.0,
+		"weighted_operating_margin": 0.0,
+		"weighted_net_margin": 0.0,
+		"total_operating_cash_flow": 0.0,
+		"total_free_cash_flow": 0.0,
+		"roe_list": [],
+		"de_list": [],
+		"growth_stats": [],
+	}
+	sector_allocations = {}
+
+	for h in holdings:
+		sec_name = h.security
+		sec_doc = securities_docs.get(sec_name)
+		if not sec_doc:
+			continue
+		try:
+			holding_doc = frappe.get_doc("CF Portfolio Holding", h.name)
+			sector = holding_doc.sector or "Unknown"
+			sector_allocations[sector] = sector_allocations.get(sector, 0.0) + (holding_doc.allocation_percentage or 0.0)
+		except Exception:
+			pass
+
+		periods = frappe.get_all(
+			"CF Financial Period",
+			filters={"security": sec_name, "period_type": "Annual"},
+			fields=["fiscal_year", "total_revenue", "gross_margin", "operating_margin", "net_margin", "roe", "debt_to_equity", "operating_cash_flow", "free_cash_flow"],
+			order_by="fiscal_year desc",
+			limit=2
+		)
+		if not periods:
+			continue
+		latest = periods[0]
+		prev = periods[1] if len(periods) > 1 else None
+		rev = latest.total_revenue or 0.0
+		aggregate["total_revenue"] += rev
+		aggregate["total_operating_cash_flow"] += latest.operating_cash_flow or 0.0
+		aggregate["total_free_cash_flow"] += latest.free_cash_flow or 0.0
+		if rev > 0:
+			aggregate["weighted_gross_margin"] += (latest.gross_margin or 0.0) * rev
+			aggregate["weighted_operating_margin"] += (latest.operating_margin or 0.0) * rev
+			aggregate["weighted_net_margin"] += (latest.net_margin or 0.0) * rev
+		if latest.roe is not None:
+			aggregate["roe_list"].append(latest.roe)
+		if latest.debt_to_equity is not None:
+			aggregate["de_list"].append(latest.debt_to_equity)
+		if prev and prev.total_revenue and prev.total_revenue != 0:
+			growth_pct = ((rev - prev.total_revenue) / prev.total_revenue) * 100.0
+			aggregate["growth_stats"].append((sec_doc.security_name or sec_name, growth_pct))
+
+	if aggregate["total_revenue"] > 0:
+		aggregate["weighted_gross_margin"] /= aggregate["total_revenue"]
+		aggregate["weighted_operating_margin"] /= aggregate["total_revenue"]
+		aggregate["weighted_net_margin"] /= aggregate["total_revenue"]
+	else:
+		aggregate["weighted_gross_margin"] = 0.0
+		aggregate["weighted_operating_margin"] = 0.0
+		aggregate["weighted_net_margin"] = 0.0
+
+	avg_roe = sum(aggregate["roe_list"]) / len(aggregate["roe_list"]) if aggregate["roe_list"] else 0.0
+	avg_de = sum(aggregate["de_list"]) / len(aggregate["de_list"]) if aggregate["de_list"] else 0.0
+
+	growth_sorted = sorted(aggregate["growth_stats"], key=lambda x: x[1], reverse=True)
+	best_growth = growth_sorted[0] if growth_sorted else None
+	worst_growth = growth_sorted[-1] if growth_sorted else None
+
+	sector_lines = []
+	for sector_name, alloc in sorted(sector_allocations.items(), key=lambda x: x[1], reverse=True):
+		sector_lines.append(f"- {sector_name}: {alloc:.2f}%")
+	sector_block = "\n".join(sector_lines) if sector_lines else "(No sector data)"
+
+	portfolio_summary = [
+		"### Portfolio Financial Summary (Latest Annual)",
+		f"Total Revenue: ${aggregate['total_revenue']:,.2f}",
+		f"Weighted Gross Margin: {aggregate['weighted_gross_margin']*100:.2f}%",
+		f"Weighted Operating Margin: {aggregate['weighted_operating_margin']*100:.2f}%",
+		f"Weighted Net Margin: {aggregate['weighted_net_margin']*100:.2f}%",
+		f"Total Operating Cash Flow: ${aggregate['total_operating_cash_flow']:,.2f}",
+		f"Total Free Cash Flow: ${aggregate['total_free_cash_flow']:,.2f}",
+		f"Average ROE: {avg_roe*100:.2f}%",
+		f"Average Debt/Equity: {avg_de:.2f}",
+		"",
+		"#### Growth Ranking",
+		f"Top Revenue Growth: {best_growth[0]} +{best_growth[1]:.2f}%" if best_growth else "Top Revenue Growth: (Insufficient data)",
+		f"Lowest Revenue Growth: {worst_growth[0]} {worst_growth[1]:.2f}%" if worst_growth else "Lowest Revenue Growth: (Insufficient data)",
+		"",
+		"#### Sector Allocation",
+		sector_block,
+		"",
+		"(Summary auto-generated from latest Annual CF Financial Period data)",
+		"",
+	]
+	return "\n".join(portfolio_summary)
 
 class CFPortfolio(Document):
 	def validate(self):
@@ -467,9 +571,28 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				raise ValueError(_('No holdings found in this portfolio'))
 			
 			prompt = portfolio.ai_prompt or ""
-			
-			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
-			
+
+			# Prepend aggregate summary
+			summary_text = build_portfolio_financial_summary(portfolio, holdings)
+			prompt = summary_text + "\n\n" + prompt
+
+			# Enhanced variable replacement for holdings: supports {{periods:...}} for each security
+			def holding_variable_replacer(match, security_doc):
+				var = match.group(1)
+				if var.startswith("periods:"):
+					# Parse: periods:period_type:num_periods[:format]
+					parts = var.split(":")
+					period_type = parts[1].capitalize() if len(parts) > 1 else "Annual"
+					num_periods = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 4
+					fmt = parts[3] if len(parts) > 3 else "markdown"
+					try:
+						from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+						return format_periods_for_ai(security_doc.name, period_type=period_type, num_periods=num_periods, format=fmt)
+					except Exception as e:
+						return f"[Error: {e}]"
+				else:
+					return replace_variables(match, security_doc)
+
 			holdings = frappe.get_all(
 				"CF Portfolio Holding",
 				filters={"portfolio": portfolio.name},
@@ -514,7 +637,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 									return match.group(0)
 							
 							# Apply security and holding replacements
-							holding_prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security_doc), holding_prompt)
+							holding_prompt = re.sub(r'\{\{([\w\.:]+)\}\}', lambda match: holding_variable_replacer(match, security_doc), holding_prompt)
 							holding_prompt = re.sub(r'\[\[([\w\.]+)\]\]', lambda match: replace_variables(match, holding_doc), holding_prompt)
 							
 							holding_sections.append(holding_prompt)
@@ -1066,3 +1189,63 @@ Flag for re-evaluation **ONLY** if any of these occur:
 		)
 		
 		return False
+
+@frappe.whitelist()
+def test_portfolio_prompt_expansion(portfolio_name):
+	"""Helper for testing Task 2.3: expand portfolio ai_prompt with holdings and periods without calling AI API."""
+	portfolio = frappe.get_doc("CF Portfolio", portfolio_name)
+	prompt = portfolio.ai_prompt or ""
+	# Get holdings (minimal fields)
+	holdings = frappe.get_all(
+		"CF Portfolio Holding",
+		filters={"portfolio": portfolio.name},
+		fields=["name", "security"]
+	)
+	# Prepend summary
+	summary_text = build_portfolio_financial_summary(portfolio, holdings)
+	prompt = summary_text + "\n\n" + prompt
+	import re
+	from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+	from cognitive_folio.utils.helper import replace_variables
+
+	def holding_variable_replacer(match, security_doc):
+		var = match.group(1)
+		if var.startswith("periods:"):
+			parts = var.split(":")
+			period_type = parts[1].capitalize() if len(parts) > 1 else "Annual"
+			num_periods = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 4
+			fmt = parts[3] if len(parts) > 3 else "markdown"
+			try:
+				return format_periods_for_ai(security_doc.name, period_type=period_type, num_periods=num_periods, format=fmt)
+			except Exception as e:
+				return f"[Error: {e}]"
+		else:
+			return replace_variables(match, security_doc)
+
+	if holdings:
+		pattern = r'\*\*\*HOLDINGS\*\*\*(.*?)\*\*\*HOLDINGS\*\*\*'
+		matches = re.findall(pattern, prompt, re.DOTALL)
+		if matches:
+			sections = []
+			for h in holdings:
+				holding_doc = frappe.get_doc("CF Portfolio Holding", h.name)
+				security_doc = frappe.get_doc("CF Security", h.security)
+				for content in matches:
+					hp = content
+					hp = re.sub(r'\{\{([\w\.:]+)\}\}', lambda m: holding_variable_replacer(m, security_doc), hp)
+					hp = re.sub(r'\[\[([\w\.]+)\]\]', lambda m: replace_variables(m, holding_doc), hp)
+					sections.append(hp)
+			parts = re.split(pattern, prompt, flags=re.DOTALL)
+			final = [parts[0]] + sections + ([parts[-1]] if len(parts) > 1 else [])
+			expanded = "\n\n".join(final)
+		else:
+			expanded = prompt
+	else:
+		expanded = prompt
+
+	return {
+		"original_prompt": prompt,
+		"expanded_prompt": expanded,
+		"holding_count": len(holdings),
+		"contains_periods_block": "periods:" in prompt and ("Revenue" in expanded or "Net Income" in expanded),
+	}

@@ -91,7 +91,12 @@
   "quarterly_cash_flow",
   "cash_flow",
   "dividends_section",
-  "dividends"
+  "dividends",
+  "last_period_import_result",
+  "data_freshness_section",
+  "last_financial_period_date",
+  "days_since_last_period",
+  "needs_update"
  ],
  "fields": [
   {
@@ -138,6 +143,13 @@
    "fieldtype": "Data",
    "in_filter": 1,
    "label": "Stock Exchange",
+   "read_only": 1
+  },
+  {
+   "fieldname": "sec_cik",
+   "fieldtype": "Data",
+   "label": "SEC CIK",
+   "description": "SEC Central Index Key for US-listed companies",
    "read_only": 1
   },
   {
@@ -298,8 +310,8 @@
    "fieldtype": "Tab Break",
    "label": "AI"
   },
-  {
-   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{alert_details}} {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}}",
+    {
+    "description": "Use AI variables: {{field}} (security), {{periods:annual:3}} (financial periods), [[field]] (holding), ((field)) (portfolio), JSON paths (e.g. {{news.0.content.title}}), and attachments <<file.pdf>>. Full syntax: <a href=\"/variable_reference\" target=\"_blank\">Variable Reference</a>.",
    "fieldname": "ai_prompt",
    "fieldtype": "Markdown Editor",
    "label": "AI Prompt"
@@ -374,6 +386,42 @@
    "fieldtype": "JSON",
    "label": "Dividends",
    "read_only": 1
+  },
+  {
+   "fieldname": "last_period_import_result",
+   "fieldtype": "Long Text",
+   "label": "Last Period Import Result",
+   "read_only": 1,
+   "description": "JSON summary of the last auto-import of CF Financial Periods"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "data_freshness_section",
+   "fieldtype": "Section Break",
+   "label": "Data Freshness"
+  },
+  {
+   "fieldname": "last_financial_period_date",
+   "fieldtype": "Date",
+   "label": "Last Financial Period Date",
+   "read_only": 1,
+   "description": "Date of the most recent CF Financial Period"
+  },
+  {
+   "fieldname": "days_since_last_period",
+   "fieldtype": "Int",
+   "label": "Days Since Last Period",
+   "read_only": 1,
+   "description": "Days since the last financial period was added/updated"
+  },
+  {
+   "default": "0",
+   "fieldname": "needs_update",
+   "fieldtype": "Check",
+   "in_filter": 1,
+   "label": "Needs Update",
+   "read_only": 1,
+   "description": "True if financial data is stale (>90 days for quarterly, >365 for annual)"
   },
   {
    "collapsible": 1,
@@ -602,11 +650,15 @@
    "link_fieldname": "security"
   },
   {
+   "link_doctype": "CF Financial Period",
+   "link_fieldname": "security"
+  },
+  {
    "link_doctype": "CF Chat",
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-17 10:06:39.841265",
+ "modified": "2025-11-17 09:57:20.758618",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

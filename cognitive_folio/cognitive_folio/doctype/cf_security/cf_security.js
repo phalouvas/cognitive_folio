@@ -122,6 +122,8 @@ frappe.ui.form.on('CF Security', {
                 });
             }, __('Actions'));
             
+            // SEC Edgar is handled automatically in Fetch Fundamentals. No separate button.
+            
             // Add a new button for generating AI suggestion
             frm.add_custom_button(__('Generate AI Suggestion'), function() {
                 // Only proceed if ticker info is available
@@ -175,6 +177,15 @@ frappe.ui.form.on('CF Security', {
                 addCopyButtonToField(frm, fieldName);
             });
             
+        }
+    },
+
+    onload: function(frm) {
+        // Show warning banner if financial data is stale
+        if (frm.doc.needs_update && frm.doc.days_since_last_period) {
+            const days = frm.doc.days_since_last_period;
+            const message = __(`⚠️ Financial data is ${days} days old. Consider updating to ensure accurate analysis.`);
+            frm.dashboard.add_indicator(message, 'orange');
         }
     },
 
@@ -1096,4 +1107,3 @@ function getCurrencySymbol(currency) {
     
     return currencySymbols[currency] || currency + ' ';
 }
-

@@ -161,7 +161,10 @@ scheduler_events = {
 		"0 5 * * *": [
 			"cognitive_folio.tasks.auto_portfolio_notifications"
 		]
-	}
+	},
+	"daily": [
+		"cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period.daily_bulk_import_all_securities"
+	]
 }
 
 # Testing

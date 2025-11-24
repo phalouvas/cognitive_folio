@@ -1,0 +1,18 @@
+{
+	"name": "Financial Period Comparison",
+	"doctype": "Report",
+	"is_standard": "Yes",
+	"module": "Cognitive Folio",
+	"report_name": "Financial Period Comparison",
+	"report_type": "Script Report",
+	"ref_doctype": "CF Financial Period",
+	"query": "",
+	"roles": [
+		{
+			"role": "System Manager"
+		},
+		{
+			"role": "User"
+		}
+	]
+}

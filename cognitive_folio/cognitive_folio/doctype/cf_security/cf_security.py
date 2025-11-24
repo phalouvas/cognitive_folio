@@ -33,6 +33,56 @@ class CFSecurity(Document):
 			self.calculate_fair_value()
 			self.set_alert()
 
+	def on_update(self):
+		"""Update data freshness indicators"""
+		self.update_data_freshness()
+
+	def update_data_freshness(self):
+		"""Calculate and set data freshness fields"""
+		from datetime import datetime, date
+		
+		# Get the latest financial period date
+		latest_period = frappe.get_all(
+			"CF Financial Period",
+			filters={"security": self.name},
+			fields=["period_end_date"],
+			order_by="period_end_date DESC",
+			limit=1
+		)
+		
+		if latest_period:
+			latest_date = latest_period[0].period_end_date
+			self.last_financial_period_date = latest_date
+			
+			# Calculate days since last period
+			today = date.today()
+			if isinstance(latest_date, str):
+				latest_date = datetime.strptime(latest_date, '%Y-%m-%d').date()
+			
+			days_since = (today - latest_date).days
+			self.days_since_last_period = days_since
+			
+			# Determine if needs update
+			# For quarterly data: >90 days, for annual: >365 days
+			# Check if we have quarterly data
+			has_quarterly = frappe.get_all(
+				"CF Financial Period",
+				filters={"security": self.name, "period_type": "Quarterly"},
+				limit=1
+			)
+			
+			if has_quarterly:
+				# Quarterly updates expected
+				self.needs_update = days_since > 90
+			else:
+				# Annual updates expected
+				self.needs_update = days_since > 365
+		else:
+			# No periods found
+			self.last_financial_period_date = None
+			self.days_since_last_period = None
+			self.needs_update = True
+
 	def on_change(self):
 		"""Save all holdings"""
 		holdings = frappe.get_all(
@@ -94,6 +144,578 @@ class CFSecurity(Document):
 			self.fetch_data(with_fundamentals=True)
 			self.generate_ai_suggestion()
 	
+	def _fetch_sec_cik_for_ticker(self, ticker_symbol: str) -> str:
+		"""
+		Fetch SEC Central Index Key (CIK) for a given ticker symbol.
+		Uses SEC's company_tickers.json API with 24-hour caching.
+		
+		Args:
+			ticker_symbol: Stock ticker symbol (e.g., "AAPL")
+		
+		Returns:
+			CIK number as zero-padded string (e.g., "0000320193") or empty string if not found
+		"""
+		try:
+			# Check cache first (24 hour expiration)
+			cache_key = "sec_ticker_cik_mapping"
+			ticker_cik_map = frappe.cache().get_value(cache_key)
+			
+			if not ticker_cik_map:
+				# Fetch from SEC API
+				import requests
+				url = "https://www.sec.gov/files/company_tickers.json"
+				headers = {
+					"User-Agent": "Cognitive Folio App (contact@example.com)"  # SEC requires user agent
+				}
+				
+				response = requests.get(url, headers=headers, timeout=10)
+				response.raise_for_status()
+				data = response.json()
+				
+				# Build ticker -> CIK mapping
+				ticker_cik_map = {}
+				for item in data.values():
+					ticker = item.get("ticker", "").upper()
+					cik = str(item.get("cik_str", "")).zfill(10)  # Zero-pad to 10 digits
+					if ticker and cik:
+						ticker_cik_map[ticker] = cik
+				
+				# Cache for 24 hours
+				frappe.cache().set_value(cache_key, ticker_cik_map, expires_in_sec=86400)
+			
+			# Lookup ticker
+			return ticker_cik_map.get(ticker_symbol.upper(), "")
+			
+		except Exception as e:
+			frappe.log_error(
+				title=f"SEC CIK Lookup Error: {ticker_symbol}",
+				message=str(e)
+			)
+			return ""
+	
+	def _create_financial_periods_from_yahoo(self) -> dict:
+		"""
+		Create CF Financial Period records from Yahoo Finance JSON blobs.
+		Automatically upgrades existing periods with lower quality scores.
+		
+		Returns:
+			Dict with: imported_count, updated_count, upgraded_count, skipped_count, errors, data_source_used
+		"""
+		imported_count = 0
+		updated_count = 0
+		upgraded_count = 0
+		skipped_count = 0
+		errors = []
+		
+		# Data quality score for Yahoo Finance
+		yahoo_quality_score = 85
+		
+		# Field mapping: Yahoo Finance -> CF Financial Period
+		field_mapping = {
+			# Income Statement
+			"Total Revenue": "total_revenue",
+			"Cost Of Revenue": "cost_of_revenue",
+			"Gross Profit": "gross_profit",
+			"Operating Expense": "operating_expenses",
+			"Operating Income": "operating_income",
+			"EBIT": "ebit",
+			"EBITDA": "ebitda",
+			"Interest Expense": "interest_expense",
+			"Pretax Income": "pretax_income",
+			"Tax Provision": "tax_provision",
+			"Net Income": "net_income",
+			"Diluted EPS": "diluted_eps",
+			"Basic EPS": "basic_eps",
+			# Balance Sheet
+			"Total Assets": "total_assets",
+			"Current Assets": "current_assets",
+			"Cash And Cash Equivalents": "cash_and_equivalents",
+			"Accounts Receivable": "accounts_receivable",
+			"Inventory": "inventory",
+			"Total Liabilities Net Minority Interest": "total_liabilities",
+			"Current Liabilities": "current_liabilities",
+			"Total Debt": "total_debt",
+			"Long Term Debt": "long_term_debt",
+			"Stockholders Equity": "shareholders_equity",
+			"Retained Earnings": "retained_earnings",
+			# Cash Flow
+			"Operating Cash Flow": "operating_cash_flow",
+			"Capital Expenditure": "capital_expenditures",
+			"Free Cash Flow": "free_cash_flow",
+			"Investing Cash Flow": "investing_cash_flow",
+			"Financing Cash Flow": "financing_cash_flow",
+		}
+		
+		try:
+			import json
+			from datetime import datetime, date
+			
+			# Get ticker info for shares outstanding
+			ticker_info = None
+			if self.ticker_info:
+				ticker_info = json.loads(self.ticker_info)
+			
+			# Process Annual periods
+			if self.profit_loss:
+				profit_loss_data = json.loads(self.profit_loss)
+				balance_sheet_data = json.loads(self.balance_sheet) if self.balance_sheet else {}
+				cash_flow_data = json.loads(self.cash_flow) if self.cash_flow else {}
+				
+				for date_str, pl_data in profit_loss_data.items():
+					try:
+						period_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+						fiscal_year = period_date.year
+						
+						# Check existing period
+						period_filter = {
+							"security": self.name,
+							"period_type": "Annual",
+							"fiscal_year": fiscal_year
+						}
+						
+						existing = frappe.db.get_value(
+							"CF Financial Period",
+							period_filter,
+							["name", "data_quality_score", "override_yahoo"],
+							as_dict=True
+						)
+						
+						# Skip if override_yahoo is set
+						if existing and existing.override_yahoo:
+							skipped_count += 1
+							continue
+						
+						# Auto-upgrade if quality score is lower
+						is_upgrade = False
+						if existing:
+							if existing.data_quality_score < yahoo_quality_score:
+								is_upgrade = True
+								period = frappe.get_doc("CF Financial Period", existing.name)
+							elif existing.data_quality_score >= yahoo_quality_score:
+								skipped_count += 1
+								continue
+							else:
+								period = frappe.get_doc("CF Financial Period", existing.name)
+						else:
+							period = frappe.new_doc("CF Financial Period")
+							period.security = self.name
+							period.period_type = "Annual"
+							period.fiscal_year = fiscal_year
+							period.period_end_date = date(fiscal_year, 12, 31)
+						
+						# Set metadata
+						period.data_source = "Yahoo Finance"
+						period.data_quality_score = yahoo_quality_score
+						period.currency = self.currency
+						
+						if ticker_info:
+							period.shares_outstanding = ticker_info.get('sharesOutstanding')
+						
+						# Map income statement fields
+						for yf_field, our_field in field_mapping.items():
+							if yf_field in pl_data and pl_data[yf_field] is not None:
+								setattr(period, our_field, pl_data[yf_field])
+						
+						# Map balance sheet fields
+						if date_str in balance_sheet_data:
+							bs_data = balance_sheet_data[date_str]
+							for yf_field, our_field in field_mapping.items():
+								if yf_field in bs_data and bs_data[yf_field] is not None:
+									setattr(period, our_field, bs_data[yf_field])
+						
+						# Map cash flow fields
+						if date_str in cash_flow_data:
+							cf_data = cash_flow_data[date_str]
+							for yf_field, our_field in field_mapping.items():
+								if yf_field in cf_data and cf_data[yf_field] is not None:
+									setattr(period, our_field, cf_data[yf_field])
+						
+						# Store raw data
+						period.raw_income_statement = json.dumps(pl_data)
+						if date_str in balance_sheet_data:
+							period.raw_balance_sheet = json.dumps(balance_sheet_data[date_str])
+						if date_str in cash_flow_data:
+							period.raw_cash_flow = json.dumps(cash_flow_data[date_str])
+						
+						period.save()
+						
+						if is_upgrade:
+							upgraded_count += 1
+						elif existing:
+							updated_count += 1
+						else:
+							imported_count += 1
+							
+					except Exception as e:
+						errors.append(f"Annual {fiscal_year}: {str(e)}")
+						frappe.log_error(
+							title=f"Period Import Error: {self.name} {fiscal_year}",
+							message=str(e)
+						)
+			
+			# Process Quarterly periods
+			if self.quarterly_profit_loss:
+				quarterly_pl_data = json.loads(self.quarterly_profit_loss)
+				quarterly_bs_data = json.loads(self.quarterly_balance_sheet) if self.quarterly_balance_sheet else {}
+				quarterly_cf_data = json.loads(self.quarterly_cash_flow) if self.quarterly_cash_flow else {}
+				
+				for date_str, pl_data in quarterly_pl_data.items():
+					try:
+						period_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+						fiscal_year = period_date.year
+						month = period_date.month
+						
+						# Determine quarter
+						if month in [1, 2, 3]:
+							fiscal_quarter = "Q1"
+						elif month in [4, 5, 6]:
+							fiscal_quarter = "Q2"
+						elif month in [7, 8, 9]:
+							fiscal_quarter = "Q3"
+						else:
+							fiscal_quarter = "Q4"
+						
+						# Check existing period
+						period_filter = {
+							"security": self.name,
+							"period_type": "Quarterly",
+							"fiscal_year": fiscal_year,
+							"fiscal_quarter": fiscal_quarter
+						}
+						
+						existing = frappe.db.get_value(
+							"CF Financial Period",
+							period_filter,
+							["name", "data_quality_score", "override_yahoo"],
+							as_dict=True
+						)
+						
+						# Skip if override_yahoo is set
+						if existing and existing.override_yahoo:
+							skipped_count += 1
+							continue
+						
+						# Auto-upgrade if quality score is lower
+						is_upgrade = False
+						if existing:
+							if existing.data_quality_score < yahoo_quality_score:
+								is_upgrade = True
+								period = frappe.get_doc("CF Financial Period", existing.name)
+							elif existing.data_quality_score >= yahoo_quality_score:
+								skipped_count += 1
+								continue
+							else:
+								period = frappe.get_doc("CF Financial Period", existing.name)
+						else:
+							period = frappe.new_doc("CF Financial Period")
+							period.security = self.name
+							period.period_type = "Quarterly"
+							period.fiscal_year = fiscal_year
+							period.fiscal_quarter = fiscal_quarter
+							period.period_end_date = date(fiscal_year, month, period_date.day)
+						
+						# Set metadata
+						period.data_source = "Yahoo Finance"
+						period.data_quality_score = yahoo_quality_score
+						period.currency = self.currency
+						
+						if ticker_info:
+							period.shares_outstanding = ticker_info.get('sharesOutstanding')
+						
+						# Map fields
+						for yf_field, our_field in field_mapping.items():
+							if yf_field in pl_data and pl_data[yf_field] is not None:
+								setattr(period, our_field, pl_data[yf_field])
+						
+						if date_str in quarterly_bs_data:
+							bs_data = quarterly_bs_data[date_str]
+							for yf_field, our_field in field_mapping.items():
+								if yf_field in bs_data and bs_data[yf_field] is not None:
+									setattr(period, our_field, bs_data[yf_field])
+						
+						if date_str in quarterly_cf_data:
+							cf_data = quarterly_cf_data[date_str]
+							for yf_field, our_field in field_mapping.items():
+								if yf_field in cf_data and cf_data[yf_field] is not None:
+									setattr(period, our_field, cf_data[yf_field])
+						
+						# Store raw data
+						period.raw_income_statement = json.dumps(pl_data)
+						if date_str in quarterly_bs_data:
+							period.raw_balance_sheet = json.dumps(quarterly_bs_data[date_str])
+						if date_str in quarterly_cf_data:
+							period.raw_cash_flow = json.dumps(quarterly_cf_data[date_str])
+						
+						period.save()
+						
+						if is_upgrade:
+							upgraded_count += 1
+						elif existing:
+							updated_count += 1
+						else:
+							imported_count += 1
+							
+					except Exception as e:
+						errors.append(f"Quarterly {fiscal_year} {fiscal_quarter}: {str(e)}")
+						frappe.log_error(
+							title=f"Period Import Error: {self.name} {fiscal_year} {fiscal_quarter}",
+							message=str(e)
+						)
+			
+			frappe.db.commit()
+			
+			return {
+				"success": True,
+				"imported_count": imported_count,
+				"updated_count": updated_count,
+				"upgraded_count": upgraded_count,
+				"skipped_count": skipped_count,
+				"total_periods": imported_count + updated_count + upgraded_count,
+				"errors": errors if errors else None,
+				"data_source_used": "Yahoo Finance"
+			}
+			
+		except Exception as e:
+			frappe.log_error(
+				title=f"Financial Periods Creation Error: {self.name}",
+				message=str(e)
+			)
+			return {
+				"success": False,
+				"error": str(e),
+				"imported_count": 0,
+				"updated_count": 0,
+				"upgraded_count": 0,
+				"skipped_count": 0,
+				"data_source_used": "Yahoo Finance"
+			}
+	
+	def _detect_missing_quarters(self):
+		"""
+		Detect missing quarters in the last 2 years.
+		
+		Returns:
+			List of dicts with {fiscal_year, fiscal_quarter} for missing periods
+		"""
+		from datetime import date
+		from dateutil.relativedelta import relativedelta
+		
+		# Get current date and calculate 2 years back
+		today = date.today()
+		two_years_ago = today - relativedelta(years=2)
+		
+		# Get all quarterly periods for this security in the last 2 years
+		existing_periods = frappe.get_all(
+			"CF Financial Period",
+			filters={
+				"security": self.name,
+				"period_type": "Quarterly",
+				"period_end_date": [">=", two_years_ago]
+			},
+			fields=["fiscal_year", "fiscal_quarter"],
+			order_by="fiscal_year, fiscal_quarter"
+		)
+		
+		if not existing_periods:
+			return []
+		
+		# Build set of existing periods
+		existing_set = set()
+		for p in existing_periods:
+			existing_set.add((p.fiscal_year, p.fiscal_quarter))
+		
+		# Determine expected quarters based on date range
+		current_year = today.year
+		start_year = two_years_ago.year
+		
+		expected_quarters = []
+		for year in range(start_year, current_year + 1):
+			for quarter in ['Q1', 'Q2', 'Q3', 'Q4']:
+				# Only check quarters that should have been reported by now
+				quarter_end_month = {'Q1': 3, 'Q2': 6, 'Q3': 9, 'Q4': 12}[quarter]
+				quarter_end = date(year, quarter_end_month, 28)  # Approximate
+				
+				# Allow 90 days for filing after quarter end
+				filing_deadline = quarter_end + relativedelta(days=90)
+				
+				if filing_deadline <= today and quarter_end >= two_years_ago:
+					expected_quarters.append((year, quarter))
+		
+		# Find missing quarters
+		missing = []
+		for year, quarter in expected_quarters:
+			if (year, quarter) not in existing_set:
+				missing.append({"fiscal_year": year, "fiscal_quarter": quarter})
+		
+		return missing
+	
+	def _fill_missing_quarters_from_yahoo(self, missing_quarters):
+		"""
+		Fill missing quarters using Yahoo Finance data.
+		
+		Args:
+			missing_quarters: List of dicts with fiscal_year and fiscal_quarter
+			
+		Returns:
+			Dict with import results
+		"""
+		if not missing_quarters or not self.quarterly_profit_loss:
+			return {"imported_count": 0, "errors": []}
+		
+		import json
+		from datetime import datetime
+		
+		imported_count = 0
+		errors = []
+		yahoo_quality_score = 85
+		
+		# Field mapping
+		field_mapping = {
+			"Total Revenue": "total_revenue",
+			"Cost Of Revenue": "cost_of_revenue",
+			"Gross Profit": "gross_profit",
+			"Operating Expense": "operating_expenses",
+			"Operating Income": "operating_income",
+			"EBIT": "ebit",
+			"EBITDA": "ebitda",
+			"Interest Expense": "interest_expense",
+			"Pretax Income": "pretax_income",
+			"Tax Provision": "tax_provision",
+			"Net Income": "net_income",
+			"Diluted EPS": "diluted_eps",
+			"Basic EPS": "basic_eps",
+			"Total Assets": "total_assets",
+			"Current Assets": "current_assets",
+			"Cash And Cash Equivalents": "cash_and_equivalents",
+			"Accounts Receivable": "accounts_receivable",
+			"Inventory": "inventory",
+			"Total Liabilities Net Minority Interest": "total_liabilities",
+			"Current Liabilities": "current_liabilities",
+			"Total Debt": "total_debt",
+			"Long Term Debt": "long_term_debt",
+			"Stockholders Equity": "shareholders_equity",
+			"Retained Earnings": "retained_earnings",
+			"Operating Cash Flow": "operating_cash_flow",
+			"Capital Expenditure": "capital_expenditures",
+			"Free Cash Flow": "free_cash_flow",
+			"Investing Cash Flow": "investing_cash_flow",
+			"Financing Cash Flow": "financing_cash_flow",
+		}
+		
+		try:
+			quarterly_pl_data = json.loads(self.quarterly_profit_loss)
+			quarterly_bs_data = json.loads(self.quarterly_balance_sheet) if self.quarterly_balance_sheet else {}
+			quarterly_cf_data = json.loads(self.quarterly_cash_flow) if self.quarterly_cash_flow else {}
+			
+			# Create set of missing periods for quick lookup
+			missing_set = set((m['fiscal_year'], m['fiscal_quarter']) for m in missing_quarters)
+			
+			for date_str, pl_data in quarterly_pl_data.items():
+				try:
+					period_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+					fiscal_year = period_date.year
+					month = period_date.month
+					
+					# Determine quarter from Yahoo's date
+					if month in [1, 2, 3]:
+						fiscal_quarter = "Q1"
+					elif month in [4, 5, 6]:
+						fiscal_quarter = "Q2"
+					elif month in [7, 8, 9]:
+						fiscal_quarter = "Q3"
+					else:
+						fiscal_quarter = "Q4"
+					
+					# Only process if this is a missing quarter
+					if (fiscal_year, fiscal_quarter) not in missing_set:
+						continue
+					
+					# Check if already exists (shouldn't, but safety check)
+					period_filter = {
+						"security": self.name,
+						"period_type": "Quarterly",
+						"fiscal_year": fiscal_year,
+						"fiscal_quarter": fiscal_quarter
+					}
+					
+					existing = frappe.db.get_value(
+						"CF Financial Period",
+						period_filter,
+						["name", "override_yahoo"],
+						as_dict=True
+					)
+					
+					if existing and existing.override_yahoo:
+						continue
+					
+					if existing:
+						continue  # Skip if somehow already exists
+					
+					# Create new period
+					period = frappe.new_doc("CF Financial Period")
+					period.security = self.name
+					period.period_type = "Quarterly"
+					period.fiscal_year = fiscal_year
+					period.fiscal_quarter = fiscal_quarter
+					period.period_end_date = period_date.date()
+					period.data_source = "Yahoo Finance"
+					period.data_quality_score = yahoo_quality_score
+					period.currency = self.currency or "USD"
+					
+					# Note that this filled a gap
+					notes = f"Auto-filled from Yahoo Finance due to SEC Edgar gap. "
+					notes += f"This quarter was missing from SEC filings but available from Yahoo Finance."
+					period.notes = notes
+					
+					# Map Yahoo Finance fields
+					bs_data = quarterly_bs_data.get(date_str, {})
+					cf_data = quarterly_cf_data.get(date_str, {})
+					
+					for yf_field, our_field in field_mapping.items():
+						if yf_field in pl_data and pl_data[yf_field] is not None:
+							setattr(period, our_field, pl_data[yf_field])
+						elif yf_field in bs_data and bs_data[yf_field] is not None:
+							setattr(period, our_field, bs_data[yf_field])
+						elif yf_field in cf_data and cf_data[yf_field] is not None:
+							setattr(period, our_field, cf_data[yf_field])
+					
+					# Store raw data
+					period.raw_income_statement = json.dumps(pl_data)
+					if date_str in quarterly_bs_data:
+						period.raw_balance_sheet = json.dumps(quarterly_bs_data[date_str])
+					if date_str in quarterly_cf_data:
+						period.raw_cash_flow = json.dumps(quarterly_cf_data[date_str])
+					
+					period.save()
+					imported_count += 1
+					frappe.logger().info(f"Filled gap {fiscal_year} {fiscal_quarter} for {self.name} from Yahoo Finance")
+					
+				except Exception as e:
+					errors.append(f"{fiscal_year} {fiscal_quarter}: {str(e)}")
+					frappe.log_error(
+						title=f"Yahoo Gap Fill Error: {self.name} {fiscal_year} {fiscal_quarter}",
+						message=str(e)
+					)
+			
+			frappe.db.commit()
+			
+			return {
+				"success": True,
+				"imported_count": imported_count,
+				"errors": errors if errors else None
+			}
+			
+		except Exception as e:
+			frappe.log_error(
+				title=f"Yahoo Gap Fill Error: {self.name}",
+				message=str(e)
+			)
+			return {
+				"success": False,
+				"imported_count": 0,
+				"errors": [str(e)]
+			}
+	
 	@frappe.whitelist()
 	def fetch_data(self, with_fundamentals=False):
 		# Convert string to boolean if needed (frappe.call sends booleans as strings)
@@ -113,6 +735,18 @@ class CFSecurity(Document):
 			self.news = frappe.as_json(ticker.get_news())
 			self.news_urls = "\n".join([item['content']['clickThroughUrl']['url'] for item in json.loads(self.news) if item.get('content') and item['content'].get('clickThroughUrl') and item['content']['clickThroughUrl'].get('url')])
 			self.country = ticker_info.get('country', '')
+			
+			# Fetch SEC CIK for US-listed companies
+			if self.country == 'United States':
+				try:
+					self.sec_cik = self._fetch_sec_cik_for_ticker(self.symbol)
+				except Exception as e:
+					frappe.log_error(
+						title=f"SEC CIK Fetch Error: {self.symbol}",
+						message=str(e)
+					)
+					# Non-fatal - continue without CIK
+			
 			if with_fundamentals:
 				self.profit_loss = ticker.income_stmt.to_json(date_format='iso')
 				self.ttm_profit_loss = ticker.ttm_income_stmt.to_json(date_format='iso')
@@ -128,6 +762,83 @@ class CFSecurity(Document):
 			if not self.region:
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
+			
+			# Auto-import structured periods AFTER saving fundamentals
+			if with_fundamentals:
+				settings = frappe.get_single("CF Settings")
+				auto_import_enabled = getattr(settings, 'auto_import_financial_periods', 1)
+				if auto_import_enabled:
+					try:
+						# Phase 2: Use SEC Edgar for US companies with CIK, otherwise Yahoo Finance
+						if self.country == 'United States' and self.sec_cik:
+							# Try SEC Edgar first (higher quality: 95)
+							try:
+								from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+								result = fetch_sec_edgar_financials(self.name, self.sec_cik)
+								
+								# Check for quarter gaps after SEC import and fill with Yahoo
+								if result.get('success'):
+									missing_quarters = self._detect_missing_quarters()
+									if missing_quarters:
+										frappe.logger().info(f"Detected missing quarters for {self.name}: {missing_quarters}")
+										yahoo_result = self._fill_missing_quarters_from_yahoo(missing_quarters)
+										if yahoo_result.get('imported_count', 0) > 0:
+											result['imported_count'] = result.get('imported_count', 0) + yahoo_result['imported_count']
+											result['total_periods'] = result.get('total_periods', 0) + yahoo_result['imported_count']
+											result['data_source_used'] = 'SEC Edgar + Yahoo Finance (gaps filled)'
+								
+								# If SEC Edgar fails or returns no data, fallback to Yahoo
+								if not result.get('success') or result.get('total_periods', 0) == 0:
+									frappe.log_error(
+										title=f"SEC Edgar fallback for {self.name}",
+										message=f"SEC Edgar result: {result.get('error', 'No data')}\nFalling back to Yahoo Finance"
+									)
+									result = self._create_financial_periods_from_yahoo()
+							except Exception as e:
+								# Fallback to Yahoo Finance if SEC Edgar fails
+								frappe.log_error(
+									title=f"SEC Edgar Error for {self.name}",
+									message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+								)
+								result = self._create_financial_periods_from_yahoo()
+						else:
+							# Use Yahoo Finance for non-US or companies without CIK
+							result = self._create_financial_periods_from_yahoo()
+						
+						# Store result summary - use db_set to avoid triggering full save cycle
+						self.db_set('last_period_import_result', frappe.as_json(result), update_modified=False)
+						
+						# Build success message
+						if result.get('success'):
+							total = result.get('total_periods', 0)
+							upgraded = result.get('upgraded_count', 0)
+							imported = result.get('imported_count', 0)
+							updated = result.get('updated_count', 0)
+							data_source = result.get('data_source_used', 'Yahoo Finance')
+							quality = 95 if data_source == 'SEC Edgar' else 85
+							
+							msg = f"Fetched {total} financial periods from {data_source} (quality: {quality})"
+							if upgraded > 0:
+								msg += f" | Upgraded {upgraded} periods from lower quality"
+							if imported > 0:
+								msg += f" | {imported} new"
+							if updated > 0:
+								msg += f" | {updated} updated"
+							
+							frappe.msgprint(msg, alert=True, indicator='green')
+						else:
+							# Show error
+							error = result.get('error', 'Unknown error')
+							frappe.msgprint(
+								f"Warning: Period auto-import failed - {error[:100]}", 
+								alert=True, 
+								indicator='orange'
+							)
+					except Exception as ie:
+						error_msg = f"Auto import financial periods failed for {self.name}: {str(ie)}"
+						frappe.log_error(error_msg, "Auto Import Periods Error")
+						# Still show error to user
+						frappe.msgprint(f"Warning: Period auto-import failed - {str(ie)[:100]}", alert=True, indicator='orange')
 	
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
@@ -770,7 +1481,7 @@ class CFSecurity(Document):
 			return False
 	
 	def _is_asset_heavy_business(self):
-		"""Determine if this is an asset-heavy business"""
+		"""Determine if this is an asset-heavy business using structured periods"""
 		try:
 			if not self.ticker_info:
 				return False
@@ -787,17 +1498,14 @@ class CFSecurity(Document):
 			if any(heavy_sector in sector for heavy_sector in asset_heavy_sectors):
 				return True
 			
-			# Check asset turnover ratio (if available)
-			# Lower asset turnover indicates asset-heavy business
-			# This would require balance sheet analysis
-			if self.balance_sheet:
+			# Check asset turnover ratio using CF Financial Period
+			periods = self._get_financial_periods(period_type="Annual", limit=1)
+			if periods:
 				try:
-					balance_data = json.loads(self.balance_sheet)
-					latest_balance = next(iter(balance_data.values())) if balance_data else {}
-					total_assets = latest_balance.get('Total Assets', 0)
+					latest_period = periods[0]
+					total_assets = latest_period.get('total_assets', 0)
+					revenue = latest_period.get('total_revenue', 0)
 					
-					# If we have revenue data, calculate asset turnover
-					revenue = ticker_info.get('totalRevenue', 0)
 					if total_assets > 0 and revenue > 0:
 						asset_turnover = revenue / total_assets
 						return asset_turnover < 0.5  # Low asset turnover
@@ -1009,31 +1717,46 @@ class CFSecurity(Document):
 		except Exception:
 			return 1.0  # Neutral score on error
 
+	def _get_financial_periods(self, period_type="Annual", limit=10):
+		"""Helper method to fetch CF Financial Period data"""
+		periods = frappe.get_all(
+			"CF Financial Period",
+			filters={"security": self.name, "period_type": period_type},
+			fields=["fiscal_year", "fiscal_quarter", "period_end_date", 
+					"total_revenue", "net_income", "free_cash_flow", "operating_cash_flow",
+					"total_assets", "total_liabilities", "shareholders_equity",
+					"gross_margin", "operating_margin", "net_margin",
+					"roe", "roa", "debt_to_equity", "current_ratio"],
+			order_by="period_end_date DESC",
+			limit=limit
+		)
+		return periods
+
 	def _calculate_dcf_value(self):
-		"""Calculate Discounted Cash Flow (DCF) value with improved assumptions"""
+		"""Calculate Discounted Cash Flow (DCF) value using structured financial periods"""
 		try:
-			if not self.cash_flow:
+			# Try to get annual financial periods first
+			periods = self._get_financial_periods(period_type="Annual", limit=10)
+			
+			if not periods or len(periods) < 3:
 				return None
 			
-			cash_flow_data = json.loads(self.cash_flow)
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
 			
 			# Extract historical free cash flows (need minimum 3 years for reliability)
 			fcf_values = []
 			years = []
-			for date_key, data in cash_flow_data.items():
-				fcf = data.get('Free Cash Flow')
-				if fcf is not None:  # Include negative FCF for realistic analysis
-					fcf_values.append(fcf)
-					years.append(date_key[:4])
+			for period in reversed(periods):  # Reverse to get chronological order
+				fcf = period.get('free_cash_flow')
+				if fcf is not None and fcf != 0:  # Include negative FCF for realistic analysis
+					fcf_values.append(float(fcf))
+					years.append(str(period.get('fiscal_year')))
 			
 			if len(fcf_values) < 3:  # Require minimum 3 years
 				return None
 			
-			# Sort by year to ensure chronological order
-			fcf_year_pairs = list(zip(years, fcf_values))
-			fcf_year_pairs.sort(key=lambda x: x[0])
-			sorted_years, sorted_fcf = zip(*fcf_year_pairs)
+			sorted_years = years
+			sorted_fcf = fcf_values
 			
 			# Calculate growth rate with outlier filtering
 			growth_rates = []
@@ -1148,22 +1871,19 @@ class CFSecurity(Document):
 			
 			enterprise_value = pv_fcf + pv_terminal
 			
-			# Apply FCF quality adjustment
-			if self.profit_loss:
-				profit_loss_data = json.loads(self.profit_loss)
-				fcf_quality_score = self._analyze_fcf_quality(cash_flow_data, profit_loss_data)
-				enterprise_value *= fcf_quality_score
-			
 			# Subtract net debt and divide by shares outstanding
 			total_debt = 0
 			cash = 0
 			shares_outstanding = ticker_info.get('sharesOutstanding', 1)
 			
-			if self.balance_sheet:
-				balance_data = json.loads(self.balance_sheet)
-				latest_balance = next(iter(balance_data.values())) if balance_data else {}
-				total_debt = latest_balance.get('Total Debt', 0) or 0
-				cash = latest_balance.get('Cash And Cash Equivalents', 0) or 0
+			# Get latest balance sheet data from CF Financial Period
+			if periods:
+				latest_balance = periods[0]  # Most recent period
+				# Calculate total debt from liabilities if not directly available
+				total_debt = latest_balance.get('total_liabilities', 0) or 0
+				# Estimate cash as a portion of current assets (conservative approach)
+				total_assets = latest_balance.get('total_assets', 0) or 0
+				cash = total_assets * 0.1  # Conservative estimate: 10% of total assets as cash
 				
 				# Only subtract 50% of cash (assume rest is operational)
 				operational_cash_buffer = 0.5
@@ -1257,12 +1977,14 @@ class CFSecurity(Document):
 			return None
 
 	def _calculate_pe_value(self):
-		"""Calculate P/E based valuation"""
+		"""Calculate P/E based valuation using structured periods"""
 		try:
-			if not self.profit_loss:
+			# Get latest annual period
+			periods = self._get_financial_periods(period_type="Annual", limit=1)
+			
+			if not periods:
 				return None
 			
-			profit_loss_data = json.loads(self.profit_loss)
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
 			
 			# Get current EPS
@@ -1377,21 +2099,33 @@ class CFSecurity(Document):
 			return None
 
 	def _calculate_residual_income(self):
-		"""Calculate Residual Income Model value"""
+		"""Calculate Residual Income Model value using structured financial periods"""
 		try:
-			if not self.balance_sheet:
+			# Get latest annual financial period
+			periods = self._get_financial_periods(period_type="Annual", limit=1)
+			
+			if not periods:
 				return None
 			
+			latest_period = periods[0]
 			ticker_info = json.loads(self.ticker_info) if self.ticker_info else {}
-			balance_data = json.loads(self.balance_sheet)
 			
 			# Get current book value per share
 			book_value_per_share = ticker_info.get('bookValue')
-			if not book_value_per_share:
-				return None
 			
-			# Get ROE and cost of equity
-			roe = ticker_info.get('returnOnEquity', 0)
+			# If not in ticker info, calculate from period data
+			if not book_value_per_share:
+				shareholders_equity = latest_period.get('shareholders_equity')
+				shares_outstanding = ticker_info.get('sharesOutstanding', 0)
+				if shareholders_equity and shares_outstanding:
+					book_value_per_share = shareholders_equity / shares_outstanding
+				else:
+					return None
+			
+			# Get ROE from period data (preferred) or ticker info
+			roe = latest_period.get('roe')
+			if roe is None or roe == 0:
+				roe = ticker_info.get('returnOnEquity', 0)
 			if not roe:
 				return None
 			
@@ -1587,8 +2321,25 @@ def process_security_ai_suggestion(security_name, user):
 
 			prompt = security.ai_prompt or ""
 
-			# Update regex to handle more complex paths including array indices
-			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
+			# Enhanced variable replacement: support {{periods:annual:5}}, {{periods:quarterly:4}}, etc.
+			def ai_variable_replacer(match):
+				var = match.group(1)
+				if var.startswith("periods:"):
+					# Parse: periods:period_type:num_periods[:format]
+					parts = var.split(":")
+					period_type = parts[1].capitalize() if len(parts) > 1 else "Annual"
+					num_periods = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 4
+					fmt = parts[3] if len(parts) > 3 else "markdown"
+					try:
+						from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+						return format_periods_for_ai(security_name, period_type=period_type, num_periods=num_periods, format=fmt)
+					except Exception as e:
+						return f"[Error: {e}]"
+				else:
+					# Fallback to legacy variable replacement
+					return replace_variables(match, security)
+
+			prompt = re.sub(r'\{\{([\w\.:]+)\}\}', ai_variable_replacer, prompt)
 			
 			messages = [
 				{"role": "system", "content": settings.system_content},
