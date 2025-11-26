@@ -65,8 +65,10 @@ class CFChatMessage(Document):
 				user=message_doc.owner
 			)
 		except Exception as e:
+			import traceback
 			error_message = str(e)
-			frappe.log_error(title=f"Chat Message Processing Error: {self.name}", message=error_message)
+			full_traceback = traceback.format_exc()
+			frappe.log_error(title=f"Chat Message Processing Error: {self.name}", message=f"{error_message}\n\nFull Traceback:\n{full_traceback}")
 			
 			try:
 				# Reload the document and update it with error
@@ -178,6 +180,12 @@ class CFChatMessage(Document):
 				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
 				# Continue without web search if it fails
     
+		# Final safety check: ensure self.prompt is a string before encoding
+		if not isinstance(self.prompt, str):
+			frappe.log_error(title=f"Prompt type error in message {self.name}", 
+							message=f"self.prompt is type {type(self.prompt)}, value: {repr(self.prompt)}")
+			self.prompt = str(self.prompt) if self.prompt is not None else ""
+		
 		current_prompt_tokens = len(encoding.encode(self.prompt))
 		available_tokens -= current_prompt_tokens
 		
@@ -279,6 +287,10 @@ class CFChatMessage(Document):
 		# Pattern: "compare <period1> vs/to/and <period2>"
 		# Examples: "compare Q3 vs Q2", "compare 2024 to 2023", "compare Q3 2024 and Q2 2024"
 		
+		# Ensure prompt is a string
+		if not prompt or not isinstance(prompt, str):
+			return ""
+		
 		patterns = [
 			# Quarterly: "Q3 vs Q2", "Q3 2024 vs Q2 2024"
 			r'compare\s+(?:Q|q)(\d)\s+(\d{4})?\s*(?:vs|to|and)\s+(?:Q|q)(\d)\s+(\d{4})?',
@@ -373,8 +385,17 @@ class CFChatMessage(Document):
 
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
-		# First, detect and transform natural language comparisons (Task 5.3)
-		prompt = self.detect_natural_language_comparisons(self.prompt, security)
+		try:
+			# First, detect and transform natural language comparisons (Task 5.3)
+			# Ensure self.prompt is a string
+			if not self.prompt or not isinstance(self.prompt, str):
+				self.prompt = ""
+			prompt = self.detect_natural_language_comparisons(self.prompt, security)
+		except Exception as e:
+			import traceback
+			frappe.log_error(title=f"Error in detect_natural_language_comparisons: {self.name}", 
+							message=f"prompt type: {type(self.prompt)}, value: {self.prompt}\n{traceback.format_exc()}")
+			raise
 		
 		# --- Comparison helpers (Task 2.5) ---
 		def _parse_period_label(label):
@@ -417,9 +438,9 @@ class CFChatMessage(Document):
 			c = current[0]; p = previous[0]
 			rev_c = c.total_revenue or 0; rev_p = p.total_revenue or 0
 			ni_c = c.net_income or 0; ni_p = p.net_income or 0
-			gm_c = (c.gross_margin or 0)*100; gm_p = (p.gross_margin or 0)*100
-			om_c = (c.operating_margin or 0)*100; om_p = (p.operating_margin or 0)*100
-			nm_c = (c.net_margin or 0)*100; nm_p = (p.net_margin or 0)*100
+			gm_c = c.gross_margin or 0; gm_p = p.gross_margin or 0
+			om_c = c.operating_margin or 0; om_p = p.operating_margin or 0
+			nm_c = c.net_margin or 0; nm_p = p.net_margin or 0
 			def pct_change(new, old):
 				return ((new - old)/old*100) if old else 0
 			lines = [f"### Comparison for {security_label}"]
@@ -487,16 +508,20 @@ class CFChatMessage(Document):
 						continue
 					sections.append("")
 				if agg_current_rev and agg_previous_rev:
-					weighted_gm_current = (agg_current_gm / agg_current_rev)*100 if agg_current_rev else 0
-					weighted_gm_previous = (agg_previous_gm / agg_previous_rev)*100 if agg_previous_rev else 0
+					weighted_gm_current = (agg_current_gm / agg_current_rev) if agg_current_rev else 0
+					weighted_gm_previous = (agg_previous_gm / agg_previous_rev) if agg_previous_rev else 0
 					sections.insert(1, f"**Aggregate Weighted Gross Margin Change:** {weighted_gm_current:.2f}% vs {weighted_gm_previous:.2f}% (Δ {(weighted_gm_current-weighted_gm_previous):+.2f}pp)")
 				return "\n\n".join(sections)
 			except Exception as e:
 				frappe.log_error(f"Portfolio compare expansion error: {e}")
 				return f"[Error expanding portfolio comparison: {e}]"
-
+		
 		# Apply comparison expansions before normal periods
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\(\(periods:compare:([^\)]+)\)\)', lambda m: _replace_portfolio_compare(m), prompt)
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\{\{periods:compare:([^}]+)\}\}', lambda m: _replace_security_compare(m), prompt)
 
 		# Security-level periods syntax: {{periods:annual:3[:format]}} or quarterly/ttm
@@ -582,12 +607,18 @@ class CFChatMessage(Document):
 					return f"[Error expanding portfolio periods: {e}]"
 
 		# Apply portfolio-level periods first so summary precedes other replacements
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\(\(periods:([^\)]+)\)\)', lambda m: _replace_portfolio_periods(m), prompt)
 		# Apply security-level periods
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\{\{periods:([^}]+)\}\}', lambda m: _replace_security_periods(m), prompt)
 		
 		# Replace ((variable)) with portfolio fields
 		if portfolio:
+			if not isinstance(prompt, str):
+				prompt = str(prompt) if prompt else ""
 			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			
 			# Handle holdings processing (existing code)
@@ -622,21 +653,26 @@ class CFChatMessage(Document):
 					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
 					
 					final_parts = []
-					final_parts.append(parts[0])
+					final_parts.append(str(parts[0]) if parts[0] is not None else "")
 					
 					for holding_section in all_holding_sections:
 						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
-						final_parts.append(clean_holding_section)
+						final_parts.append(str(clean_holding_section) if clean_holding_section is not None else "")
 					
 					if len(parts) > 1:
-						final_parts.append(parts[-1])
+						final_parts.append(str(parts[-1]) if parts[-1] is not None else "")
 					
 					prompt = "\n\n".join(final_parts)
 		
 		elif security:
+			if not isinstance(prompt, str):
+				prompt = str(prompt) if prompt else ""
 			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
 			# Security-level periods already handled above; other variables replaced here
 		
+		# Final safety check before returning
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		return prompt
 
 	def extract_pdf_text(self):

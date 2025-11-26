@@ -60,9 +60,9 @@ def get_margin_trends(security=None, period_type="Annual", years=5):
 	for p in periods:
 		key = f"{p.fiscal_year}{' Q' + str(p.fiscal_quarter) if p.fiscal_quarter else ''}"
 		data_points[key] = {
-			"gross": (p.gross_margin or 0) * 100,
-			"operating": (p.operating_margin or 0) * 100,
-			"net": (p.net_margin or 0) * 100
+			"gross": p.gross_margin or 0,
+			"operating": p.operating_margin or 0,
+			"net": p.net_margin or 0
 		}
 
 	labels = sorted(data_points.keys())
@@ -216,8 +216,8 @@ def get_financial_ratios(security=None, period_type="Annual"):
 
 	period = latest_period[0]
 	return {
-		"ROE": (period.roe or 0) * 100,
-		"ROA": (period.roa or 0) * 100,
+		"ROE": period.roe or 0,
+		"ROA": period.roa or 0,
 		"Current Ratio": period.current_ratio or 0,
 		"Debt/Equity": period.debt_to_equity or 0
 	}
