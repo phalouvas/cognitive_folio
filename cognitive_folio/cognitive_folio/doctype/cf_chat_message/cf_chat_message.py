@@ -516,13 +516,172 @@ class CFChatMessage(Document):
 				frappe.log_error(f"Portfolio compare expansion error: {e}")
 				return f"[Error expanding portfolio comparison: {e}]"
 		
+		# --- Relative period resolution helpers (Task 2.1, 2.2) ---
+		def _resolve_relative_period(security_name, relative_spec):
+			"""
+			Resolve relative period specifications to actual period identifiers.
+			
+			Args:
+				security_name: Name of CF Security
+				relative_spec: One of:
+					- latest_annual, previous_annual, annual_minus_2, annual_minus_3
+					- latest_quarterly, previous_quarterly, yoy_quarterly
+			
+			Returns:
+				Dict with year, quarter, period_type or None if not found
+			"""
+			try:
+				if "annual" in relative_spec:
+					period_type = "Annual"
+					
+					# Get latest annual period
+					latest = frappe.get_all(
+						"CF Financial Period",
+						filters={"security": security_name, "period_type": period_type},
+						fields=["fiscal_year", "fiscal_quarter"],
+						order_by="fiscal_year DESC",
+						limit=1
+					)
+					
+					if not latest:
+						return None
+					
+					latest_year = latest[0].fiscal_year
+					
+					if relative_spec == "latest_annual":
+						return {"year": latest_year, "quarter": "", "period_type": period_type}
+					elif relative_spec == "previous_annual":
+						return {"year": latest_year - 1, "quarter": "", "period_type": period_type}
+					elif relative_spec == "annual_minus_2":
+						return {"year": latest_year - 2, "quarter": "", "period_type": period_type}
+					elif relative_spec == "annual_minus_3":
+						return {"year": latest_year - 3, "quarter": "", "period_type": period_type}
+					elif relative_spec == "annual_minus_4":
+						return {"year": latest_year - 4, "quarter": "", "period_type": period_type}
+				
+				elif "quarterly" in relative_spec:
+					period_type = "Quarterly"
+					
+					# Get latest quarterly period
+					latest = frappe.get_all(
+						"CF Financial Period",
+						filters={"security": security_name, "period_type": period_type},
+						fields=["fiscal_year", "fiscal_quarter"],
+						order_by="fiscal_year DESC, fiscal_quarter DESC",
+						limit=1
+					)
+					
+					if not latest:
+						return None
+					
+					latest_year = latest[0].fiscal_year
+					latest_quarter = latest[0].fiscal_quarter
+					
+					# Parse quarter (Q1, Q2, Q3, Q4)
+					if not latest_quarter or not latest_quarter.startswith('Q'):
+						return None
+					
+					q_num = int(latest_quarter[1])
+					
+					if relative_spec == "latest_quarterly":
+						return {"year": latest_year, "quarter": latest_quarter, "period_type": period_type}
+					elif relative_spec == "previous_quarterly":
+						# Calculate previous quarter (handle year boundary)
+						if q_num == 1:
+							prev_year = latest_year - 1
+							prev_quarter = "Q4"
+						else:
+							prev_year = latest_year
+							prev_quarter = f"Q{q_num - 1}"
+						return {"year": prev_year, "quarter": prev_quarter, "period_type": period_type}
+					elif relative_spec == "yoy_quarterly":
+						# Same quarter, previous year
+						return {"year": latest_year - 1, "quarter": latest_quarter, "period_type": period_type}
+				
+				return None
+			except Exception as e:
+				frappe.log_error(f"Error resolving relative period '{relative_spec}': {e}")
+				return None
+		
+		def _get_comparison_periods(security_name, spec1, spec2):
+			"""
+			Get two period specifications for comparison, handling relative references.
+			
+			Returns:
+				Tuple of (period1_spec, period2_spec, error_message)
+			"""
+			# Check if specs are relative references
+			relative_keywords = [
+				"latest_annual", "previous_annual", "annual_minus_2", "annual_minus_3", "annual_minus_4",
+				"latest_quarterly", "previous_quarterly", "yoy_quarterly"
+			]
+			
+			period1 = None
+			period2 = None
+			
+			# Resolve spec1
+			if spec1 in relative_keywords:
+				period1 = _resolve_relative_period(security_name, spec1)
+				if not period1:
+					return None, None, f"Insufficient historical data for {spec1.replace('_', ' ')}"
+			else:
+				period1 = _parse_period_label(spec1)
+			
+			# Resolve spec2
+			if spec2 in relative_keywords:
+				period2 = _resolve_relative_period(security_name, spec2)
+				if not period2:
+					return None, None, f"Insufficient historical data for {spec2.replace('_', ' ')}"
+			else:
+				period2 = _parse_period_label(spec2)
+			
+			if not period1 or not period2:
+				return None, None, "Invalid period specifications for comparison"
+			
+			return period1, period2, None
+		
+		# Enhanced comparison replacement functions with relative period support
+		def _replace_security_compare_enhanced(m):
+			if not security:
+				return "[No security context for comparison]"
+			parts = m.group(1).split(":")
+			if len(parts) < 2:
+				return "[Compare syntax requires two period labels]"
+			
+			spec1, spec2 = parts[0].strip(), parts[1].strip()
+			
+			# Get resolved periods
+			period1, period2, error_msg = _get_comparison_periods(security.name, spec1, spec2)
+			
+			if error_msg:
+				return f"[{error_msg}]"
+			
+			try:
+				cur = _fetch_period(security.name, period1)
+				prev = _fetch_period(security.name, period2)
+				
+				if not cur or not prev:
+					# Check which one is missing for better error message
+					if not cur:
+						period1_label = f"{period1['year']}{period1['quarter']}" if period1['quarter'] else str(period1['year'])
+						return f"[Insufficient historical data for {period1_label} period]"
+					if not prev:
+						period2_label = f"{period2['year']}{period2['quarter']}" if period2['quarter'] else str(period2['year'])
+						return f"[Insufficient historical data for {period2_label} period]"
+				
+				return _format_compare(cur, prev, security.security_name or security.name)
+			except Exception as e:
+				frappe.log_error(f"Security compare expansion error: {e}")
+				return f"[Error expanding security comparison: {e}]"
+
 		# Apply comparison expansions before normal periods
 		if not isinstance(prompt, str):
 			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\(\(periods:compare:([^\)]+)\)\)', lambda m: _replace_portfolio_compare(m), prompt)
 		if not isinstance(prompt, str):
 			prompt = str(prompt) if prompt else ""
-		prompt = re.sub(r'\{\{periods:compare:([^}]+)\}\}', lambda m: _replace_security_compare(m), prompt)
+		# Use enhanced comparison function with relative period support
+		prompt = re.sub(r'\{\{periods:compare:([^}]+)\}\}', lambda m: _replace_security_compare_enhanced(m), prompt)
 
 		# Security-level periods syntax: {{periods:annual:3[:format]}} or quarterly/ttm
 		def _replace_security_periods(m):
