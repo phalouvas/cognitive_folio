@@ -527,11 +527,11 @@ def _format_as_markdown(periods, security_name, period_type, currency, include_g
 		if period.gross_margin or period.operating_margin or period.net_margin:
 			output.append("\n**Profitability Margins:**")
 			if period.gross_margin:
-				output.append(f"- Gross Margin: {period.gross_margin*100:.2f}%")
+				output.append(f"- Gross Margin: {period.gross_margin:.2f}%")
 			if period.operating_margin:
-				output.append(f"- Operating Margin: {period.operating_margin*100:.2f}%")
+				output.append(f"- Operating Margin: {period.operating_margin:.2f}%")
 			if period.net_margin:
-				output.append(f"- Net Margin: {period.net_margin*100:.2f}%")
+				output.append(f"- Net Margin: {period.net_margin:.2f}%")
 		
 		# Balance Sheet
 		if period.total_assets or period.shareholders_equity:
@@ -563,9 +563,9 @@ def _format_as_markdown(periods, security_name, period_type, currency, include_g
 		if period.roe or period.roa or period.current_ratio:
 			output.append("\n**Key Ratios:**")
 			if period.roe:
-				output.append(f"- Return on Equity (ROE): {period.roe*100:.2f}%")
+				output.append(f"- Return on Equity (ROE): {period.roe:.2f}%")
 			if period.roa:
-				output.append(f"- Return on Assets (ROA): {period.roa*100:.2f}%")
+				output.append(f"- Return on Assets (ROA): {period.roa:.2f}%")
 			if period.current_ratio:
 				output.append(f"- Current Ratio: {period.current_ratio:.2f}")
 			if period.debt_to_equity:
@@ -611,12 +611,12 @@ def _format_as_text(periods, security_name, period_type, currency, include_growt
 			output.append(f"EPS: {currency} {period.diluted_eps:.2f}")
 		
 		if period.gross_margin:
-			output.append(f"Gross Margin: {period.gross_margin*100:.1f}%")
+			output.append(f"Gross Margin: {period.gross_margin:.1f}%")
 		if period.net_margin:
-			output.append(f"Net Margin: {period.net_margin*100:.1f}%")
+			output.append(f"Net Margin: {period.net_margin:.1f}%")
 		
 		if period.roe:
-			output.append(f"ROE: {period.roe*100:.1f}%")
+			output.append(f"ROE: {period.roe:.1f}%")
 		if period.free_cash_flow:
 			output.append(f"Free Cash Flow: {_format_number(period.free_cash_flow, currency)}")
 		
@@ -648,9 +648,9 @@ def _format_as_table(periods, security_name, period_type, currency, include_grow
 			_format_number(period.total_revenue, currency, short=True) if period.total_revenue else "-",
 			_format_number(period.net_income, currency, short=True) if period.net_income else "-",
 			f"{period.diluted_eps:.2f}" if period.diluted_eps else "-",
-			f"{period.gross_margin*100:.1f}%" if period.gross_margin else "-",
-			f"{period.net_margin*100:.1f}%" if period.net_margin else "-",
-			f"{period.roe*100:.1f}%" if period.roe else "-"
+			f"{period.gross_margin:.1f}%" if period.gross_margin else "-",
+			f"{period.net_margin:.1f}%" if period.net_margin else "-",
+			f"{period.roe:.1f}%" if period.roe else "-"
 		]
 		
 		if include_growth:

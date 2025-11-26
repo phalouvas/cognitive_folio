@@ -65,8 +65,10 @@ class CFChatMessage(Document):
 				user=message_doc.owner
 			)
 		except Exception as e:
+			import traceback
 			error_message = str(e)
-			frappe.log_error(title=f"Chat Message Processing Error: {self.name}", message=error_message)
+			full_traceback = traceback.format_exc()
+			frappe.log_error(title=f"Chat Message Processing Error: {self.name}", message=f"{error_message}\n\nFull Traceback:\n{full_traceback}")
 			
 			try:
 				# Reload the document and update it with error
@@ -178,6 +180,12 @@ class CFChatMessage(Document):
 				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
 				# Continue without web search if it fails
     
+		# Final safety check: ensure self.prompt is a string before encoding
+		if not isinstance(self.prompt, str):
+			frappe.log_error(title=f"Prompt type error in message {self.name}", 
+							message=f"self.prompt is type {type(self.prompt)}, value: {repr(self.prompt)}")
+			self.prompt = str(self.prompt) if self.prompt is not None else ""
+		
 		current_prompt_tokens = len(encoding.encode(self.prompt))
 		available_tokens -= current_prompt_tokens
 		
@@ -279,6 +287,10 @@ class CFChatMessage(Document):
 		# Pattern: "compare <period1> vs/to/and <period2>"
 		# Examples: "compare Q3 vs Q2", "compare 2024 to 2023", "compare Q3 2024 and Q2 2024"
 		
+		# Ensure prompt is a string
+		if not prompt or not isinstance(prompt, str):
+			return ""
+		
 		patterns = [
 			# Quarterly: "Q3 vs Q2", "Q3 2024 vs Q2 2024"
 			r'compare\s+(?:Q|q)(\d)\s+(\d{4})?\s*(?:vs|to|and)\s+(?:Q|q)(\d)\s+(\d{4})?',
@@ -373,8 +385,17 @@ class CFChatMessage(Document):
 
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
-		# First, detect and transform natural language comparisons (Task 5.3)
-		prompt = self.detect_natural_language_comparisons(self.prompt, security)
+		try:
+			# First, detect and transform natural language comparisons (Task 5.3)
+			# Ensure self.prompt is a string
+			if not self.prompt or not isinstance(self.prompt, str):
+				self.prompt = ""
+			prompt = self.detect_natural_language_comparisons(self.prompt, security)
+		except Exception as e:
+			import traceback
+			frappe.log_error(title=f"Error in detect_natural_language_comparisons: {self.name}", 
+							message=f"prompt type: {type(self.prompt)}, value: {self.prompt}\n{traceback.format_exc()}")
+			raise
 		
 		# --- Comparison helpers (Task 2.5) ---
 		def _parse_period_label(label):
@@ -417,9 +438,9 @@ class CFChatMessage(Document):
 			c = current[0]; p = previous[0]
 			rev_c = c.total_revenue or 0; rev_p = p.total_revenue or 0
 			ni_c = c.net_income or 0; ni_p = p.net_income or 0
-			gm_c = (c.gross_margin or 0)*100; gm_p = (p.gross_margin or 0)*100
-			om_c = (c.operating_margin or 0)*100; om_p = (p.operating_margin or 0)*100
-			nm_c = (c.net_margin or 0)*100; nm_p = (p.net_margin or 0)*100
+			gm_c = c.gross_margin or 0; gm_p = p.gross_margin or 0
+			om_c = c.operating_margin or 0; om_p = p.operating_margin or 0
+			nm_c = c.net_margin or 0; nm_p = p.net_margin or 0
 			def pct_change(new, old):
 				return ((new - old)/old*100) if old else 0
 			lines = [f"### Comparison for {security_label}"]
@@ -487,17 +508,180 @@ class CFChatMessage(Document):
 						continue
 					sections.append("")
 				if agg_current_rev and agg_previous_rev:
-					weighted_gm_current = (agg_current_gm / agg_current_rev)*100 if agg_current_rev else 0
-					weighted_gm_previous = (agg_previous_gm / agg_previous_rev)*100 if agg_previous_rev else 0
+					weighted_gm_current = (agg_current_gm / agg_current_rev) if agg_current_rev else 0
+					weighted_gm_previous = (agg_previous_gm / agg_previous_rev) if agg_previous_rev else 0
 					sections.insert(1, f"**Aggregate Weighted Gross Margin Change:** {weighted_gm_current:.2f}% vs {weighted_gm_previous:.2f}% (Δ {(weighted_gm_current-weighted_gm_previous):+.2f}pp)")
 				return "\n\n".join(sections)
 			except Exception as e:
 				frappe.log_error(f"Portfolio compare expansion error: {e}")
 				return f"[Error expanding portfolio comparison: {e}]"
+		
+		# --- Relative period resolution helpers (Task 2.1, 2.2) ---
+		def _resolve_relative_period(security_name, relative_spec):
+			"""
+			Resolve relative period specifications to actual period identifiers.
+			
+			Args:
+				security_name: Name of CF Security
+				relative_spec: One of:
+					- latest_annual, previous_annual, annual_minus_2, annual_minus_3
+					- latest_quarterly, previous_quarterly, yoy_quarterly
+			
+			Returns:
+				Dict with year, quarter, period_type or None if not found
+			"""
+			try:
+				if "annual" in relative_spec:
+					period_type = "Annual"
+					
+					# Get latest annual period
+					latest = frappe.get_all(
+						"CF Financial Period",
+						filters={"security": security_name, "period_type": period_type},
+						fields=["fiscal_year", "fiscal_quarter"],
+						order_by="fiscal_year DESC",
+						limit=1
+					)
+					
+					if not latest:
+						return None
+					
+					latest_year = latest[0].fiscal_year
+					
+					if relative_spec == "latest_annual":
+						return {"year": latest_year, "quarter": "", "period_type": period_type}
+					elif relative_spec == "previous_annual":
+						return {"year": latest_year - 1, "quarter": "", "period_type": period_type}
+					elif relative_spec == "annual_minus_2":
+						return {"year": latest_year - 2, "quarter": "", "period_type": period_type}
+					elif relative_spec == "annual_minus_3":
+						return {"year": latest_year - 3, "quarter": "", "period_type": period_type}
+					elif relative_spec == "annual_minus_4":
+						return {"year": latest_year - 4, "quarter": "", "period_type": period_type}
+				
+				elif "quarterly" in relative_spec:
+					period_type = "Quarterly"
+					
+					# Get latest quarterly period
+					latest = frappe.get_all(
+						"CF Financial Period",
+						filters={"security": security_name, "period_type": period_type},
+						fields=["fiscal_year", "fiscal_quarter"],
+						order_by="fiscal_year DESC, fiscal_quarter DESC",
+						limit=1
+					)
+					
+					if not latest:
+						return None
+					
+					latest_year = latest[0].fiscal_year
+					latest_quarter = latest[0].fiscal_quarter
+					
+					# Parse quarter (Q1, Q2, Q3, Q4)
+					if not latest_quarter or not latest_quarter.startswith('Q'):
+						return None
+					
+					q_num = int(latest_quarter[1])
+					
+					if relative_spec == "latest_quarterly":
+						return {"year": latest_year, "quarter": latest_quarter, "period_type": period_type}
+					elif relative_spec == "previous_quarterly":
+						# Calculate previous quarter (handle year boundary)
+						if q_num == 1:
+							prev_year = latest_year - 1
+							prev_quarter = "Q4"
+						else:
+							prev_year = latest_year
+							prev_quarter = f"Q{q_num - 1}"
+						return {"year": prev_year, "quarter": prev_quarter, "period_type": period_type}
+					elif relative_spec == "yoy_quarterly":
+						# Same quarter, previous year
+						return {"year": latest_year - 1, "quarter": latest_quarter, "period_type": period_type}
+				
+				return None
+			except Exception as e:
+				frappe.log_error(f"Error resolving relative period '{relative_spec}': {e}")
+				return None
+		
+		def _get_comparison_periods(security_name, spec1, spec2):
+			"""
+			Get two period specifications for comparison, handling relative references.
+			
+			Returns:
+				Tuple of (period1_spec, period2_spec, error_message)
+			"""
+			# Check if specs are relative references
+			relative_keywords = [
+				"latest_annual", "previous_annual", "annual_minus_2", "annual_minus_3", "annual_minus_4",
+				"latest_quarterly", "previous_quarterly", "yoy_quarterly"
+			]
+			
+			period1 = None
+			period2 = None
+			
+			# Resolve spec1
+			if spec1 in relative_keywords:
+				period1 = _resolve_relative_period(security_name, spec1)
+				if not period1:
+					return None, None, f"Insufficient historical data for {spec1.replace('_', ' ')}"
+			else:
+				period1 = _parse_period_label(spec1)
+			
+			# Resolve spec2
+			if spec2 in relative_keywords:
+				period2 = _resolve_relative_period(security_name, spec2)
+				if not period2:
+					return None, None, f"Insufficient historical data for {spec2.replace('_', ' ')}"
+			else:
+				period2 = _parse_period_label(spec2)
+			
+			if not period1 or not period2:
+				return None, None, "Invalid period specifications for comparison"
+			
+			return period1, period2, None
+		
+		# Enhanced comparison replacement functions with relative period support
+		def _replace_security_compare_enhanced(m):
+			if not security:
+				return "[No security context for comparison]"
+			parts = m.group(1).split(":")
+			if len(parts) < 2:
+				return "[Compare syntax requires two period labels]"
+			
+			spec1, spec2 = parts[0].strip(), parts[1].strip()
+			
+			# Get resolved periods
+			period1, period2, error_msg = _get_comparison_periods(security.name, spec1, spec2)
+			
+			if error_msg:
+				return f"[{error_msg}]"
+			
+			try:
+				cur = _fetch_period(security.name, period1)
+				prev = _fetch_period(security.name, period2)
+				
+				if not cur or not prev:
+					# Check which one is missing for better error message
+					if not cur:
+						period1_label = f"{period1['year']}{period1['quarter']}" if period1['quarter'] else str(period1['year'])
+						return f"[Insufficient historical data for {period1_label} period]"
+					if not prev:
+						period2_label = f"{period2['year']}{period2['quarter']}" if period2['quarter'] else str(period2['year'])
+						return f"[Insufficient historical data for {period2_label} period]"
+				
+				return _format_compare(cur, prev, security.security_name or security.name)
+			except Exception as e:
+				frappe.log_error(f"Security compare expansion error: {e}")
+				return f"[Error expanding security comparison: {e}]"
 
 		# Apply comparison expansions before normal periods
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\(\(periods:compare:([^\)]+)\)\)', lambda m: _replace_portfolio_compare(m), prompt)
-		prompt = re.sub(r'\{\{periods:compare:([^}]+)\}\}', lambda m: _replace_security_compare(m), prompt)
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
+		# Use enhanced comparison function with relative period support
+		prompt = re.sub(r'\{\{periods:compare:([^}]+)\}\}', lambda m: _replace_security_compare_enhanced(m), prompt)
 
 		# Security-level periods syntax: {{periods:annual:3[:format]}} or quarterly/ttm
 		def _replace_security_periods(m):
@@ -582,12 +766,18 @@ class CFChatMessage(Document):
 					return f"[Error expanding portfolio periods: {e}]"
 
 		# Apply portfolio-level periods first so summary precedes other replacements
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\(\(periods:([^\)]+)\)\)', lambda m: _replace_portfolio_periods(m), prompt)
 		# Apply security-level periods
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		prompt = re.sub(r'\{\{periods:([^}]+)\}\}', lambda m: _replace_security_periods(m), prompt)
 		
 		# Replace ((variable)) with portfolio fields
 		if portfolio:
+			if not isinstance(prompt, str):
+				prompt = str(prompt) if prompt else ""
 			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			
 			# Handle holdings processing (existing code)
@@ -622,21 +812,26 @@ class CFChatMessage(Document):
 					parts = re.split(r'\*\*\*HOLDINGS\*\*\*.*?\*\*\*HOLDINGS\*\*\*', prompt, flags=re.DOTALL)
 					
 					final_parts = []
-					final_parts.append(parts[0])
+					final_parts.append(str(parts[0]) if parts[0] is not None else "")
 					
 					for holding_section in all_holding_sections:
 						clean_holding_section = holding_section.replace("***HOLDINGS***", "")
-						final_parts.append(clean_holding_section)
+						final_parts.append(str(clean_holding_section) if clean_holding_section is not None else "")
 					
 					if len(parts) > 1:
-						final_parts.append(parts[-1])
+						final_parts.append(str(parts[-1]) if parts[-1] is not None else "")
 					
 					prompt = "\n\n".join(final_parts)
 		
 		elif security:
+			if not isinstance(prompt, str):
+				prompt = str(prompt) if prompt else ""
 			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
 			# Security-level periods already handled above; other variables replaced here
 		
+		# Final safety check before returning
+		if not isinstance(prompt, str):
+			prompt = str(prompt) if prompt else ""
 		return prompt
 
 	def extract_pdf_text(self):
