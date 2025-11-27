@@ -1,546 +1,507 @@
 """
-SEC Edgar inline XBRL Data Fetcher
+SEC Edgar Financial Data Fetcher using edgartools
 
-This module handles downloading and parsing inline XBRL (iXBRL) financial statements
-from SEC Edgar for US-listed companies. It provides higher quality data (95% accuracy) 
-compared to Yahoo Finance (85% accuracy).
+This module fetches financial statements from SEC Edgar using the edgartools library.
+Provides higher quality data (95% accuracy) compared to Yahoo Finance (85% accuracy).
 
-Uses python-xbrl library to extract US-GAAP facts from HTML filings.
+Uses edgartools to automatically parse 10-Q/10-K filings and extract standardized
+financial data into CF Financial Period records.
 """
 
 import frappe
-import json
-import warnings
-from datetime import datetime, date
-from pathlib import Path
-from typing import Dict, List, Optional
-from xbrl import XBRLParser
-
-# Suppress noisy parser warnings (benign for inline XBRL embedded in HTML)
-warnings.filterwarnings("ignore", message="It looks like you're parsing an XML document using an HTML parser.")
-warnings.filterwarnings("ignore", message="The 'strip_cdata' option of HTMLParser() has never done anything")
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+import pandas as pd
 
 
-def fetch_sec_edgar_financials(security_name: str, cik: str) -> Dict:
+def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: bool = True) -> Dict:
 	"""
-	Fetch financial data from SEC Edgar for a given security.
+	Fetch financial data from SEC Edgar using edgartools.
 	
 	Args:
 		security_name: Name of the CF Security document
-		cik: SEC Central Index Key (10-digit zero-padded string)
+		ticker: Stock ticker symbol (e.g., "MSFT", "AAPL")
+		show_progress: Whether to publish progress updates
 		
 	Returns:
-		Dict with success status and results
+		Dict with structure:
+		{
+			'success': bool,
+			'total_periods': int,
+			'imported_count': int,
+			'updated_count': int,
+			'skipped_count': int,
+			'data_source_used': str,
+			'error': Optional[str],
+			'currency_mismatches': List[str]
+		}
 	"""
 	try:
-		from sec_edgar_downloader import Downloader
+		from edgar import Company, set_identity
 		
-		# Create downloader with proper user agent
-		dl = Downloader(
-			"CognitiveFollio",
-			"compliance@example.com",
-			download_folder=frappe.get_site_path("private", "files", "sec_edgar")
-		)
+		# Set SEC API identity (required by SEC)
+		set_identity("Cognitive Folio info@kainotomo.com")
 		
-		# Remove leading zeros for the API
-		cik_num = str(int(cik))
+		# Get security document to check currency
+		security = frappe.get_doc("CF Security", security_name)
+		expected_currency = security.currency
 		
-		# Download 10-K (annual) and 10-Q (quarterly) filings with details
-		# Limit to 3 years of annual data and 12 quarters for fundamental analysis
-		try:
-			annual_count = dl.get("10-K", cik_num, limit=3, download_details=True)
-			quarterly_count = dl.get("10-Q", cik_num, limit=12, download_details=True)
-		except Exception as e:
-			frappe.log_error(
-				title=f"SEC Edgar Download Error: {security_name}",
-				message=f"CIK: {cik}\nError: {str(e)}"
-			)
+		# Initialize result tracking
+		result = {
+			'success': True,
+			'total_periods': 0,
+			'imported_count': 0,
+			'updated_count': 0,
+			'skipped_count': 0,
+			'data_source_used': 'SEC Edgar',
+			'error': None,
+			'currency_mismatches': []
+		}
+		
+		# Get company and filings
+		if show_progress:
+			frappe.publish_progress(10, 100, description=f"Connecting to SEC Edgar for {ticker}...")
+		
+		company = Company(ticker)
+		
+		# Fetch quarterly and annual filings
+		if show_progress:
+			frappe.publish_progress(20, 100, description="Fetching 10-Q quarterly filings...")
+		quarterly_filings = company.get_filings(form="10-Q").latest(12)
+		
+		if show_progress:
+			frappe.publish_progress(30, 100, description="Fetching 10-K annual filings...")
+		annual_filings = company.get_filings(form="10-K").latest(3)
+		
+		# Process all filings
+		all_filings = []
+		if quarterly_filings:
+			all_filings.extend([(f, "Quarterly", "10-Q") for f in quarterly_filings])
+		if annual_filings:
+			all_filings.extend([(f, "Annual", "10-K") for f in annual_filings])
+		
+		if not all_filings:
 			return {
-				"success": False,
-				"error": f"Failed to download SEC filings: {str(e)}",
-				"imported_count": 0,
-				"updated_count": 0,
-				"upgraded_count": 0,
-				"skipped_count": 0
+				'success': False,
+				'error': f"No 10-Q or 10-K filings found for {ticker}",
+				'total_periods': 0,
+				'imported_count': 0,
+				'updated_count': 0,
+				'skipped_count': 0,
+				'data_source_used': 'SEC Edgar',
+				'currency_mismatches': []
 			}
 		
-		# Note: sec-edgar-downloader always creates directories with 10-digit zero-padded CIK
-		# regardless of what we pass to get(), so use the original zero-padded CIK for parsing
-		cik_for_parsing = cik.zfill(10)
+		result['total_periods'] = len(all_filings)
 		
-		# Parse the downloaded iXBRL files
-		result = parse_sec_ixbrl_files(security_name, cik_for_parsing)
+		# Process each filing
+		for idx, (filing, period_type, filing_form) in enumerate(all_filings):
+			try:
+				progress_pct = 30 + int((idx / len(all_filings)) * 65)
+				period_label = f"{period_type} {filing.filing_date}"
+				
+				if show_progress:
+					frappe.publish_progress(
+						progress_pct, 
+						100, 
+						description=f"Processing {period_label} ({idx + 1}/{len(all_filings)})..."
+					)
+				
+				# Extract financial data
+				filing_obj = filing.obj()
+				financials = filing_obj.financials
+				
+				if not financials:
+					frappe.log_error(f"No financials available for {ticker} filing {filing.accession_no}", "SEC Edgar Fetch")
+					result['skipped_count'] += 1
+					continue
+				
+				# Determine period end date from filing
+				period_end_date = str(filing.period_of_report) if filing.period_of_report else None
+				
+				if not period_end_date:
+					frappe.log_error(f"No period_of_report for {ticker} filing {filing.accession_no}", "SEC Edgar Fetch")
+					result['skipped_count'] += 1
+					continue
+				
+				# Extract financial data using financials helper methods
+				period_data = _extract_financial_data(
+					financials=financials,
+					period_end_date=period_end_date
+				)
+				
+				if not period_data:
+					frappe.log_error(f"Could not extract data for {ticker} period {period_end_date}", "SEC Edgar Fetch")
+					result['skipped_count'] += 1
+					continue
+				
+				# Add metadata
+				period_data['filing_date'] = filing.filing_date.strftime('%Y-%m-%d') if filing.filing_date else None
+				period_data['filing_form'] = filing_form
+				period_data['accession_number'] = filing.accession_no
+				period_data['document_fiscal_period'] = getattr(filing_obj, 'fiscal_period', None)
+				period_data['data_source'] = 'SEC Edgar'
+				period_data['data_quality_score'] = 95
+				
+				# Validate currency if available
+				filing_currency = getattr(filing_obj, 'currency', None) or 'USD'
+				if expected_currency and filing_currency != expected_currency:
+					result['currency_mismatches'].append(
+						f"{period_end_date}: {filing_currency} vs {expected_currency}"
+					)
+					frappe.log_error(
+						f"Currency mismatch for {ticker} period {period_end_date}: "
+						f"Filing has {filing_currency}, security expects {expected_currency}",
+						"SEC Edgar Currency Mismatch"
+					)
+					result['skipped_count'] += 1
+					continue
+				
+				# Upsert the period
+				was_new = _upsert_period(
+					security_name=security_name,
+					period_type=period_type,
+					period_data=period_data,
+					commit=True
+				)
+				
+				if was_new:
+					result['imported_count'] += 1
+				else:
+					result['updated_count'] += 1
+					
+			except Exception as e:
+				frappe.log_error(
+					title=f"Error processing filing for {ticker}",
+					message=f"Filing: {filing.accession_no}\nError: {str(e)}\n{frappe.get_traceback()}"
+				)
+				result['skipped_count'] += 1
+				continue
+		
+		if show_progress:
+			frappe.publish_progress(100, 100, description="Completed SEC Edgar data fetch")
 		
 		return result
 		
-	except ImportError:
-		frappe.log_error(
-			title="SEC Edgar Library Missing",
-			message="sec-edgar-downloader library is not installed. Run: bench pip install sec-edgar-downloader"
-		)
-		return {
-			"success": False,
-			"error": "SEC Edgar library not installed",
-			"imported_count": 0,
-			"updated_count": 0,
-			"upgraded_count": 0,
-			"skipped_count": 0
-		}
 	except Exception as e:
+		error_msg = f"Failed to fetch SEC Edgar data for {ticker}: {str(e)}"
 		frappe.log_error(
-			title=f"SEC Edgar Fetch Error: {security_name}",
-			message=str(e)
+			title="SEC Edgar Fetch Error",
+			message=f"{error_msg}\n{frappe.get_traceback()}"
 		)
 		return {
-			"success": False,
-			"error": str(e),
-			"imported_count": 0,
-			"updated_count": 0,
-			"upgraded_count": 0,
-			"skipped_count": 0
+			'success': False,
+			'error': error_msg,
+			'total_periods': 0,
+			'imported_count': 0,
+			'updated_count': 0,
+			'skipped_count': 0,
+			'data_source_used': 'SEC Edgar',
+			'currency_mismatches': []
 		}
 
 
-def parse_sec_ixbrl_files(security_name: str, cik: str) -> Dict:
+def _extract_financial_data(
+	financials,
+	period_end_date: str
+) -> Optional[Dict]:
 	"""
-	Parse downloaded inline XBRL HTML files and create/update financial periods.
+	Extract financial data using edgartools Financials helper methods.
+	
+	This uses edgartools' built-in methods like get_revenue(), get_net_income(), etc.
+	which automatically extract quarterly values (not YTD/cumulative) from 10-Q filings.
 	
 	Args:
-		security_name: Name of the CF Security document
-		cik: SEC Central Index Key (without leading zeros)
+		financials: edgartools Financials object
+		period_end_date: Period end date string (YYYY-MM-DD)
 		
 	Returns:
-		Dict with parsing results
+		Dict with extracted financial data or None if extraction fails
 	"""
-	security = frappe.get_doc("CF Security", security_name)
-	
-	imported_count = 0
-	updated_count = 0
-	upgraded_count = 0
-	skipped_count = 0
-	errors = []
-	
-	# SEC Edgar quality score
-	sec_quality_score = 95
-	
-	# Path to downloaded SEC filings
-	sec_path = Path(frappe.get_site_path("private", "files", "sec_edgar", "sec-edgar-filings", cik))
-	
-	if not sec_path.exists():
-		return {
-			"success": False,
-			"error": f"No SEC filings found at {sec_path}",
-			"imported_count": 0,
-			"updated_count": 0,
-			"upgraded_count": 0,
-			"skipped_count": 0,
-			"data_source_used": "SEC Edgar"
-		}
-	
-	# Process 10-K files (Annual)
-	annual_path = sec_path / "10-K"
-	if annual_path.exists():
-		for filing_dir in sorted(annual_path.iterdir(), reverse=True):
-			if filing_dir.is_dir():
-				result = process_ixbrl_filing(
-					security,
-					filing_dir,
-					"Annual",
-					sec_quality_score
-				)
-				
-				imported_count += result["imported"]
-				updated_count += result["updated"]
-				upgraded_count += result["upgraded"]
-				skipped_count += result["skipped"]
-				if result["error"]:
-					errors.append(result["error"])
-	
-	# Process 10-Q files (Quarterly)
-	quarterly_path = sec_path / "10-Q"
-	if quarterly_path.exists():
-		for filing_dir in sorted(quarterly_path.iterdir(), reverse=True):
-			if filing_dir.is_dir():
-				result = process_ixbrl_filing(
-					security,
-					filing_dir,
-					"Quarterly",
-					sec_quality_score
-				)
-				
-				imported_count += result["imported"]
-				updated_count += result["updated"]
-				upgraded_count += result["upgraded"]
-				skipped_count += result["skipped"]
-				if result["error"]:
-					errors.append(result["error"])
-	
-	frappe.db.commit()
-	
-	return {
-		"success": True,
-		"imported_count": imported_count,
-		"updated_count": updated_count,
-		"upgraded_count": upgraded_count,
-		"skipped_count": skipped_count,
-		"total_periods": imported_count + updated_count + upgraded_count,
-		"errors": errors if errors else None,
-		"data_source_used": "SEC Edgar"
-	}
-
-
-def process_ixbrl_filing(
-	security,
-	filing_dir: Path,
-	period_type: str,
-	quality_score: int
-) -> Dict:
-	"""
-	Process a single iXBRL filing (10-K or 10-Q).
-	
-	Args:
-		security: CF Security document
-		filing_dir: Path to the filing directory
-		period_type: "Annual" or "Quarterly"
-		quality_score: Data quality score for this source
-		
-	Returns:
-		Dict with counts of imported/updated/upgraded/skipped records
-	"""
-	result = {
-		"imported": 0,
-		"updated": 0,
-		"upgraded": 0,
-		"skipped": 0,
-		"error": None
-	}
+	data = {'period_end_date': period_end_date}
 	
 	try:
-		# Find the primary HTML document (inline XBRL)
-		html_files = list(filing_dir.glob("*primary-document*.html")) or \
-		             list(filing_dir.glob("*.htm"))
+		# Use edgartools helper methods for reliable quarterly data extraction
+		# These methods automatically handle quarterly vs YTD distinction
 		
-		if not html_files:
-			result["error"] = f"No HTML document found in {filing_dir}"
-			return result
+		# Income statement items
+		try:
+			data['total_revenue'] = financials.get_revenue()
+		except:
+			data['total_revenue'] = None
+			
+		try:
+			data['net_income'] = financials.get_net_income()
+		except:
+			data['net_income'] = None
 		
-		html_file = html_files[0]
+		# Balance sheet items (point-in-time, so DataFrame is safe)
+		try:
+			data['total_assets'] = financials.get_total_assets()
+		except:
+			data['total_assets'] = None
+			
+		try:
+			data['total_liabilities'] = financials.get_total_liabilities()
+		except:
+			data['total_liabilities'] = None
+			
+		try:
+			data['shareholders_equity'] = financials.get_stockholders_equity()
+		except:
+			data['shareholders_equity'] = None
+			
+		try:
+			data['current_assets'] = financials.get_current_assets()
+		except:
+			data['current_assets'] = None
+			
+		try:
+			data['current_liabilities'] = financials.get_current_liabilities()
+		except:
+			data['current_liabilities'] = None
 		
-		# Parse the iXBRL document using python-xbrl
-		xbrl_parser = XBRLParser()
-		xbrl = xbrl_parser.parse(str(html_file))
+		# Cash flow items
+		try:
+			# get_operating_cash_flow returns string sometimes, need to handle
+			ocf = financials.get_operating_cash_flow()
+			data['operating_cash_flow'] = float(ocf) if ocf else None
+		except:
+			data['operating_cash_flow'] = None
+			
+		try:
+			data['capital_expenditures'] = financials.get_capital_expenditures()
+		except:
+			data['capital_expenditures'] = None
 		
-		# Extract financial facts
-		financial_data = extract_usgaap_facts(xbrl, period_type)
-		
-		if not financial_data or "period_end_date" not in financial_data:
-			return {
-				"imported": 0,
-				"updated": 0,
-				"upgraded": 0,
-				"skipped": 1,
-				"error": f"No valid financial data extracted from {filing_dir.name}"
-			}
-		
-		fiscal_year = financial_data.get("fiscal_year")
-		fiscal_quarter = financial_data.get("fiscal_quarter") if period_type == "Quarterly" else None
-		period_end_date = financial_data.get("period_end_date")
-		
-		# Check for existing period
-		filters = {
-			"security": security.name,
-			"period_type": period_type,
-			"fiscal_year": fiscal_year
-		}
-		
-		if period_type == "Quarterly" and fiscal_quarter:
-			filters["fiscal_quarter"] = fiscal_quarter
-		
-		existing = frappe.db.get_value(
-			"CF Financial Period",
-			filters,
-			["name", "data_quality_score", "override_yahoo"],
-			as_dict=True
-		)
-		
-		# Skip if override_yahoo is set
-		if existing and existing.override_yahoo:
-			return {
-				"imported": 0,
-				"updated": 0,
-				"upgraded": 0,
-				"skipped": 1,
-				"error": None
-			}
-		
-		# Determine if upgrade is needed
-		is_upgrade = False
-		is_update = False
-		
-		if existing:
-			if existing.data_quality_score < quality_score:
-				is_upgrade = True
-				period = frappe.get_doc("CF Financial Period", existing.name)
-			elif existing.data_quality_score >= quality_score:
-				return {
-					"imported": 0,
-					"updated": 0,
-					"upgraded": 0,
-					"skipped": 1,
-					"error": None
-				}
+		# Calculate free cash flow
+		try:
+			data['free_cash_flow'] = financials.get_free_cash_flow()
+		except:
+			# Fallback calculation if method fails
+			if data.get('operating_cash_flow') and data.get('capital_expenditures'):
+				data['free_cash_flow'] = data['operating_cash_flow'] + data['capital_expenditures']
 			else:
-				is_update = True
-				period = frappe.get_doc("CF Financial Period", existing.name)
-		else:
-			period = frappe.new_doc("CF Financial Period")
-			period.security = security.name
-			period.period_type = period_type
-			period.fiscal_year = fiscal_year
-			if fiscal_quarter:
-				period.fiscal_quarter = fiscal_quarter
-			period.period_end_date = period_end_date
+				data['free_cash_flow'] = None
 		
-		# Set metadata
-		period.data_source = "SEC Edgar"
-		period.data_quality_score = quality_score
-		period.currency = security.currency or "USD"
-		
-		# Map US-GAAP fields to our structure
-		map_financial_data_to_period(period, financial_data)
-		
-		# Store raw data reference
-		period.raw_income_statement = json.dumps({
-			"source": "SEC Edgar iXBRL",
-			"filing": filing_dir.name,
-			"file": "primary-document.html",
-			"period_type": period_type
-		}, indent=2)
-		
-		period.save()
-		
-		if is_upgrade:
-			return {"imported": 0, "updated": 0, "upgraded": 1, "skipped": 0, "error": None}
-		elif is_update:
-			return {"imported": 0, "updated": 1, "upgraded": 0, "skipped": 0, "error": None}
-		else:
-			return {"imported": 1, "updated": 0, "upgraded": 0, "skipped": 0, "error": None}
-			
-	except Exception as e:
-		frappe.log_error(
-			title=f"iXBRL Processing Error: {filing_dir.name}",
-			message=str(e)
-		)
-		return {
-			"imported": 0,
-			"updated": 0,
-			"upgraded": 0,
-			"skipped": 0,
-			"error": f"{filing_dir.name}: {str(e)}"
-		}
-
-
-def extract_usgaap_facts(xbrl, period_type: str) -> Optional[Dict]:
-	"""
-	Extract US-GAAP financial facts from iXBRL document using python-xbrl.
-	
-	Args:
-		xbrl: Parsed BeautifulSoup object from python-xbrl
-		period_type: "Annual" or "Quarterly"
-		
-	Returns:
-		Dict with extracted financial data or None
-	"""
-	try:
-		# US-GAAP concept mappings to our field names
-		concept_map = {
-			# Income Statement
-			"us-gaap:Revenues": "total_revenue",
-			"us-gaap:RevenueFromContractWithCustomerExcludingAssessedTax": "total_revenue",
-			"us-gaap:CostOfRevenue": "cost_of_revenue",
-			"us-gaap:CostOfGoodsAndServicesSold": "cost_of_revenue",
-			"us-gaap:GrossProfit": "gross_profit",
-			"us-gaap:OperatingExpenses": "operating_expenses",
-			"us-gaap:OperatingIncomeLoss": "operating_income",
-			"us-gaap:IncomeLossFromContinuingOperationsBeforeIncomeTaxesExtraordinaryItemsNoncontrollingInterest": "pretax_income",
-			"us-gaap:IncomeTaxExpenseBenefit": "tax_provision",
-			"us-gaap:NetIncomeLoss": "net_income",
-			"us-gaap:EarningsPerShareBasic": "basic_eps",
-			"us-gaap:EarningsPerShareDiluted": "diluted_eps",
-			
-			# Balance Sheet
-			"us-gaap:Assets": "total_assets",
-			"us-gaap:AssetsCurrent": "current_assets",
-			"us-gaap:CashAndCashEquivalentsAtCarryingValue": "cash_and_equivalents",
-			"us-gaap:AccountsReceivableNetCurrent": "accounts_receivable",
-			"us-gaap:InventoryNet": "inventory",
-			"us-gaap:Liabilities": "total_liabilities",
-			"us-gaap:LiabilitiesCurrent": "current_liabilities",
-			"us-gaap:LongTermDebt": "long_term_debt",
-			"us-gaap:StockholdersEquity": "shareholders_equity",
-			"us-gaap:RetainedEarningsAccumulatedDeficit": "retained_earnings",
-			
-			# Cash Flow
-			"us-gaap:NetCashProvidedByUsedInOperatingActivities": "operating_cash_flow",
-			"us-gaap:PaymentsToAcquirePropertyPlantAndEquipment": "capital_expenditures",
-			"us-gaap:NetCashProvidedByUsedInInvestingActivities": "investing_cash_flow",
-			"us-gaap:NetCashProvidedByUsedInFinancingActivities": "financing_cash_flow",
-		}
-		
-		# Get all contexts to find the main reporting period
-		contexts = xbrl.find_all('xbrli:context')
-		if not contexts:
-			frappe.log_error(title="No XBRL Contexts", message="No contexts found in XBRL document")
-			return None
-		
-		# Find the most recent period context (duration, not instant)
-		period_context_id = None
-		period_end_date = None
-		period_start_date = None
-		fiscal_period_label = None  # Will store fp metadata (Q1, Q2, Q3, Q4, FY)
-		
-		for ctx in contexts:
-			period = ctx.find('xbrli:period')
-			if not period:
-				continue
+		# For fields not available via helper methods, use DataFrame with point-in-time data only
+		# (Balance sheet items are safe since they're snapshots, not cumulative)
+		try:
+			balance_df = financials.balance_sheet().to_dataframe()
+			date_cols = [c for c in balance_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
 				
-			# Look for duration periods (not instant/point-in-time)
-			start = period.find('xbrli:startdate')
-			end = period.find('xbrli:enddate')
-			
-			if start and end:
-				try:
-					end_date = datetime.fromisoformat(end.text.strip()).date()
-					start_date = datetime.fromisoformat(start.text.strip()).date()
-					
-					# Use the most recent complete period
-					if not period_end_date or end_date > period_end_date:
-						period_end_date = end_date
-						period_start_date = start_date
-						period_context_id = ctx.get('id')
-						
-						# Try to extract fiscal period from context ID or segments
-						# SEC filings often have contextRef like "FY2025Q2" or contain fiscal period indicators
-						ctx_id = ctx.get('id', '')
-						if 'Q1' in ctx_id.upper():
-							fiscal_period_label = 'Q1'
-						elif 'Q2' in ctx_id.upper():
-							fiscal_period_label = 'Q2'
-						elif 'Q3' in ctx_id.upper():
-							fiscal_period_label = 'Q3'
-						elif 'Q4' in ctx_id.upper():
-							fiscal_period_label = 'Q4'
-						elif 'FY' in ctx_id.upper() or 'ANNUAL' in ctx_id.upper():
-							fiscal_period_label = 'FY'
-				except:
-					continue
+				# Extract additional balance sheet items
+				data['cash_and_equivalents'] = _safe_extract_value(
+					balance_df,
+					['Cash and Cash Equivalents', 'Cash', 'Cash and Equivalents'],
+					latest_col
+				)
+				data['accounts_receivable'] = _safe_extract_value(
+					balance_df,
+					['Accounts Receivable', 'Accounts Receivable Net', 'Receivables Net'],
+					latest_col
+				)
+				data['inventory'] = _safe_extract_value(
+					balance_df,
+					['Inventory', 'Inventory Net'],
+					latest_col
+				)
+				data['long_term_debt'] = _safe_extract_value(
+					balance_df,
+					['Long-term Debt', 'Long Term Debt Noncurrent', 'Long-Term Debt', 'Debt Noncurrent'],
+					latest_col
+				)
+				data['retained_earnings'] = _safe_extract_value(
+					balance_df,
+					['Retained Earnings', 'Retained Earnings Accumulated Deficit'],
+					latest_col
+				)
+		except Exception as e:
+			frappe.log_error(
+				title="Balance Sheet Extraction Error",
+				message=f"Error extracting balance sheet details: {str(e)}"
+			)
 		
-		if not period_context_id:
-			frappe.log_error(title="No Period Context", message="Could not find valid period context")
-			return None
+		# Note: For income statement items like COGS, gross profit, operating expenses, etc.,
+		# we rely on CF Financial Period's validate() method to calculate them from available data.
+		# This avoids the YTD vs quarterly confusion in 10-Q filings.
 		
-		# Extract facts for this period
-		financial_data = {}
-		
-		for us_gaap_name, our_field in concept_map.items():
-			facts = xbrl.find_all(attrs={'name': us_gaap_name, 'contextref': period_context_id})
-			
-			if facts:
-				# Use the first matching fact
-				fact = facts[0]
-				value_text = fact.text.strip() if fact.text else None
-				
-				if value_text:
-					try:
-						# Remove commas and convert to float
-						value = float(value_text.replace(',', ''))
-						
-						# Check for scale/decimals
-						decimals = fact.get('decimals', '')
-						scale = fact.get('scale', '')
-						
-						# SEC filings often use scale or negative decimals to indicate thousands/millions
-						if scale:
-							value = value * (10 ** int(scale))
-						elif decimals and decimals.startswith('-'):
-							value = value * (10 ** int(decimals))
-						
-						financial_data[our_field] = value
-					except (ValueError, TypeError) as e:
-						frappe.log_error(
-							title=f"Value Conversion Error: {us_gaap_name}",
-							message=f"Could not convert '{value_text}' to float: {e}"
-						)
-						continue
-		
-		if not financial_data:
-			return None
-		
-		# Determine fiscal year and quarter
-		fiscal_year = period_end_date.year
-		month = period_end_date.month
-		
-		# Use fiscal period label from SEC metadata if available, otherwise calculate from month
-		if fiscal_period_label and fiscal_period_label in ['Q1', 'Q2', 'Q3', 'Q4']:
-			fiscal_quarter = fiscal_period_label
+		# Determine fiscal year and quarter from the filing cover page first
+		# Fallback to calendar-based derivation only if cover data is unavailable
+		fiscal_year = None
+		fiscal_period = None
+		try:
+			cover_stmt = financials.cover()
+			cover_df = cover_stmt.to_dataframe()
+			# Columns in cover_df include date columns like 'YYYY-MM-DD'
+			date_col = period_end_date
+			if cover_df is not None and not cover_df.empty and date_col in cover_df.columns:
+				# Extract Document Fiscal Year Focus
+				fy_row = cover_df[cover_df['label'].str.contains('Document Fiscal Year Focus', case=False, na=False)]
+				if not fy_row.empty:
+					val = fy_row.iloc[0][date_col]
+					if pd.notna(val):
+						try:
+							fiscal_year = int(float(val))
+						except Exception:
+							pass
+				# Extract Document Fiscal Period Focus (Q1/Q2/Q3/Q4/FY)
+				fp_row = cover_df[cover_df['label'].str.contains('Document Fiscal Period Focus', case=False, na=False)]
+				if not fp_row.empty:
+					val = fp_row.iloc[0][date_col]
+					if isinstance(val, str) and val:
+						fiscal_period = val.strip().upper()
+		except Exception as _e:
+			# Ignore and fallback to calendar mapping
+			pass
+
+		if fiscal_year is not None:
+			data['fiscal_year'] = fiscal_year
 		else:
-			# Fallback: Map month to quarter as approximation
+			# Fallback: derive from calendar year
+			period_date = datetime.strptime(period_end_date, '%Y-%m-%d')
+			data['fiscal_year'] = period_date.year
+
+		if fiscal_period in {'Q1','Q2','Q3','Q4'}:
+			data['fiscal_quarter'] = fiscal_period
+		elif fiscal_period == 'FY':
+			data['fiscal_quarter'] = None
+		else:
+			# Fallback: estimate based on calendar month
+			period_date = datetime.strptime(period_end_date, '%Y-%m-%d')
+			month = period_date.month
 			if month in [1, 2, 3]:
-				fiscal_quarter = "Q1"
+				data['fiscal_quarter'] = 'Q1'
 			elif month in [4, 5, 6]:
-				fiscal_quarter = "Q2"
+				data['fiscal_quarter'] = 'Q2'
 			elif month in [7, 8, 9]:
-				fiscal_quarter = "Q3"
+				data['fiscal_quarter'] = 'Q3'
 			else:
-				fiscal_quarter = "Q4"
+				data['fiscal_quarter'] = 'Q4'
 		
-		# Calculate derived fields
-		if "gross_profit" not in financial_data and "total_revenue" in financial_data and "cost_of_revenue" in financial_data:
-			financial_data["gross_profit"] = financial_data["total_revenue"] - financial_data["cost_of_revenue"]
+		return data
 		
-		if "capital_expenditures" in financial_data:
-			financial_data["capital_expenditures"] = abs(financial_data["capital_expenditures"])
-		
-		if "operating_cash_flow" in financial_data and "capital_expenditures" in financial_data:
-			financial_data["free_cash_flow"] = financial_data["operating_cash_flow"] - financial_data["capital_expenditures"]
-		
-		# Add period metadata
-		financial_data["period_end_date"] = period_end_date
-		financial_data["fiscal_year"] = fiscal_year
-		financial_data["fiscal_quarter"] = fiscal_quarter if period_type == "Quarterly" else None
-		
-		return financial_data
-	
 	except Exception as e:
 		frappe.log_error(
-			title="XBRL Parsing Error",
-			message=f"Error parsing XBRL data: {str(e)}\n{frappe.get_traceback()}"
+			title="Financial Data Extraction Error",
+			message=f"Error extracting data: {str(e)}\n{frappe.get_traceback()}"
 		)
 		return None
 
 
-def map_financial_data_to_period(period, financial_data: Dict):
+def _safe_extract_value(df: pd.DataFrame, label_variations: List[str], date_col: str) -> Optional[float]:
 	"""
-	Map extracted financial data to CF Financial Period fields.
+	Safely extract a value from DataFrame by trying multiple label variations.
 	
 	Args:
-		period: CF Financial Period document
-		financial_data: Dict with extracted data
+		df: DataFrame with 'label' column and date columns
+		label_variations: List of possible label names to try
+		date_col: Date column name to extract value from
+		
+	Returns:
+		Float value or None if not found
 	"""
-	# List of all possible fields
-	fields = [
-		"total_revenue", "cost_of_revenue", "gross_profit",
-		"operating_expenses", "operating_income", "ebit", "ebitda",
-		"interest_expense", "pretax_income", "tax_provision", "net_income",
-		"diluted_eps", "basic_eps",
-		"total_assets", "current_assets", "cash_and_equivalents",
-		"accounts_receivable", "inventory",
-		"total_liabilities", "current_liabilities", "total_debt",
-		"long_term_debt", "shareholders_equity", "retained_earnings",
-		"operating_cash_flow", "capital_expenditures", "free_cash_flow",
-		"investing_cash_flow", "financing_cash_flow", "dividends_paid"
-	]
+	try:
+		if df is None or df.empty or 'label' not in df.columns or date_col not in df.columns:
+			return None
+		
+		# Try each label variation with case-insensitive matching
+		for label in label_variations:
+			# Case-insensitive search
+			mask = df['label'].str.contains(label, case=False, na=False, regex=False)
+			matches = df[mask]
+			
+			if not matches.empty:
+				# Get the first match
+				value = matches.iloc[0][date_col]
+				
+				# Convert to float if possible
+				if pd.notna(value):
+					try:
+						return float(value)
+					except (ValueError, TypeError):
+						continue
+		
+		return None
+		
+	except Exception as e:
+		frappe.log_error(
+			title="Value Extraction Error",
+			message=f"Error extracting value for labels {label_variations}: {str(e)}"
+		)
+		return None
+
+
+def _upsert_period(
+	security_name: str,
+	period_type: str,
+	period_data: Dict,
+	commit: bool = True
+) -> bool:
+	"""
+	Create or update a CF Financial Period record.
 	
-	for field in fields:
-		if field in financial_data and financial_data[field] is not None:
-			setattr(period, field, financial_data[field])
+	Args:
+		security_name: Name of the CF Security
+		period_type: 'Annual' or 'Quarterly'
+		period_data: Dict with all period data including metadata
+		commit: Whether to commit the transaction
+		
+	Returns:
+		True if new record created, False if existing record updated
+	"""
+	try:
+		# Extract key fields for finding/creating period
+		fiscal_year = period_data.get('fiscal_year')
+		fiscal_quarter = period_data.get('fiscal_quarter') if period_type == 'Quarterly' else None
+		period_end_date = period_data.get('period_end_date')
+		
+		# Try to find existing period
+		filters = {
+			'security': security_name,
+			'period_type': period_type,
+			'fiscal_year': fiscal_year
+		}
+		
+		if period_type == 'Quarterly' and fiscal_quarter:
+			filters['fiscal_quarter'] = fiscal_quarter
+		
+		existing = frappe.db.exists('CF Financial Period', filters)
+		
+		if existing:
+			# Update existing period
+			period = frappe.get_doc('CF Financial Period', existing)
+			was_new = False
+		else:
+			# Create new period
+			period = frappe.new_doc('CF Financial Period')
+			period.security = security_name
+			period.period_type = period_type
+			period.fiscal_year = fiscal_year
+			if period_type == 'Quarterly':
+				period.fiscal_quarter = fiscal_quarter
+			was_new = True
+		
+		# Set all fields from period_data
+		for field, value in period_data.items():
+			if field not in ['fiscal_year', 'fiscal_quarter'] and hasattr(period, field):
+				setattr(period, field, value)
+		
+		# Save the period
+		period.save(ignore_permissions=True)
+		
+		# Commit if requested
+		if commit:
+			frappe.db.commit()
+		
+		return was_new
+		
+	except Exception as e:
+		frappe.log_error(
+			title="Period Upsert Error",
+			message=f"Error upserting period for {security_name}: {str(e)}\n{frappe.get_traceback()}"
+		)
+		# Re-raise to allow caller to handle
+		raise
