@@ -12,6 +12,9 @@
   "fiscal_quarter",
   "period_end_date",
   "filing_date",
+  "filing_form",
+  "accession_number",
+  "document_fiscal_period",
   "data_source",
   "column_break_basic",
   "currency",
@@ -122,6 +125,25 @@
    "fieldname": "filing_date",
    "fieldtype": "Date",
    "label": "Filing Date"
+  },
+  {
+   "fieldname": "filing_form",
+   "fieldtype": "Select",
+   "label": "Filing Form",
+   "options": "10-Q\n10-K\n8-K\n20-F\n6-K",
+   "description": "SEC filing form type (e.g., 10-Q for quarterly, 10-K for annual)"
+  },
+  {
+   "fieldname": "accession_number",
+   "fieldtype": "Data",
+   "label": "Accession Number",
+   "description": "SEC accession number for traceability to original filing"
+  },
+  {
+   "fieldname": "document_fiscal_period",
+   "fieldtype": "Data",
+   "label": "Document Fiscal Period",
+   "description": "Fiscal period label from filing (e.g., Q1, Q2, FY2025)"
   },
   {
    "fieldname": "data_source",

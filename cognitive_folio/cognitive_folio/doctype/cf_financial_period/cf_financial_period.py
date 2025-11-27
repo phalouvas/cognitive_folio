@@ -251,11 +251,15 @@ def bulk_import_financial_periods(security_names, replace_existing=False, respec
 			if aborted:
 				break
 			try:
-				res = import_from_yahoo_finance(
-					security_name=sec,
-					replace_existing=replace_existing,
-					respect_override=respect_override
-				)
+				# Call security.fetch_data() which handles both SEC Edgar and Yahoo Finance
+				# This ensures US stocks use SEC Edgar, others use Yahoo Finance
+				security_doc = frappe.get_doc("CF Security", sec)
+				security_doc.fetch_data(with_fundamentals=True)
+				
+				# Parse the result from last_period_import_result
+				result_str = security_doc.last_period_import_result or '{}'
+				res = frappe.parse_json(result_str) if result_str else {}
+				
 				imported = res.get('imported_count', 0)
 				updated = res.get('updated_count', 0)
 				skipped = res.get('skipped_count', 0)
