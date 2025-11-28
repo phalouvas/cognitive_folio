@@ -18,6 +18,12 @@ except ImportError:
 	YFINANCE_INSTALLED = False
 
 class CFSecurity(Document):
+	def _normalize_ticker_for_sec(self, symbol: str) -> str:
+		"""Normalize Yahoo share-class tickers to SEC format (e.g., BRK-B -> BRK.B)."""
+		if not symbol:
+			return ""
+		return symbol.strip().upper().replace("-", ".")
+
 	def validate(self):
 
 		if self.security_type != "Stock" and not self.symbol:
@@ -555,6 +561,87 @@ class CFSecurity(Document):
 			if with_fundamentals:
 				settings = frappe.get_single("CF Settings")
 				auto_import_enabled = getattr(settings, 'auto_import_financial_periods', 1)
+				if auto_import_enabled:
+					try:
+						# Phase 2: Use SEC Edgar for US companies with CIK, otherwise Yahoo Finance
+						if self.country == 'United States' and self.sec_cik:
+							# Try SEC Edgar first (higher quality: 95)
+							try:
+								from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+								
+								result = None
+								sec_errors = []
+
+								# 1) Prefer CIK (most robust)
+								frappe.logger().info(f"Attempting SEC Edgar fetch for {self.name} using CIK: {self.sec_cik}")
+								try:
+									result = fetch_sec_edgar_financials(self.name, self.sec_cik)
+									if result and result.get('success'):
+										frappe.logger().info(f"SEC Edgar fetch successful via CIK for {self.name}")
+								except TypeError as te:
+									sec_errors.append(f"CIK signature mismatch: {te}")
+								except Exception as e1:
+									sec_errors.append(f"CIK attempt failed: {e1}")
+
+								# 2) Try normalized SEC-style ticker (BRK-B -> BRK.B)
+								if not result or not result.get('success'):
+									try:
+										normalized_ticker = self._normalize_ticker_for_sec(self.symbol)
+										frappe.logger().info(f"Attempting SEC Edgar fetch for {self.name} using normalized ticker: {normalized_ticker}")
+										result = fetch_sec_edgar_financials(self.name, normalized_ticker)
+										if result and result.get('success'):
+											frappe.logger().info(f"SEC Edgar fetch successful via normalized ticker for {self.name}")
+									except Exception as e2:
+										sec_errors.append(f"Ticker attempt failed: {e2}")
+
+								# Fallback to Yahoo if SEC failed or returned no periods
+								if (not result) or (not result.get('success')) or (result.get('total_periods', 0) == 0):
+									frappe.logger().info(f"SEC Edgar fetch failed for {self.name}, falling back to Yahoo Finance")
+									if sec_errors:
+										frappe.log_error(
+											title=f"SEC Edgar fallback for {self.name}",
+											message="\n".join(sec_errors) or "No SEC data"
+										)
+									result = self._create_financial_periods_from_yahoo()
+								elif result.get('currency_mismatches'):
+									frappe.msgprint(
+										f"Warning: Currency mismatch in {len(result['currency_mismatches'])} periods. See error log for details.",
+										alert=True,
+										indicator='orange'
+									)
+							except Exception as e:
+								# Fallback to Yahoo Finance if SEC Edgar fails
+								frappe.log_error(
+									title=f"SEC Edgar Error for {self.name}",
+									message=f"Error: {str(e)}\nFalling back to Yahoo Finance"
+								)
+								result = self._create_financial_periods_from_yahoo()
+						else:
+							# Use Yahoo Finance for non-US or companies without CIK
+							frappe.logger().info(f"Using Yahoo Finance for {self.name} (non-US or no CIK)")
+							result = self._create_financial_periods_from_yahoo()
+						
+						# Store result summary - use db_set to avoid triggering full save cycle
+						self.db_set('last_period_import_result', frappe.as_json(result), update_modified=False)
+
+						if result.get('success'):
+							frappe.msgprint(
+								f"Successfully imported {result.get('imported_count', 0)} new periods and updated {result.get('updated_count', 0)} existing periods using {result.get('data_source_used', 'Unknown')}",
+								alert=True,
+								indicator='green'
+							)
+						else:
+							error_msg = result.get('error', 'Unknown error')
+							frappe.msgprint(
+								f"Failed to import financial periods: {error_msg}",
+								alert=True,
+								indicator='red'
+							)
+					except Exception as ie:
+						frappe.log_error(
+							title=f"Period Import Error for {self.name}",
+							message=f"Error during period import: {str(ie)}\n{frappe.get_traceback()}"
+						)
 				if auto_import_enabled:
 					try:
 						# Phase 2: Use SEC Edgar for US companies with CIK, otherwise Yahoo Finance
@@ -2018,6 +2105,87 @@ class CFSecurity(Document):
 		except Exception as e:
 			frappe.log_error(f"Error calculating fair value: {str(e)}", "Fair Value Calculation Error")
 			self.fair_value = 0
+
+@frappe.whitelist()
+def reimport_financial_periods(security_name: str, force_sec_edgar: bool = False):
+	"""
+	Re-import financial periods for a security and return detailed summary.
+	Useful for testing and verification.
+	
+	Args:
+		security_name: Name of CF Security document
+		force_sec_edgar: If True, skip Yahoo fallback for US stocks
+		
+	Returns:
+		Dict with import results and field population summary
+	"""
+	try:
+		security = frappe.get_doc("CF Security", security_name)
+		
+		result = {
+			'security': security_name,
+			'country': security.country,
+			'sec_cik': security.sec_cik,
+			'import_result': None,
+			'sample_periods': [],
+			'field_stats': {}
+		}
+		
+		# Trigger import
+		if security.country == 'United States' and security.sec_cik:
+			try:
+				from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+				normalized_ticker = security._normalize_ticker_for_sec(security.symbol)
+				
+				# Try CIK first, then normalized ticker
+				import_result = fetch_sec_edgar_financials(security_name, security.sec_cik)
+				if not import_result or not import_result.get('success'):
+					import_result = fetch_sec_edgar_financials(security_name, normalized_ticker)
+				
+				if not force_sec_edgar and (not import_result or not import_result.get('success')):
+					import_result = security._create_financial_periods_from_yahoo()
+				
+				result['import_result'] = import_result
+			except Exception as e:
+				if not force_sec_edgar:
+					import_result = security._create_financial_periods_from_yahoo()
+					result['import_result'] = import_result
+				else:
+					result['import_result'] = {'success': False, 'error': str(e)}
+		else:
+			import_result = security._create_financial_periods_from_yahoo()
+			result['import_result'] = import_result
+		
+		# Analyze created periods
+		periods = frappe.get_all(
+			'CF Financial Period',
+			filters={'security': security_name},
+			fields=['name', 'period_type', 'fiscal_year', 'fiscal_quarter', 'data_source', 
+			        'data_quality_score', 'total_revenue', 'net_income', 'total_assets'],
+			order_by='period_end_date desc',
+			limit=5
+		)
+		
+		result['sample_periods'] = periods
+		
+		# Field population statistics
+		if periods:
+			key_fields = ['total_revenue', 'net_income', 'total_assets', 'operating_cash_flow', 
+			              'shareholders_equity', 'gross_profit', 'operating_income']
+			for field in key_fields:
+				populated = frappe.db.count('CF Financial Period', 
+				                            filters={'security': security_name, field: ['!=', None]})
+				total = frappe.db.count('CF Financial Period', filters={'security': security_name})
+				result['field_stats'][field] = f"{populated}/{total}"
+		
+		return result
+		
+	except Exception as e:
+		frappe.log_error(
+			title=f"Reimport verification error: {security_name}",
+			message=f"{str(e)}\n{frappe.get_traceback()}"
+		)
+		return {'success': False, 'error': str(e)}
 
 @frappe.whitelist()
 def search_stock_symbols(search_term):

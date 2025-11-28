@@ -225,15 +225,97 @@ def _extract_financial_data(
 		# These methods automatically handle quarterly vs YTD distinction
 		
 		# Income statement items
+		# Try multiple revenue tags with priority order
 		try:
-			data['total_revenue'] = financials.get_revenue()
+			revenue = financials.get_revenue()
+			# get_revenue() can return empty string or 0 for some companies
+			if revenue and revenue != "" and revenue != 0:
+				data['total_revenue'] = float(revenue) if isinstance(revenue, str) else revenue
+			else:
+				# Fallback to manual extraction
+				raise ValueError("get_revenue returned empty/zero")
 		except:
-			data['total_revenue'] = None
+			# Fallback: try extracting from income statement DataFrame with multiple tag variations
+			try:
+				income_df = financials.income_statement().to_dataframe()
+				date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+				if date_cols:
+					latest_col = max(date_cols)
+					# Priority order for revenue tags (check both plural and singular forms)
+					revenue_tags = [
+						'Revenue',  # Berkshire Hathaway uses this
+						'Revenues',
+						'Total Revenue',
+						'Total Revenues',
+						'Revenue from Contract with Customer Excluding Assessed Tax',
+						'Sales Revenue Net',
+						'Sales Revenue Goods Net',
+						'Sales Revenue Services Net',
+						'Operating Revenue',
+						'Operating Revenues'
+					]
+					data['total_revenue'] = _safe_extract_value(income_df, revenue_tags, latest_col)
+				else:
+					data['total_revenue'] = None
+			except Exception as e:
+				frappe.log_error(
+					title="Revenue Extraction Fallback Error",
+					message=f"Could not extract revenue: {str(e)}"
+				)
+				data['total_revenue'] = None
 			
 		try:
 			data['net_income'] = financials.get_net_income()
 		except:
 			data['net_income'] = None
+		
+		# Additional income statement items from DataFrame
+		try:
+			income_df = financials.income_statement().to_dataframe()
+			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
+				
+				# Interest Expense
+				data['interest_expense'] = _safe_extract_value(
+					income_df,
+					['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
+					latest_col
+				)
+				
+				# Tax Provision (Income Tax Expense)
+				data['tax_provision'] = _safe_extract_value(
+					income_df,
+					['Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'],
+					latest_col
+				)
+				
+				# Pretax Income
+				data['pretax_income'] = _safe_extract_value(
+					income_df,
+					['Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'],
+					latest_col
+				)
+				
+				# Operating Income (if not from helper method)
+				if not data.get('operating_income'):
+					data['operating_income'] = _safe_extract_value(
+						income_df,
+						['Operating Income', 'Income from Operations', 'Operating Profit'],
+						latest_col
+					)
+				
+				# Costs and Expenses (useful for calculations)
+				data['total_costs_and_expenses'] = _safe_extract_value(
+					income_df,
+					['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
+					latest_col
+				)
+		except Exception as e:
+			frappe.log_error(
+				title="Income Statement Additional Fields Error",
+				message=f"Error extracting additional income fields: {str(e)}"
+			)
 		
 		# Balance sheet items (point-in-time, so DataFrame is safe)
 		try:
@@ -394,10 +476,11 @@ def _extract_financial_data(
 def _safe_extract_value(df: pd.DataFrame, label_variations: List[str], date_col: str) -> Optional[float]:
 	"""
 	Safely extract a value from DataFrame by trying multiple label variations.
+	Tries exact matches first, then falls back to substring matching.
 	
 	Args:
 		df: DataFrame with 'label' column and date columns
-		label_variations: List of possible label names to try
+		label_variations: List of possible label names to try (in priority order)
 		date_col: Date column name to extract value from
 		
 	Returns:
@@ -407,9 +490,21 @@ def _safe_extract_value(df: pd.DataFrame, label_variations: List[str], date_col:
 		if df is None or df.empty or 'label' not in df.columns or date_col not in df.columns:
 			return None
 		
-		# Try each label variation with case-insensitive matching
+		# First pass: try exact matches (case-insensitive)
 		for label in label_variations:
-			# Case-insensitive search
+			mask = df['label'].str.lower() == label.lower()
+			matches = df[mask]
+			
+			if not matches.empty:
+				value = matches.iloc[0][date_col]
+				if pd.notna(value):
+					try:
+						return float(value)
+					except (ValueError, TypeError):
+						continue
+		
+		# Second pass: try substring matching (case-insensitive)
+		for label in label_variations:
 			mask = df['label'].str.contains(label, case=False, na=False, regex=False)
 			matches = df[mask]
 			
