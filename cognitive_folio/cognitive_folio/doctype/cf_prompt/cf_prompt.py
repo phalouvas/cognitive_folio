@@ -25,14 +25,14 @@ class CFPrompt(Document):
 		# Use direct SQL update for better performance - only update Stock securities
 		frappe.db.sql("""
 			UPDATE `tabCF Security` 
-			SET ai_prompt = %s, modified = %s, modified_by = %s
+			SET ai_prompt = %s, template_prompt = %s, modified = %s, modified_by = %s
 			WHERE security_type = 'Stock'
-		""", (content_value, frappe.utils.now(), frappe.session.user))
+		""", (content_value, self.name, frappe.utils.now(), frappe.session.user))
 		
 		if content_value:
-			frappe.msgprint(f"Successfully updated {total_records} Stock securities with prompt content")
+			frappe.msgprint(f"Successfully updated {total_records} Stock securities with prompt content and template prompt")
 		else:
-			frappe.msgprint(f"Successfully cleared ai_prompt field in {total_records} Stock securities (content was empty)")
+			frappe.msgprint(f"Successfully cleared ai_prompt field and set template_prompt in {total_records} Stock securities (content was empty)")
 
 	@frappe.whitelist()
 	def copy_prompt_to_portfolios(self):
