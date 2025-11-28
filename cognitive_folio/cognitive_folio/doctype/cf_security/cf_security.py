@@ -692,17 +692,17 @@ class CFSecurity(Document):
 		
 				if rating_values:
 					avg_rating = sum(rating_values) / len(rating_values)
-					rating_value = avg_rating * 5  # Convert to 5-star scale
+					rating_value = avg_rating / 2  # Convert 1-10 to 0-5 star scale
 			
 					# Add detailed breakdown
 					markdown.append("### Rating Breakdown:")
 					for component, value in rating_data.items():
 						try:
-							component_rating = float(value) * 5
+							component_rating = float(value) / 2  # Convert 1-10 to 0-5 star scale
 							component_full_stars = int(component_rating)
 							component_half_star = 1 if component_rating - component_full_stars >= 0.5 else 0
 							component_stars = "⭐" * component_full_stars + "✩" * component_half_star
-							markdown.append(f"- **{component}**: {component_stars} ({value})")
+							markdown.append(f"- **{component}**: {component_stars} ({value}/10)")
 						except (ValueError, TypeError):
 							markdown.append(f"- **{component}**: {value}")
 			
@@ -713,14 +713,14 @@ class CFSecurity(Document):
 			else:
 				# Old format: direct numeric value
 				try:
-					rating_value = float(rating_data) * 5
+					rating_value = float(rating_data) / 2  # Convert 1-10 to 0-5 star scale
 				except (ValueError, TypeError):
 					rating_value = 0
 	
 			full_stars = int(rating_value)  # Number of full stars
 			half_star = 1 if rating_value - full_stars >= 0.5 else 0  # Add half star if needed
 			rating = "⭐" * full_stars + "✩" * half_star
-			markdown.append(f"- **Overall Rating**: {rating} ({rating_value/5:.2f})")
+			markdown.append(f"- **Overall Rating**: {rating} ({rating_value * 2:.1f}/10)")
 			markdown.append(f"- **Recommendation**: **{eval_data.get('Recommendation', '-')}**")
 			markdown.append(f"- **Buy Below**: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
 			markdown.append(f"- **Sell Above**: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
@@ -2279,11 +2279,12 @@ def process_security_ai_suggestion(security_name, user):
 		rating_data = evaluation.get("Rating", 0)
 		if isinstance(rating_data, dict):
 			# New format: extract individual ratings and calculate overall
-			security.rating_moat = float(rating_data.get("Moat", 0))
-			security.rating_management = float(rating_data.get("Management", 0))
-			security.rating_financials = float(rating_data.get("Financials", 0))
-			security.rating_valuation = float(rating_data.get("Valuation", 0))
-			security.rating_industry = float(rating_data.get("Industry", 0))
+			# Convert from 1-10 scale (AI output) to 0-1 scale (Rating field)
+			security.rating_moat = float(rating_data.get("Moat", 0)) / 10
+			security.rating_management = float(rating_data.get("Management", 0)) / 10
+			security.rating_financials = float(rating_data.get("Financials", 0)) / 10
+			security.rating_valuation = float(rating_data.get("Valuation", 0)) / 10
+			security.rating_industry = float(rating_data.get("Industry", 0)) / 10
 			
 			# Calculate overall rating as average of all components
 			rating_values = []
@@ -2296,13 +2297,13 @@ def process_security_ai_suggestion(security_name, user):
 						continue
 			
 			if rating_values:
-				security.suggestion_rating = sum(rating_values) / len(rating_values)
+				security.suggestion_rating = sum(rating_values) / len(rating_values) / 10  # Convert 1-10 to 0-1
 			else:
 				security.suggestion_rating = 0
 		else:
 			# Old format: direct numeric value
 			try:
-				security.suggestion_rating = float(rating_data)
+				security.suggestion_rating = float(rating_data) / 10  # Convert 1-10 to 0-1
 				# Clear individual ratings if using old format
 				security.rating_moat = 0
 				security.rating_management = 0
