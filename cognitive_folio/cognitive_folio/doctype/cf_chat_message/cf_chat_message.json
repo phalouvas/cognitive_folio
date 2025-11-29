@@ -33,7 +33,7 @@
    "search_index": 1
   },
   {
-  "description": "AI variables: {{field}} (security), {{periods:quarterly:4:table}} (structured financials), [[field]] (holding), ((field)) (portfolio), JSON paths {{news.ARRAY.content.title}}, file refs <<report.pdf>>. Full reference: <a href=\"/variable_reference\" target=\"_blank\">Variable Reference</a>.",
+  "description": "Reference attached files using <<filename.ext>> syntax. Supports PDF (with table extraction), CSV, JSON, XML, YAML, TXT, Markdown, SQL, code files (.py, .js, .ts), logs, and other text formats. Limits: 50MB for PDF, 20MB for text files, content truncated at 500K characters. Examples: <<report.pdf>>, <<data.csv>>, <<config.json>>, <<notes.txt>>, <<script.py>>. AI variables: {{field}} (security), {{periods:quarterly:4:table}} (structured financials), [[field]] (holding), ((field)) (portfolio), JSON paths {{news.ARRAY.content.title}}. Full reference: <a href=\"/cognitive_folio/variable_reference\" target=\"_blank\">Variable Reference</a>.",
    "fieldname": "prompt",
    "fieldtype": "Markdown Editor",
    "in_list_view": 1,

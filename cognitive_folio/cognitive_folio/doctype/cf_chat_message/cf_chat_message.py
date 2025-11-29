@@ -161,11 +161,11 @@ class CFChatMessage(Document):
 			except Exception as e:
 				frappe.log_error(f"URL embedding failed for message {self.name}: {str(e)}", "URL Fetch Error")
 		
-		# Extract PDF text and tables, convert to markdown if available
+		# Extract file content from attachments (PDF with tables, or plain text for other formats)
 		try:
-			self.prompt = self.extract_pdf_text()
+			self.prompt = self.extract_file_content()
 		except Exception as e:
-			frappe.log_error(f"PDF extraction failed for message {self.name}: {str(e)}", "PDF Extraction Error")
+			frappe.log_error(f"File extraction failed for message {self.name}: {str(e)}", "File Extraction Error")
 		
 		# NEW: Perform web search if checkbox is enabled
 		if getattr(self, 'web_search', False):  # Check if web_search field exists and is True
@@ -834,56 +834,32 @@ class CFChatMessage(Document):
 			prompt = str(prompt) if prompt else ""
 		return prompt
 
-	def extract_pdf_text(self):
-		"""Extract text and tables from specific PDF files referenced in the prompt.
+	def extract_file_content(self):
+		"""Extract content from files referenced in the prompt.
 		
-		Uses pdfplumber for table extraction, falls back to PyPDF2 for text extraction.
+		Supports PDF (with table extraction via pdfplumber/PyPDF2) and text files
+		(CSV, JSON, XML, TXT, code files, etc.) with encoding auto-detection.
 		"""
 		try:
 			import os
 			import html
 		except ImportError:
-			frappe.log_error("Required modules not available", "PDF Extraction Error")
-			return self.prompt
-		
-		# Check availability of PDF libraries
-		pdfplumber_available = False
-		pypdf2_available = False
-		
-		try:
-			import pdfplumber
-			pdfplumber_available = True
-		except ImportError:
-			pass
-		
-		try:
-			import PyPDF2
-			pypdf2_available = True
-		except ImportError:
-			pass
-		
-		if not pdfplumber_available and not pypdf2_available:
-			frappe.log_error("No PDF library available (pdfplumber or PyPDF2)", "PDF Extraction Error")
+			frappe.log_error("Required modules not available", "File Extraction Error")
 			return self.prompt
 		
 		prompt = self.prompt
 		
-		# First, decode any HTML entities
-		prompt = html.unescape(prompt)
-		
-		# Find all PDF file references in both formats:
-		# <<filename.pdf>> and &lt;&lt;filename.pdf&gt;&gt;
-		pdf_references = []
-		
-		# Pattern for normal angle brackets
-		normal_pattern = r'<<([^>]+\.pdf)>>'
-		pdf_references.extend(re.findall(normal_pattern, prompt, re.IGNORECASE))
+		# Find all file references BEFORE unescaping (to avoid HTML entity issues)
+		# Pattern for normal angle brackets (any file extension)
+		# Use a more restrictive pattern that doesn't capture beyond the filename
+		normal_pattern = r'<<([^<>]+?\.[a-zA-Z0-9]+)>>'
+		file_references = list(re.findall(normal_pattern, prompt, re.IGNORECASE))
 		
 		# Pattern for HTML encoded angle brackets
-		encoded_pattern = r'&lt;&lt;([^&]+\.pdf)&gt;&gt;'
-		pdf_references.extend(re.findall(encoded_pattern, prompt, re.IGNORECASE))
+		encoded_pattern = r'&lt;&lt;([^&<>]+?\.[a-zA-Z0-9]+)&gt;&gt;'
+		file_references.extend(re.findall(encoded_pattern, prompt, re.IGNORECASE))
 		
-		if not pdf_references:
+		if not file_references:
 			return prompt
 		
 		# Get all file attachments for current chat message
@@ -891,8 +867,7 @@ class CFChatMessage(Document):
 			"File",
 			filters={
 				"attached_to_doctype": "CF Chat Message",
-				"attached_to_name": self.name,
-				"file_url": ["like", "%.pdf"]
+				"attached_to_name": self.name
 			},
 			fields=["file_url", "file_name"]
 		)
@@ -902,44 +877,56 @@ class CFChatMessage(Document):
 		for file_info in files:
 			file_mapping[file_info.file_name.lower()] = file_info
 		
-		# Replace each PDF reference with its content
-		for pdf_filename in pdf_references:
-			pdf_key = pdf_filename.lower()
+		# Replace each file reference with its content
+		for filename in file_references:
+			file_key = filename.lower()
 			
-			if pdf_key in file_mapping:
-				file_info = file_mapping[pdf_key]
+			if file_key in file_mapping:
+				file_info = file_mapping[file_key]
 				try:
 					# Get the full file path
 					file_path = frappe.get_site_path() + file_info.file_url
-                    
+					
 					if os.path.exists(file_path):
-						# Extract text and tables from PDF using pdfplumber
-						markdown_content = self._extract_pdf_with_tables(file_path)
+						# Determine file type and extract accordingly
+						ext = os.path.splitext(filename)[1].lower()
+						
+						if ext == '.pdf':
+							# Extract PDF with table support
+							content = self._extract_pdf_with_tables(file_path)
+						else:
+							# Extract as text file
+							content = self._extract_text_file(file_path, file_info.file_name)
 							
-						if markdown_content.strip():
+						if content and content.strip():
 							# Replace the reference with the file content
-							replacement = f"--- Content of {file_info.file_name} ---\n{markdown_content.strip()}\n--- End of {file_info.file_name} ---"
+							replacement = f"--- Content of {file_info.file_name} ---\n{content.strip()}\n--- End of {file_info.file_name} ---"
 							
 							# Replace both normal and encoded versions
-							prompt = prompt.replace(f"<<{pdf_filename}>>", replacement)
-							prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", replacement)
+							normal_ref = f"<<{filename}>>"
+							encoded_ref = f"&lt;&lt;{filename}&gt;&gt;"
+							print(f"[DEBUG] Replacing references: '{normal_ref}' and '{encoded_ref}'")
+							print(f"[DEBUG] encoded_ref in prompt: {encoded_ref in prompt}")
+							prompt = prompt.replace(normal_ref, replacement)
+							prompt = prompt.replace(encoded_ref, replacement)
+							print(f"[DEBUG] Replacement done")
 						else:
 							# Replace with message indicating no text found
 							no_text_msg = f"[No readable text found in {file_info.file_name}]"
-							prompt = prompt.replace(f"<<{pdf_filename}>>", no_text_msg)
-							prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", no_text_msg)
+							prompt = prompt.replace(f"<<{filename}>>", no_text_msg)
+							prompt = prompt.replace(f"&lt;&lt;{filename}&gt;&gt;", no_text_msg)
 				
 				except Exception as e:
-					frappe.log_error(f"Error extracting PDF text from {file_info.file_name}: {str(e)}")
+					frappe.log_error(f"Error extracting content from {file_info.file_name}: {str(e)}", "File Extraction Error")
 					# Replace with error message
 					error_msg = f"[Error reading {file_info.file_name}]"
-					prompt = prompt.replace(f"<<{pdf_filename}>>", error_msg)
-					prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", error_msg)
+					prompt = prompt.replace(f"<<{filename}>>", error_msg)
+					prompt = prompt.replace(f"&lt;&lt;{filename}&gt;&gt;", error_msg)
 			else:
 				# File not found, replace with message
-				not_found_msg = f"[File {pdf_filename} not found in attachments]"
-				prompt = prompt.replace(f"<<{pdf_filename}>>", not_found_msg)
-				prompt = prompt.replace(f"&lt;&lt;{pdf_filename}&gt;&gt;", not_found_msg)
+				not_found_msg = f"[File {filename} not found in attachments]"
+				prompt = prompt.replace(f"<<{filename}>>", not_found_msg)
+				prompt = prompt.replace(f"&lt;&lt;{filename}&gt;&gt;", not_found_msg)
 		
 		return prompt
 
@@ -1065,6 +1052,61 @@ class CFChatMessage(Document):
 			lines.append("| " + " | ".join(row) + " |")
 		
 		return "\n".join(lines)
+
+	def _extract_text_file(self, file_path: str, filename: str) -> str:
+		"""Extract plain text content from non-PDF files.
+		
+		Uses encoding fallback chain (UTF-8 → ISO-8859-1 → Windows-1252 → ASCII)
+		with final fallback to UTF-8 with error replacement.
+		
+		Args:
+			file_path: Path to the text file
+			filename: Original filename for error messages
+			
+		Returns:
+			Plain text content or error message
+		"""
+		try:
+			import os
+			
+			# File size limit: 20MB
+			MAX_TEXT_FILE_SIZE = 20 * 1024 * 1024
+			
+			# Check if file exists
+			if not os.path.exists(file_path):
+				return f"[File not found: {filename}]"
+			
+			# Check file size
+			file_size = os.path.getsize(file_path)
+			if file_size > MAX_TEXT_FILE_SIZE:
+				return f"[File too large: {filename} exceeds 20MB limit]"
+			
+			# Try common encodings in order
+			encodings = ['utf-8', 'iso-8859-1', 'windows-1252', 'ascii']
+			content = None
+			
+			for encoding in encodings:
+				try:
+					with open(file_path, 'r', encoding=encoding) as f:
+						content = f.read()
+					break  # Success!
+				except (UnicodeDecodeError, LookupError):
+					continue
+			
+			# Final fallback: UTF-8 with error replacement
+			if content is None:
+				with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
+					content = f.read()
+			
+			# Truncate if content is too large (500K characters)
+			if len(content) > 500000:
+				content = content[:500000] + "\n\n[Content truncated - file exceeds 500K characters]"
+			
+			return content
+			
+		except Exception as e:
+			frappe.log_error(f"Text file extraction failed for {filename}: {str(e)}", "File Extraction Error")
+			return f"[Unable to extract text from {filename}]"
 
 	def extract_search_query(self):
 		"""Use OpenAI to intelligently extract search query from prompt"""

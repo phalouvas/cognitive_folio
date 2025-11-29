@@ -17,7 +17,7 @@
    "reqd": 1
   },
     {
-    "description": "Prompt supports variables: {{field}}, {{periods:annual:3}}, [[field]], ((field)), JSON path extraction (ARRAY), and file markers <<name.pdf>>. Details & best practices: <a href=\"/variable_reference\" target=\"_blank\">Variable Reference</a>.",
+    "description": "Prompt supports variables: {{field}}, {{periods:annual:3}}, [[field]], ((field)), JSON path extraction (ARRAY), and file markers <<name.pdf>>. Details & best practices: <a href=\"/cognitive_folio/variable_reference\" target=\"_blank\">Variable Reference</a>.",
    "fieldname": "content",
    "fieldtype": "Markdown Editor",
    "label": "Content"
