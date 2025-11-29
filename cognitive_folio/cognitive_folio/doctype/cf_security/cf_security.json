@@ -311,7 +311,7 @@
    "label": "AI"
   },
     {
-    "description": "Use AI variables: {{field}} (security), {{periods:annual:3}} (financial periods), [[field]] (holding), ((field)) (portfolio), JSON paths (e.g. {{news.0.content.title}}), and attachments <<file.pdf>>. Full syntax: <a href=\"/variable_reference\" target=\"_blank\">Variable Reference</a>.",
+    "description": "Use AI variables: {{field}} (security), {{periods:annual:3}} (financial periods), [[field]] (holding), ((field)) (portfolio), JSON paths (e.g. {{news.0.content.title}}), and attachments <<file.pdf>>. Full syntax: <a href=\"/cognitive_folio/variable_reference\" target=\"_blank\">Variable Reference</a>.",
    "fieldname": "ai_prompt",
    "fieldtype": "Markdown Editor",
    "label": "AI Prompt"
