@@ -40,7 +40,7 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 		from edgar import Company, set_identity
 		
 		# Set SEC API identity (required by SEC)
-		set_identity("Cognitive Folio info@kainotomo.com")
+		set_identity("phalouvas@gmail.com")
 		
 		# Get security document to check currency
 		security = frappe.get_doc("CF Security", security_name)
@@ -263,6 +263,35 @@ def _extract_financial_data(
 					message=f"Could not extract revenue: {str(e)}"
 				)
 				data['total_revenue'] = None
+
+		# Cost of Revenue / COGS
+		try:
+			income_df = financials.income_statement().to_dataframe()
+			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
+				cost_tags = [
+					'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
+					'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
+				]
+				data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, latest_col)
+		except Exception:
+			pass
+
+		# Operating Expenses and Gross Profit (if available)
+		try:
+			income_df = financials.income_statement().to_dataframe()
+			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
+				op_ex_tags = ['Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense']
+				data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
+				gross_profit_tags = ['Gross Profit', 'Gross Margin']
+				gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
+				if gp_val is not None:
+					data['gross_profit'] = gp_val
+		except Exception:
+			pass
 			
 		try:
 			data['net_income'] = financials.get_net_income()
@@ -309,6 +338,24 @@ def _extract_financial_data(
 				data['total_costs_and_expenses'] = _safe_extract_value(
 					income_df,
 					['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
+					latest_col
+				)
+
+				# EPS and Weighted Average Shares
+				data['basic_eps'] = _safe_extract_value(
+					income_df,
+					['Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS'],
+					latest_col
+				)
+				data['diluted_eps'] = _safe_extract_value(
+					income_df,
+					['Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS'],
+					latest_col
+				)
+				# Map to shares_outstanding field (CF Financial Period uses this field name)
+				data['shares_outstanding'] = _safe_extract_value(
+					income_df,
+					['Weighted Average Shares', 'Weighted Average Number of Shares Outstanding Basic', 'Weighted Average Basic Shares Outstanding', 'Common Stock Shares Outstanding'],
 					latest_col
 				)
 		except Exception as e:
@@ -395,6 +442,15 @@ def _extract_financial_data(
 					['Long-term Debt', 'Long Term Debt Noncurrent', 'Long-Term Debt', 'Debt Noncurrent'],
 					latest_col
 				)
+			# Try to extract total debt directly
+			data['total_debt'] = _safe_extract_value(
+				balance_df,
+				['Total Debt', 'Debt', 'Total Borrowings'],
+				latest_col
+			)
+			# If not available directly, use long-term debt as approximation
+			if not data.get('total_debt') and data.get('long_term_debt'):
+				data['total_debt'] = data['long_term_debt']
 				data['retained_earnings'] = _safe_extract_value(
 					balance_df,
 					['Retained Earnings', 'Retained Earnings Accumulated Deficit'],
