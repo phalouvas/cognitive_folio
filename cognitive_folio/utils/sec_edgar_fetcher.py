@@ -267,7 +267,7 @@ def _extract_financial_data(
 				)
 				data['total_revenue'] = None
 
-		# Cost of Revenue / COGS
+		# Cost of Revenue / COGS (including energy sector specific tags)
 		try:
 			income_df = financials.income_statement().to_dataframe()
 			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
@@ -275,7 +275,10 @@ def _extract_financial_data(
 				latest_col = max(date_cols)
 				cost_tags = [
 					'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
-					'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
+					'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization',
+					'Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses',
+					'Cost Of Goods And Services Sold', 'Production and Manufacturing Expenses',
+					'Total Costs And Operating Expenses'
 				]
 				data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, latest_col)
 		except Exception:
@@ -290,10 +293,14 @@ def _extract_financial_data(
 				op_ex_tags = [
 					'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
 					'Operating Costs and Expenses', 'Selling General and Administrative Expense',
-					'Research and Development Expense'
+					'Research and Development Expense', 'Selling General And Administrative Expenses',
+					'General and Administrative Expense', 'Selling and Marketing Expense'
 				]
 				data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
-				gross_profit_tags = ['Gross Profit', 'Gross Margin']
+				gross_profit_tags = [
+					'Gross Profit', 'Gross Margin', 'Gross Income',
+					'Income Before Operating Expenses'
+				]
 				gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
 				if gp_val is not None:
 					data['gross_profit'] = gp_val
@@ -333,13 +340,15 @@ def _extract_financial_data(
 					latest_col
 				)
 				
-				# Operating Income (if not from helper method)
+				# Operating Income (if not from helper method) - expanded tags for oil & gas and other sectors
 				if not data.get('operating_income'):
 					data['operating_income'] = _safe_extract_value(
 						income_df,
 						[
-							'Operating Income', 'Income from Operations', 'Operating Profit',
-							'OperatingIncomeLoss', 'IncomeLossFromOperations'
+							'Operating Income', 'Operating Income Loss', 'Income from Operations', 
+							'Operating Profit', 'OperatingIncomeLoss', 'IncomeLossFromOperations',
+							'Income From Operations', 'Income Loss From Continuing Operations Before Income Taxes',
+							'Operating Income (Loss)', 'Income (Loss) from Operations'
 						],
 						latest_col
 					)
@@ -516,11 +525,33 @@ def _extract_financial_data(
 				data.get('gross_profit') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
 			):
 				data['total_revenue'] = data['gross_profit'] + data['cost_of_revenue']
-			# Operating income: if missing/zero but components exist
+			
+			# Gross profit: if missing/zero but revenue and cost exist, derive it
+			if (data.get('gross_profit') in (None, 0, 0.0)) and (
+				data.get('total_revenue') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
+			):
+				data['gross_profit'] = data['total_revenue'] - data['cost_of_revenue']
+			
+			# Operating income: if missing/zero but components exist (method 1: gross_profit - operating_expenses)
 			if (data.get('operating_income') in (None, 0, 0.0)) and (
 				data.get('gross_profit') not in (None, 0, 0.0) and data.get('operating_expenses') not in (None, 0, 0.0)
 			):
 				data['operating_income'] = data['gross_profit'] - data['operating_expenses']
+			
+			# Operating income: if missing/zero but components exist (method 2: revenue - cost - operating_expenses)
+			if (data.get('operating_income') in (None, 0, 0.0)) and (
+				data.get('total_revenue') not in (None, 0, 0.0) and 
+				data.get('cost_of_revenue') not in (None, 0, 0.0) and 
+				data.get('operating_expenses') not in (None, 0, 0.0)
+			):
+				data['operating_income'] = data['total_revenue'] - data['cost_of_revenue'] - data['operating_expenses']
+			
+			# Operating income: if missing/zero, try deriving from net_income and interest/tax (for companies without clear breakdown)
+			# This is a rough approximation: Operating Income ≈ Pretax Income + Interest Expense
+			if (data.get('operating_income') in (None, 0, 0.0)) and (
+				data.get('pretax_income') not in (None, 0, 0.0) and data.get('interest_expense') not in (None, 0, 0.0)
+			):
+				data['operating_income'] = data['pretax_income'] + abs(data['interest_expense'])
 		except Exception:
 			pass
 		
