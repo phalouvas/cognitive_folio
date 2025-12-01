@@ -29,6 +29,11 @@ class CFFinancialPeriod(Document):
 		"""Auto-calculate missing fields from available data"""
 		calculated_fields = []
 		
+		# Calculate Total Revenue: Gross Profit + Cost of Revenue (reverse if revenue missing)
+		if (not self.total_revenue or self.total_revenue == 0) and self.gross_profit and self.cost_of_revenue:
+			self.total_revenue = self.gross_profit + self.cost_of_revenue
+			calculated_fields.append("Total Revenue")
+		
 		# Calculate Gross Profit: Revenue - Cost of Revenue
 		if not self.gross_profit and self.total_revenue and self.cost_of_revenue:
 			self.gross_profit = self.total_revenue - self.cost_of_revenue
@@ -54,6 +59,16 @@ class CFFinancialPeriod(Document):
 		if not self.free_cash_flow and self.operating_cash_flow and self.capital_expenditures:
 			self.free_cash_flow = self.operating_cash_flow - abs(self.capital_expenditures)
 			calculated_fields.append("Free Cash Flow")
+
+		# Calculate EPS if possible (using shares_outstanding as weighted shares)
+		# Prefer to fill both when missing and data is available
+		if self.net_income and self.shares_outstanding and self.shares_outstanding != 0:
+			if not self.basic_eps:
+				self.basic_eps = self.net_income / self.shares_outstanding
+				calculated_fields.append("Basic EPS")
+			if not self.diluted_eps:
+				self.diluted_eps = self.net_income / self.shares_outstanding
+				calculated_fields.append("Diluted EPS")
 		
 		# Store calculated fields for notification
 		if calculated_fields:
@@ -86,8 +101,9 @@ class CFFinancialPeriod(Document):
 			self.roa = (self.net_income / self.total_assets) * 100
 		
 		# Debt to Equity (stored as ratio, not percentage)
-		if self.shareholders_equity and self.shareholders_equity != 0 and self.total_debt:
-			self.debt_to_equity = self.total_debt / self.shareholders_equity
+		# Use total_liabilities for comprehensive leverage measure (most common D/E definition)
+		if self.shareholders_equity and self.shareholders_equity != 0 and self.total_liabilities:
+			self.debt_to_equity = self.total_liabilities / self.shareholders_equity
 		
 		# Current Ratio (stored as ratio, not percentage)
 		if self.current_liabilities and self.current_liabilities != 0 and self.current_assets:

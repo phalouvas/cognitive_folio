@@ -158,6 +158,153 @@ User action: `Actions → Fetch Fundamentals` (or via scheduled jobs):
 
 ## Testing & Debugging
 
+### Comprehensive Data Validation Testing
+
+**Financial Period Data Validator** - Automated testing for data completeness and prompt variables:
+
+The `FinancialPeriodDataValidator` class in `test_cf_financial_period.py` provides comprehensive validation:
+
+1. **Fundamental Data Fetching**: Tests SEC Edgar/Yahoo Finance import
+2. **Data Completeness**: Validates all critical fields across annual/quarterly periods
+3. **Prompt Variable Replacement**: Tests all `{{variable}}` patterns used in AI prompts
+4. **Diagnostic Reporting**: Provides clear, actionable reports for AI agents
+
+**Quick Validation (Frappe Console)**:
+```bash
+bench console
+>>> from cognitive_folio.cognitive_folio.doctype.cf_financial_period.test_cf_financial_period import validate_security_data
+>>> result = validate_security_data("AAPL")
+>>> print(result['report'])
+```
+
+**Programmatic Validation**:
+```python
+from cognitive_folio.cognitive_folio.doctype.cf_financial_period.test_cf_financial_period import FinancialPeriodDataValidator
+
+# Initialize validator for any symbol
+validator = FinancialPeriodDataValidator("MSFT")
+
+# Run full validation suite
+result = validator.run_full_validation()
+
+# Get diagnostic report
+report = validator.get_diagnostic_report(result)
+print(report)
+
+# Access structured results
+if result['success']:
+    print("✓ All validations passed")
+    print(f"Annual periods: {result['fetch_result']['period_counts']['annual']}")
+    print(f"Quarterly periods: {result['fetch_result']['period_counts']['quarterly']}")
+else:
+    print("✗ Validation issues found:")
+    for issue in result['data_validation']['issues']:
+        print(f"  • {issue}")
+```
+
+**What the Validator Tests**:
+
+1. **Security Setup**:
+   - Gets existing or creates new CF Security for the symbol
+   - Returns security name, country, SEC CIK status
+
+2. **Fundamental Fetch**:
+   - Triggers `fetch_data(with_fundamentals=True)`
+   - Captures data source used (SEC Edgar vs Yahoo Finance)
+   - Counts created annual/quarterly periods
+   - Reports success/failure with details
+
+3. **Data Completeness Validation**:
+   - **Critical Fields** (must be >70% populated):
+     - Income Statement: `total_revenue`, `net_income`, `operating_income`
+     - Balance Sheet: `total_assets`, `total_liabilities`, `shareholders_equity`
+     - Cash Flow: `operating_cash_flow`
+     - Calculated Metrics: `gross_margin`, `net_margin`, `roe`
+   - **Period Targets**:
+     - Annual: 10+ periods (warns if <3)
+     - Quarterly: 16 periods (warns if <8)
+   - **Field Coverage**: Percentage of periods with each field populated
+
+4. **Prompt Variable Replacement Tests**:
+   Tests all variable patterns used in AI prompts:
+   - Basic fields: `{{security_name}}`, `{{symbol}}`, `{{current_price}}`
+   - JSON navigation: `{{ticker_info.marketCap}}`, `{{ticker_info.trailingPE}}`
+   - Period tags: `{{periods:annual:10:markdown}}`, `{{periods:quarterly:16:markdown}}`
+   - Comparisons: `{{periods:compare:latest_annual:previous_annual}}`
+   - Validates output type, non-empty, minimum length
+
+**Understanding Test Results**:
+
+```
+STATUS: PASS/FAIL
+Security: AAPL (Apple Inc.)
+Data Source: SEC Edgar
+
+PERIOD COUNTS:
+  Annual Periods: 10 (Target: 10+)       ← ✓ Good: 10+ years of data
+  Quarterly Periods: 16 (Target: 16)     ← ✓ Good: 16 quarters
+  Total Periods: 26
+
+DATA QUALITY:
+  Critical Fields: ✓ OK                  ← All required fields >70% populated
+  Issues Found: 0
+
+VARIABLE REPLACEMENT TESTS:
+  Tests Passed: 12/12                    ← All prompt variables work
+  Success Rate: 100.0%
+  Status: ✓ ALL PASSED
+
+FIELD COVERAGE BY CATEGORY:
+  Income Statement:
+    ✓ total_revenue: 100% (26/26)
+    ✓ net_income: 100% (26/26)
+    ✓ operating_income: 96% (25/26)
+  Balance Sheet:
+    ✓ total_assets: 100% (26/26)
+    ✓ shareholders_equity: 100% (26/26)
+```
+
+**Common Issues and Solutions**:
+
+| Issue | Cause | Solution |
+|-------|-------|----------|
+| "Only 3 annual periods (target: 10+)" | Yahoo Finance limited history | US stocks: Check SEC CIK populated; Non-US: Expected limitation |
+| "Only 8 quarterly periods (target: 16)" | Insufficient historical data | Same as above; for non-US this is expected |
+| "total_revenue only 45% populated" | Data source missing key fields | Check `data_source` and `data_quality_score` in periods; may need manual correction |
+| "periods:annual:10:markdown test failed" | Not enough periods available | Fetch will succeed but AI analysis will note "incomplete history" |
+| "ticker_info.marketCap output empty" | Ticker info not fetched | Run `fetch_data(with_fundamentals=False)` to update current price/info |
+
+**AI Agent Testing Workflow**:
+
+When an AI agent needs to validate data for analysis:
+
+1. **Run validation** for target security:
+   ```python
+   result = validate_security_data("SYMBOL")
+   ```
+
+2. **Check overall status**:
+   ```python
+   if result['validation_result']['success']:
+       # All systems go for AI analysis
+   else:
+       # Review issues before proceeding
+   ```
+
+3. **Interpret diagnostic report**:
+   - `STATUS: PASS` → Safe to proceed with AI analysis
+   - `STATUS: FAIL` → Review recommendations before analysis
+   
+4. **Address issues**:
+   - Period count low? Expected for non-US; note in AI summary
+   - Field coverage low? Check data source quality; may need supplemental data
+   - Variable tests failed? Specific prompt variables won't work; adjust template
+
+5. **Use in AI prompt preparation**:
+   - Validation confirms which `{{periods:...}}` tags will have data
+   - Field coverage indicates which metrics are reliable
+   - Test output shows actual rendered variable content
+
 **Run Python Tests**:
 ```bash
 cd frappe-bench
@@ -175,6 +322,7 @@ bench console
 - Check logs: `frappe-bench/logs/` (errors automatically logged via `frappe.log_error()`)
 - Test XBRL parsing: Run `sec_edgar_fetcher.py` functions directly in console
 - Verify data quality: Check `CF Financial Period.data_quality_score` and `override_yahoo` flag
+- Validate period data: Use `FinancialPeriodDataValidator` for comprehensive checks
 
 ## Project-Specific Gotchas
 
