@@ -67,11 +67,11 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 		# Fetch quarterly and annual filings
 		if show_progress:
 			frappe.publish_progress(20, 100, description="Fetching 10-Q quarterly filings...")
-		quarterly_filings = company.get_filings(form="10-Q").latest(12)
+		quarterly_filings = company.get_filings(form="10-Q").latest(16)
 		
 		if show_progress:
 			frappe.publish_progress(30, 100, description="Fetching 10-K annual filings...")
-		annual_filings = company.get_filings(form="10-K").latest(3)
+		annual_filings = company.get_filings(form="10-K").latest(10)
 		
 		# Process all filings
 		all_filings = []
@@ -229,7 +229,7 @@ def _extract_financial_data(
 		try:
 			revenue = financials.get_revenue()
 			# get_revenue() can return empty string or 0 for some companies
-			if revenue and revenue != "" and revenue != 0:
+			if revenue not in (None, "", 0, 0.0):
 				data['total_revenue'] = float(revenue) if isinstance(revenue, str) else revenue
 			else:
 				# Fallback to manual extraction
@@ -243,16 +243,19 @@ def _extract_financial_data(
 					latest_col = max(date_cols)
 					# Priority order for revenue tags (check both plural and singular forms)
 					revenue_tags = [
-						'Revenue',  # Berkshire Hathaway uses this
+						'Revenue',
 						'Revenues',
 						'Total Revenue',
 						'Total Revenues',
 						'Revenue from Contract with Customer Excluding Assessed Tax',
+						'Revenue from Contract with Customer Including Assessed Tax',
 						'Sales Revenue Net',
 						'Sales Revenue Goods Net',
 						'Sales Revenue Services Net',
 						'Operating Revenue',
-						'Operating Revenues'
+						'Operating Revenues',
+						'Revenues Net of Interest Expense',
+						'Net Sales'
 					]
 					data['total_revenue'] = _safe_extract_value(income_df, revenue_tags, latest_col)
 				else:
@@ -284,7 +287,11 @@ def _extract_financial_data(
 			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
 			if date_cols:
 				latest_col = max(date_cols)
-				op_ex_tags = ['Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense']
+				op_ex_tags = [
+					'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
+					'Operating Costs and Expenses', 'Selling General and Administrative Expense',
+					'Research and Development Expense'
+				]
 				data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
 				gross_profit_tags = ['Gross Profit', 'Gross Margin']
 				gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
@@ -330,7 +337,10 @@ def _extract_financial_data(
 				if not data.get('operating_income'):
 					data['operating_income'] = _safe_extract_value(
 						income_df,
-						['Operating Income', 'Income from Operations', 'Operating Profit'],
+						[
+							'Operating Income', 'Income from Operations', 'Operating Profit',
+							'OperatingIncomeLoss', 'IncomeLossFromOperations'
+						],
 						latest_col
 					)
 				
@@ -344,18 +354,31 @@ def _extract_financial_data(
 				# EPS and Weighted Average Shares
 				data['basic_eps'] = _safe_extract_value(
 					income_df,
-					['Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS'],
+					[
+						'Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS',
+						'Earnings per share, basic'
+					],
 					latest_col
 				)
 				data['diluted_eps'] = _safe_extract_value(
 					income_df,
-					['Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS'],
+					[
+						'Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS',
+						'Earnings per share, diluted'
+					],
 					latest_col
 				)
 				# Map to shares_outstanding field (CF Financial Period uses this field name)
 				data['shares_outstanding'] = _safe_extract_value(
 					income_df,
-					['Weighted Average Shares', 'Weighted Average Number of Shares Outstanding Basic', 'Weighted Average Basic Shares Outstanding', 'Common Stock Shares Outstanding'],
+					[
+						'Weighted Average Shares',
+						'Weighted Average Number of Shares Outstanding Basic',
+						'Weighted Average Basic Shares Outstanding',
+						'Common Stock Shares Outstanding',
+						'Weighted Average Number of Diluted Shares Outstanding',
+						'Weighted Average Diluted Shares Outstanding'
+					],
 					latest_col
 				)
 		except Exception as e:
@@ -394,9 +417,33 @@ def _extract_financial_data(
 		try:
 			# get_operating_cash_flow returns string sometimes, need to handle
 			ocf = financials.get_operating_cash_flow()
-			data['operating_cash_flow'] = float(ocf) if ocf else None
+			data['operating_cash_flow'] = float(ocf) if ocf not in (None, "", 0, 0.0) else None
 		except:
 			data['operating_cash_flow'] = None
+
+		# Fallback to cash flow statement DataFrame for OCF if still missing
+		if data.get('operating_cash_flow') in (None, 0, 0.0):
+			try:
+				cf_df = financials.cashflow_statement().to_dataframe()
+				date_cols = [c for c in cf_df.columns if isinstance(c, str) and '-' in c]
+				if date_cols:
+					latest_col = max(date_cols)
+					ocf_tags = [
+						'Net Cash Provided by (Used in) Operating Activities',
+						'Net Cash Provided by Used in Operating Activities',
+						'Net Cash Provided by (Used in) Operating Activities Continuing Operations',
+						'Net Cash Provided by Used in Operating Activities Continuing Operations',
+						'Net Cash from Operating Activities',
+						'Operating Cash Flow'
+					]
+					ocf_val = _safe_extract_value(cf_df, ocf_tags, latest_col)
+					if ocf_val not in (None, 0, 0.0):
+						data['operating_cash_flow'] = ocf_val
+			except Exception as e:
+				frappe.log_error(
+					title="Operating Cash Flow Fallback Error",
+					message=f"Could not extract operating cash flow: {str(e)}"
+				)
 			
 		try:
 			data['capital_expenditures'] = financials.get_capital_expenditures()
@@ -462,9 +509,20 @@ def _extract_financial_data(
 				message=f"Error extracting balance sheet details: {str(e)}"
 			)
 		
-		# Note: For income statement items like COGS, gross profit, operating expenses, etc.,
-		# we rely on CF Financial Period's validate() method to calculate them from available data.
-		# This avoids the YTD vs quarterly confusion in 10-Q filings.
+		# Final sanity checks and derived fallbacks to avoid storing zeros when related data exists
+		try:
+			# Revenue: if missing/zero but gross_profit and cost_of_revenue exist, derive it
+			if (data.get('total_revenue') in (None, 0, 0.0)) and (
+				data.get('gross_profit') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
+			):
+				data['total_revenue'] = data['gross_profit'] + data['cost_of_revenue']
+			# Operating income: if missing/zero but components exist
+			if (data.get('operating_income') in (None, 0, 0.0)) and (
+				data.get('gross_profit') not in (None, 0, 0.0) and data.get('operating_expenses') not in (None, 0, 0.0)
+			):
+				data['operating_income'] = data['gross_profit'] - data['operating_expenses']
+		except Exception:
+			pass
 		
 		# Determine fiscal year and quarter from the filing cover page first
 		# Fallback to calendar-based derivation only if cover data is unavailable
