@@ -127,8 +127,7 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 				# Extract financial data using financials helper methods
 				period_data = _extract_financial_data(
 					financials=financials,
-					period_end_date=period_end_date,
-					period_type=period_type
+					period_end_date=period_end_date
 				)
 				
 				if not period_data:
@@ -204,8 +203,7 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 
 def _extract_financial_data(
 	financials,
-	period_end_date: str,
-	period_type: str
+	period_end_date: str
 ) -> Optional[Dict]:
 	"""
 	Extract financial data using edgartools Financials helper methods.
@@ -216,7 +214,6 @@ def _extract_financial_data(
 	Args:
 		financials: edgartools Financials object
 		period_end_date: Period end date string (YYYY-MM-DD)
-		period_type: 'Annual' or 'Quarterly'
 		
 	Returns:
 		Dict with extracted financial data or None if extraction fails
@@ -270,80 +267,38 @@ def _extract_financial_data(
 				)
 				data['total_revenue'] = None
 
-		# Check if DataFrame contains YTD data for quarterly periods
-		is_ytd_data = False
-		if period_type == 'Quarterly' and data.get('total_revenue'):
-			try:
-				income_df = financials.income_statement().to_dataframe()
-				date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-				if date_cols:
-					latest_col = max(date_cols)
-					dataframe_revenue = _safe_extract_value(income_df, [
-						'Revenue', 'Revenues', 'Total Revenue', 'Total Revenues',
-						'Revenue from Contract with Customer Excluding Assessed Tax',
-						'Sales Revenue Net', 'Net Sales'
-					], latest_col)
-					if dataframe_revenue and abs(dataframe_revenue - data['total_revenue']) > 0.01 * data['total_revenue']:
-						is_ytd_data = True
-						frappe.log_error(
-							f"Detected YTD data in DataFrame for quarterly period {period_end_date}. "
-							f"DataFrame revenue: {dataframe_revenue}, extracted revenue: {data['total_revenue']}. "
-							"Skipping DataFrame extractions for income statement fields to avoid data mix.",
-							"SEC Edgar Periodicity Check"
-						)
-			except Exception as e:
-				frappe.log_error(f"Error checking DataFrame periodicity: {str(e)}", "SEC Edgar Periodicity Check")
-
-		# Cost of Revenue / COGS (including energy sector specific tags)
-		if not is_ytd_data:
-			try:
-				income_df = financials.income_statement().to_dataframe()
-				date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-				if date_cols:
-					latest_col = max(date_cols)
-					cost_tags = [
-						'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
-						'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization',
-						'Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses',
-						'Cost Of Goods And Services Sold', 'Production and Manufacturing Expenses',
-						'Total Costs And Operating Expenses'
-					]
-					data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, latest_col)
-			except Exception:
-				pass
-		else:
-			data['cost_of_revenue'] = None
+		# Cost of Revenue / COGS
+		try:
+			income_df = financials.income_statement().to_dataframe()
+			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
+				cost_tags = [
+					'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
+					'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
+				]
+				data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, latest_col)
+		except Exception:
+			pass
 
 		# Operating Expenses and Gross Profit (if available)
-		if not is_ytd_data:
-			try:
-				income_df = financials.income_statement().to_dataframe()
-				date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-				if date_cols:
-					latest_col = max(date_cols)
-					op_ex_tags = [
-						'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
-						'Operating Costs and Expenses', 'Selling General and Administrative Expense',
-						'Research and Development Expense', 'Selling General And Administrative Expenses',
-						'General and Administrative Expense', 'Selling and Marketing Expense'
-					]
-					data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
-					
-					# For quarterly periods, skip extracting gross_profit from DataFrame to avoid YTD values
-					# Instead, calculate it later from revenue - cost_of_revenue
-					# For annual periods, DataFrame extraction is safer
-					if period_type != 'Quarterly':
-						gross_profit_tags = [
-							'Gross Profit', 'Gross Margin', 'Gross Income',
-							'Income Before Operating Expenses'
-						]
-						gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
-						if gp_val is not None:
-							data['gross_profit'] = gp_val
-			except Exception:
-				pass
-		else:
-			data['operating_expenses'] = None
+		try:
+			income_df = financials.income_statement().to_dataframe()
+			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
+				op_ex_tags = [
+					'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
+					'Operating Costs and Expenses', 'Selling General and Administrative Expense',
+					'Research and Development Expense'
+				]
+				data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
+				gross_profit_tags = ['Gross Profit', 'Gross Margin']
+				gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
+				if gp_val is not None:
+					data['gross_profit'] = gp_val
+		except Exception:
+			pass
 			
 		try:
 			data['net_income'] = financials.get_net_income()
@@ -351,100 +306,86 @@ def _extract_financial_data(
 			data['net_income'] = None
 		
 		# Additional income statement items from DataFrame
-		if not is_ytd_data:
-			try:
-				income_df = financials.income_statement().to_dataframe()
-				date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-				if date_cols:
-					latest_col = max(date_cols)
-					
-					# Interest Expense
-					data['interest_expense'] = _safe_extract_value(
-						income_df,
-						['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
-						latest_col
-					)
-					
-					# Tax Provision (Income Tax Expense)
-					data['tax_provision'] = _safe_extract_value(
-						income_df,
-						['Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'],
-						latest_col
-					)
-					
-					# Pretax Income
-					data['pretax_income'] = _safe_extract_value(
-						income_df,
-						['Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'],
-						latest_col
-					)
-					
-					# Operating Income (if not from helper method) - expanded tags for oil & gas and other sectors
-					if not data.get('operating_income'):
-						data['operating_income'] = _safe_extract_value(
-							income_df,
-							[
-								'Operating Income', 'Operating Income Loss', 'Income from Operations', 
-								'Operating Profit', 'OperatingIncomeLoss', 'IncomeLossFromOperations',
-								'Income From Operations', 'Income Loss From Continuing Operations Before Income Taxes',
-								'Operating Income (Loss)', 'Income (Loss) from Operations'
-							],
-							latest_col
-						)
-					
-					# Costs and Expenses (useful for calculations)
-					data['total_costs_and_expenses'] = _safe_extract_value(
-						income_df,
-						['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
-						latest_col
-					)
-
-					# EPS and Weighted Average Shares
-					data['basic_eps'] = _safe_extract_value(
-						income_df,
-						[
-							'Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS',
-							'Earnings per share, basic'
-						],
-						latest_col
-					)
-					data['diluted_eps'] = _safe_extract_value(
-						income_df,
-						[
-							'Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS',
-							'Earnings per share, diluted'
-						],
-						latest_col
-					)
-					# Map to shares_outstanding field (CF Financial Period uses this field name)
-					data['shares_outstanding'] = _safe_extract_value(
-						income_df,
-						[
-							'Weighted Average Shares',
-							'Weighted Average Number of Shares Outstanding Basic',
-							'Weighted Average Basic Shares Outstanding',
-							'Common Stock Shares Outstanding',
-							'Weighted Average Number of Diluted Shares Outstanding',
-							'Weighted Average Diluted Shares Outstanding'
-						],
-						latest_col
-					)
-			except Exception as e:
-				frappe.log_error(
-					title="Income Statement Additional Fields Error",
-					message=f"Error extracting additional income fields: {str(e)}"
+		try:
+			income_df = financials.income_statement().to_dataframe()
+			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
+			if date_cols:
+				latest_col = max(date_cols)
+				
+				# Interest Expense
+				data['interest_expense'] = _safe_extract_value(
+					income_df,
+					['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
+					latest_col
 				)
-		else:
-			# Set income statement fields to None if YTD data detected
-			data['interest_expense'] = None
-			data['tax_provision'] = None
-			data['pretax_income'] = None
-			if not data.get('operating_income'):
-				data['operating_income'] = None
-			data['total_costs_and_expenses'] = None
-			data['basic_eps'] = None
-			data['diluted_eps'] = None
-			data['shares_outstanding'] = None
+				
+				# Tax Provision (Income Tax Expense)
+				data['tax_provision'] = _safe_extract_value(
+					income_df,
+					['Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'],
+					latest_col
+				)
+				
+				# Pretax Income
+				data['pretax_income'] = _safe_extract_value(
+					income_df,
+					['Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'],
+					latest_col
+				)
+				
+				# Operating Income (if not from helper method)
+				if not data.get('operating_income'):
+					data['operating_income'] = _safe_extract_value(
+						income_df,
+						[
+							'Operating Income', 'Income from Operations', 'Operating Profit',
+							'OperatingIncomeLoss', 'IncomeLossFromOperations'
+						],
+						latest_col
+					)
+				
+				# Costs and Expenses (useful for calculations)
+				data['total_costs_and_expenses'] = _safe_extract_value(
+					income_df,
+					['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
+					latest_col
+				)
+
+				# EPS and Weighted Average Shares
+				data['basic_eps'] = _safe_extract_value(
+					income_df,
+					[
+						'Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS',
+						'Earnings per share, basic'
+					],
+					latest_col
+				)
+				data['diluted_eps'] = _safe_extract_value(
+					income_df,
+					[
+						'Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS',
+						'Earnings per share, diluted'
+					],
+					latest_col
+				)
+				# Map to shares_outstanding field (CF Financial Period uses this field name)
+				data['shares_outstanding'] = _safe_extract_value(
+					income_df,
+					[
+						'Weighted Average Shares',
+						'Weighted Average Number of Shares Outstanding Basic',
+						'Weighted Average Basic Shares Outstanding',
+						'Common Stock Shares Outstanding',
+						'Weighted Average Number of Diluted Shares Outstanding',
+						'Weighted Average Diluted Shares Outstanding'
+					],
+					latest_col
+				)
+		except Exception as e:
+			frappe.log_error(
+				title="Income Statement Additional Fields Error",
+				message=f"Error extracting additional income fields: {str(e)}"
+			)
 		
 		# Balance sheet items (point-in-time, so DataFrame is safe)
 		try:
@@ -575,66 +516,13 @@ def _extract_financial_data(
 				data.get('gross_profit') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
 			):
 				data['total_revenue'] = data['gross_profit'] + data['cost_of_revenue']
-			
-			# Gross profit: if missing/zero but revenue and cost exist, derive it
-			if (data.get('gross_profit') in (None, 0, 0.0)) and (
-				data.get('total_revenue') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
-			):
-				data['gross_profit'] = data['total_revenue'] - data['cost_of_revenue']
-			
-			# Operating income: if missing/zero but components exist (method 1: gross_profit - operating_expenses)
+			# Operating income: if missing/zero but components exist
 			if (data.get('operating_income') in (None, 0, 0.0)) and (
 				data.get('gross_profit') not in (None, 0, 0.0) and data.get('operating_expenses') not in (None, 0, 0.0)
 			):
 				data['operating_income'] = data['gross_profit'] - data['operating_expenses']
-			
-			# Operating income: if missing/zero but components exist (method 2: revenue - cost - operating_expenses)
-			if (data.get('operating_income') in (None, 0, 0.0)) and (
-				data.get('total_revenue') not in (None, 0, 0.0) and 
-				data.get('cost_of_revenue') not in (None, 0, 0.0) and 
-				data.get('operating_expenses') not in (None, 0, 0.0)
-			):
-				data['operating_income'] = data['total_revenue'] - data['cost_of_revenue'] - data['operating_expenses']
-			
-			# Operating income: if missing/zero, try deriving from net_income and interest/tax (for companies without clear breakdown)
-			# This is a rough approximation: Operating Income ≈ Pretax Income + Interest Expense
-			if (data.get('operating_income') in (None, 0, 0.0)) and (
-				data.get('pretax_income') not in (None, 0, 0.0) and data.get('interest_expense') not in (None, 0, 0.0)
-			):
-				data['operating_income'] = data['pretax_income'] + abs(data['interest_expense'])
 		except Exception:
 			pass
-		
-		# Sanity checks for data quality
-		try:
-			if period_type == 'Quarterly':
-				# Check for impossible gross margins that indicate YTD vs quarterly data mix
-				if data.get('total_revenue') and data.get('cost_of_revenue'):
-					if data['total_revenue'] > 0 and data['cost_of_revenue'] > 0:
-						gross_profit = data['total_revenue'] - data['cost_of_revenue']
-						gross_margin = (gross_profit / data['total_revenue']) * 100
-						
-						if gross_margin > 100 or gross_margin < -50:
-							frappe.log_error(
-								f"Impossible gross margin {gross_margin:.2f}% detected for {ticker} {period_type} {period_end_date}. "
-								f"Revenue: {data['total_revenue']}, Cost: {data['cost_of_revenue']}. "
-								"Possible YTD/quarterly data mix in extraction.",
-								"SEC Edgar Data Quality Check"
-							)
-							# Add quality note to the data
-							data['data_quality_note'] = f"Potential data inconsistency: gross margin {gross_margin:.2f}%"
-				
-				# Check for unreasonably high revenue (possible YTD stored as quarterly)
-				if data.get('total_revenue') and data['total_revenue'] > 500000000000:  # 500B, very high for quarterly
-					frappe.log_error(
-						f"Unusually high revenue {data['total_revenue']} for quarterly period {period_end_date}. "
-						"May be YTD data stored as quarterly.",
-						"SEC Edgar Data Quality Check"
-					)
-					data['data_quality_note'] = (data.get('data_quality_note', '') + 
-						f" Unusually high revenue for quarterly period.").strip()
-		except Exception as e:
-			frappe.log_error(f"Error in sanity checks: {str(e)}", "SEC Edgar Sanity Check")
 		
 		# Determine fiscal year and quarter from the filing cover page first
 		# Fallback to calendar-based derivation only if cover data is unavailable
