@@ -111,35 +111,32 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 				filing_obj = filing.obj()
 				financials = filing_obj.financials
 				
-			if not financials:
-				frappe.log_error(
-					title="No Financials",
-					message=f"No financials available for {ticker} filing {filing.accession_no}"
-				)
-				result['skipped_count'] += 1
-				continue				# Determine period end date from filing
+				if not financials:
+					frappe.log_error(f"No financials available for {ticker} filing {filing.accession_no}", "SEC Edgar Fetch")
+					result['skipped_count'] += 1
+					continue
+				
+				# Determine period end date from filing
 				period_end_date = str(filing.period_of_report) if filing.period_of_report else None
 				
-			if not period_end_date:
-				frappe.log_error(
-					title="No Period Date",
-					message=f"No period_of_report for {ticker} filing {filing.accession_no}"
-				)
-				result['skipped_count'] += 1
-				continue				# Extract financial data using financials helper methods
+				if not period_end_date:
+					frappe.log_error(f"No period_of_report for {ticker} filing {filing.accession_no}", "SEC Edgar Fetch")
+					result['skipped_count'] += 1
+					continue
+				
+				# Extract financial data using financials helper methods
 				period_data = _extract_financial_data(
 					financials=financials,
 					period_end_date=period_end_date,
 					period_type=period_type
 				)
 				
-			if not period_data:
-				frappe.log_error(
-					title="Extraction Failed",
-					message=f"Could not extract data for {ticker} period {period_end_date}"
-				)
-				result['skipped_count'] += 1
-				continue				# Add metadata
+				if not period_data:
+					frappe.log_error(f"Could not extract data for {ticker} period {period_end_date}", "SEC Edgar Fetch")
+					result['skipped_count'] += 1
+					continue
+				
+				# Add metadata
 				period_data['filing_date'] = filing.filing_date.strftime('%Y-%m-%d') if filing.filing_date else None
 				period_data['filing_form'] = filing_form
 				period_data['accession_number'] = filing.accession_no
@@ -268,8 +265,8 @@ def _extract_financial_data(
 					data['total_revenue'] = None
 			except Exception as e:
 				frappe.log_error(
-					title="Revenue Extraction Error",
-					message=f"Could not extract revenue: {str(e)}\n{frappe.get_traceback()}"
+					title="Revenue Extraction Fallback Error",
+					message=f"Could not extract revenue: {str(e)}"
 				)
 				data['total_revenue'] = None
 
@@ -289,17 +286,13 @@ def _extract_financial_data(
 					if dataframe_revenue and abs(dataframe_revenue - data['total_revenue']) > 0.01 * data['total_revenue']:
 						is_ytd_data = True
 						frappe.log_error(
-							title="YTD Data Detected",
-							message=f"Period: {period_end_date}\n"
-								f"DataFrame revenue: {dataframe_revenue}\n"
-								f"Extracted revenue: {data['total_revenue']}\n"
-								"Skipping DataFrame extractions for income statement fields to avoid data mix."
+							f"Detected YTD data in DataFrame for quarterly period {period_end_date}. "
+							f"DataFrame revenue: {dataframe_revenue}, extracted revenue: {data['total_revenue']}. "
+							"Skipping DataFrame extractions for income statement fields to avoid data mix.",
+							"SEC Edgar Periodicity Check"
 						)
 			except Exception as e:
-				frappe.log_error(
-					title="Periodicity Check Error",
-					message=f"Error checking DataFrame periodicity: {str(e)}\n{frappe.get_traceback()}"
-				)
+				frappe.log_error(f"Error checking DataFrame periodicity: {str(e)}", "SEC Edgar Periodicity Check")
 
 		# Cost of Revenue / COGS (including energy sector specific tags)
 		if not is_ytd_data:
@@ -507,8 +500,8 @@ def _extract_financial_data(
 						data['operating_cash_flow'] = ocf_val
 			except Exception as e:
 				frappe.log_error(
-					title="OCF Extraction Error",
-					message=f"Could not extract operating cash flow: {str(e)}\n{frappe.get_traceback()}"
+					title="Operating Cash Flow Fallback Error",
+					message=f"Could not extract operating cash flow: {str(e)}"
 				)
 			
 		try:
@@ -571,8 +564,8 @@ def _extract_financial_data(
 				)
 		except Exception as e:
 			frappe.log_error(
-				title="Balance Sheet Error",
-				message=f"Error extracting balance sheet details: {str(e)}\n{frappe.get_traceback()}"
+				title="Balance Sheet Extraction Error",
+				message=f"Error extracting balance sheet details: {str(e)}"
 			)
 		
 		# Final sanity checks and derived fallbacks to avoid storing zeros when related data exists
@@ -623,28 +616,25 @@ def _extract_financial_data(
 						
 						if gross_margin > 100 or gross_margin < -50:
 							frappe.log_error(
-								title="Data Quality Issue",
-								message=f"Impossible gross margin {gross_margin:.2f}% for {period_type} {period_end_date}\n"
-									f"Revenue: {data['total_revenue']}, Cost: {data['cost_of_revenue']}\n"
-									"Possible YTD/quarterly data mix."
+								f"Impossible gross margin {gross_margin:.2f}% detected for {ticker} {period_type} {period_end_date}. "
+								f"Revenue: {data['total_revenue']}, Cost: {data['cost_of_revenue']}. "
+								"Possible YTD/quarterly data mix in extraction.",
+								"SEC Edgar Data Quality Check"
 							)
 							# Add quality note to the data
 							data['data_quality_note'] = f"Potential data inconsistency: gross margin {gross_margin:.2f}%"
 				
 				# Check for unreasonably high revenue (possible YTD stored as quarterly)
-			if data.get('total_revenue') and data['total_revenue'] > 500000000000:  # 500B, very high for quarterly
-				frappe.log_error(
-					title="High Revenue Warning",
-					message=f"Unusually high revenue {data['total_revenue']} for quarterly period {period_end_date}. "
-						"May be YTD data stored as quarterly."
-				)
+				if data.get('total_revenue') and data['total_revenue'] > 500000000000:  # 500B, very high for quarterly
+					frappe.log_error(
+						f"Unusually high revenue {data['total_revenue']} for quarterly period {period_end_date}. "
+						"May be YTD data stored as quarterly.",
+						"SEC Edgar Data Quality Check"
+					)
 					data['data_quality_note'] = (data.get('data_quality_note', '') + 
 						f" Unusually high revenue for quarterly period.").strip()
 		except Exception as e:
-			frappe.log_error(
-				title="Sanity Check Error",
-				message=f"Error in sanity checks: {str(e)}\n{frappe.get_traceback()}"
-			)
+			frappe.log_error(f"Error in sanity checks: {str(e)}", "SEC Edgar Sanity Check")
 		
 		# Determine fiscal year and quarter from the filing cover page first
 		# Fallback to calendar-based derivation only if cover data is unavailable
@@ -703,8 +693,8 @@ def _extract_financial_data(
 		
 	except Exception as e:
 		frappe.log_error(
-			title="Data Extraction Failed",
-			message=f"Error extracting financial data: {str(e)}\n{frappe.get_traceback()}"
+			title="Financial Data Extraction Error",
+			message=f"Error extracting data: {str(e)}\n{frappe.get_traceback()}"
 		)
 		return None
 
@@ -759,8 +749,8 @@ def _safe_extract_value(df: pd.DataFrame, label_variations: List[str], date_col:
 		
 	except Exception as e:
 		frappe.log_error(
-			title="Value Extract Error",
-			message=f"Error extracting value for labels {label_variations}: {str(e)}\n{frappe.get_traceback()}"
+			title="Value Extraction Error",
+			message=f"Error extracting value for labels {label_variations}: {str(e)}"
 		)
 		return None
 
