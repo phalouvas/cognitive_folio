@@ -74,11 +74,6 @@ class CFFinancialPeriod(Document):
 		if calculated_fields:
 			# Set a message that can be displayed to the user after save
 			self.__calculated_fields_msg = f"Auto-calculated: {', '.join(calculated_fields)}"
-			frappe.msgprint(
-				msg=f"Auto-calculated: {', '.join(calculated_fields)}",
-				title="Fields Calculated",
-				indicator="blue"
-			)
 	
 	def compute_margins(self):
 		"""Compute margin percentages (stored as percentages, e.g., 68.82 for 68.82%)"""
