@@ -127,7 +127,8 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 				# Extract financial data using financials helper methods
 				period_data = _extract_financial_data(
 					financials=financials,
-					period_end_date=period_end_date
+					period_end_date=period_end_date,
+					period_type=period_type
 				)
 				
 				if not period_data:
@@ -203,7 +204,8 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 
 def _extract_financial_data(
 	financials,
-	period_end_date: str
+	period_end_date: str,
+	period_type: str
 ) -> Optional[Dict]:
 	"""
 	Extract financial data using edgartools Financials helper methods.
@@ -214,6 +216,7 @@ def _extract_financial_data(
 	Args:
 		financials: edgartools Financials object
 		period_end_date: Period end date string (YYYY-MM-DD)
+		period_type: 'Annual' or 'Quarterly'
 		
 	Returns:
 		Dict with extracted financial data or None if extraction fails
@@ -297,13 +300,18 @@ def _extract_financial_data(
 					'General and Administrative Expense', 'Selling and Marketing Expense'
 				]
 				data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
-				gross_profit_tags = [
-					'Gross Profit', 'Gross Margin', 'Gross Income',
-					'Income Before Operating Expenses'
-				]
-				gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
-				if gp_val is not None:
-					data['gross_profit'] = gp_val
+				
+				# For quarterly periods, skip extracting gross_profit from DataFrame to avoid YTD values
+				# Instead, calculate it later from revenue - cost_of_revenue
+				# For annual periods, DataFrame extraction is safer
+				if period_type != 'Quarterly':
+					gross_profit_tags = [
+						'Gross Profit', 'Gross Margin', 'Gross Income',
+						'Income Before Operating Expenses'
+					]
+					gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
+					if gp_val is not None:
+						data['gross_profit'] = gp_val
 		except Exception:
 			pass
 			
