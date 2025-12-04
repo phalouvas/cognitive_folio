@@ -13,6 +13,260 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 import pandas as pd
 
+# Base GAAP tag coverage used across all sectors. These mirror the previous
+# hard-coded lists but live centrally so sector overrides can extend them.
+BASE_METRIC_TAGS: Dict[str, List[str]] = {
+	'total_revenue': [
+		'Revenue', 'Revenues', 'Total Revenue', 'Total Revenues',
+		'Revenue from Contract with Customer Excluding Assessed Tax',
+		'Revenue from Contract with Customer Including Assessed Tax',
+		'Sales Revenue Net', 'Sales Revenue Goods Net', 'Sales Revenue Services Net',
+		'Operating Revenue', 'Operating Revenues', 'Revenues Net of Interest Expense', 'Net Sales'
+	],
+	'cost_of_revenue': [
+		'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
+		'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
+	],
+	'gross_profit': ['Gross Profit', 'Gross Margin'],
+	'operating_expenses': [
+		'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
+		'Operating Costs and Expenses', 'Selling General and Administrative Expense',
+		'Research and Development Expense'
+	],
+	'operating_income': [
+		'Operating Income', 'Income from Operations', 'Operating Profit',
+		'OperatingIncomeLoss', 'IncomeLossFromOperations'
+	],
+	'ebit': [
+		'Earnings Before Interest and Taxes',
+		'Earnings Before Interest and Tax',
+		'Earnings Before Interest Income Expense and Income Taxes',
+		'Earnings Before Income Taxes and Minority Interest',
+		'Earnings Before Interest Taxes',
+		'EBIT'
+	],
+	'ebitda': [
+		'Earnings Before Interest Taxes Depreciation and Amortization',
+		'Earnings Before Interest Taxes Depreciation Amortization and Extraordinary Items',
+		'EBITDA',
+		'Earnings Before Interest Taxes Depreciation Amortization',
+		'Earnings Before Interest Taxes Depreciation and Amortization (EBITDA)'
+	],
+	'net_income': [
+		'Net Income', 'Net Income Loss', 'Net Income Attributable to Common Stockholders', 'Net Earnings'
+	],
+	'interest_expense': ['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
+	'tax_provision': [
+		'Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'
+	],
+	'pretax_income': [
+		'Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'
+	],
+	'total_costs_and_expenses': [
+		'Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'
+	],
+	'basic_eps': [
+		'Earnings Per Share Basic',
+		'Earnings Per Share (Basic)',
+		'Basic Earnings Per Share',
+		'Basic EPS',
+		'Earnings per share, basic'
+	],
+	'diluted_eps': [
+		'Earnings Per Share Diluted',
+		'Earnings Per Share (Diluted)',
+		'Diluted Earnings Per Share',
+		'Diluted EPS',
+		'Earnings per share, diluted'
+	],
+	'shares_outstanding': [
+		'Weighted Average Shares',
+		'Weighted Average Number of Shares Outstanding Basic',
+		'Weighted Average Basic Shares Outstanding',
+		'Common Stock Shares Outstanding',
+		'Weighted Average Number of Diluted Shares Outstanding',
+		'Weighted Average Diluted Shares Outstanding'
+	],
+	'total_assets': ['Total Assets', 'Assets'],
+	'total_liabilities': ['Total Liabilities', 'Liabilities'],
+	'shareholders_equity': [
+		"Total Stockholders' Equity", "Stockholders' Equity", "Shareholders' Equity", 'Total Equity'
+	],
+	'current_assets': ['Total Current Assets', 'Current Assets', 'Assets Current'],
+	'current_liabilities': ['Total Current Liabilities', 'Current Liabilities', 'Liabilities Current'],
+	'cash_and_equivalents': ['Cash and Cash Equivalents', 'Cash', 'Cash and Equivalents'],
+	'accounts_receivable': ['Accounts Receivable', 'Accounts Receivable Net', 'Receivables Net'],
+	'inventory': ['Inventory', 'Inventory Net'],
+	'long_term_debt': ['Long-term Debt', 'Long Term Debt Noncurrent', 'Long-Term Debt', 'Debt Noncurrent'],
+	'total_debt': ['Total Debt', 'Debt', 'Total Borrowings'],
+	'retained_earnings': ['Retained Earnings', 'Retained Earnings Accumulated Deficit'],
+	'depreciation': [
+		'Depreciation and Amortization',
+		'DepreciationDepletionAndAmortization',
+		'Depreciation Amortization and Accretion',
+		'Depreciation And Amortization',
+		'Depreciation'
+	],
+	'operating_cash_flow': [
+		'Net Cash Provided by (Used in) Operating Activities',
+		'Net Cash Provided by Used in Operating Activities',
+		'Net Cash Provided by (Used in) Operating Activities Continuing Operations',
+		'Net Cash Provided by Used in Operating Activities Continuing Operations',
+		'Net Cash from Operating Activities',
+		'Operating Cash Flow'
+	],
+	'capital_expenditures': [
+		'Capital Expenditures',
+		'Payments to Acquire Property Plant and Equipment',
+		'Payments for Property Plant and Equipment',
+		'Purchase of Property and Equipment',
+		'Capital Expenditures and Acquisitions'
+	],
+	'investing_cash_flow': [
+		'Net Cash Provided by (Used in) Investing Activities',
+		'Net Cash from Investing Activities',
+		'Net Cash Provided by Used in Investing Activities'
+	],
+	'financing_cash_flow': [
+		'Net Cash Provided by (Used in) Financing Activities',
+		'Net Cash from Financing Activities',
+		'Net Cash Provided by Used in Financing Activities'
+	],
+	'dividends_paid': [
+		'Payments of Dividends',
+		'Common Stock Dividends Paid',
+		'Cash Dividends Paid'
+	]
+}
+
+# Sector-specific aliases that extend the base tags without replacing them. These
+# reflect the mapping plan documented in the contributor instructions.
+SECTOR_TAG_OVERRIDES: Dict[str, Dict[str, List[str]]] = {
+	'banks': {
+		'total_revenue': [
+			'Net Interest Income',
+			'Interest Income',
+			'Total Interest Income',
+			'Net Interest Income After Provision for Credit Losses',
+			'Noninterest Income',
+			'Total Noninterest Income',
+			'Net Revenues'
+		],
+		'cost_of_revenue': ['Provision for Credit Losses', 'Provision for Loan Losses'],
+		'operating_expenses': [
+			'Noninterest Expense',
+			'Noninterest Expenses',
+			'Provision for Credit Losses',
+			'Provision for Loan Losses'
+		],
+		'operating_income': [
+			'Income Before Income Taxes and Noncontrolling Interests',
+			'Income Before Provision for Income Taxes'
+		],
+		'pretax_income': [
+			'Income Before Provision for Income Taxes',
+			'Income Before Income Taxes and Minority Interest'
+		],
+		'interest_expense': [
+			'Interest Expense Deposits',
+			'Interest Expense Borrowings',
+			'Interest Expense Short-term Borrowings'
+		]
+	},
+	'insurance': {
+		'total_revenue': [
+			'Premiums Earned',
+			'Net Premiums Earned',
+			'Policy Premiums Earned'
+		],
+		'operating_expenses': [
+			'Benefits Losses and Loss Adjustment Expenses',
+			'Policyholder Benefits And Claims Incurred',
+			'Insurance Underwriting Expense'
+		],
+		'cost_of_revenue': ['Policyholder Benefits And Claims'],
+		'operating_income': ['Underwriting Income', 'Income from Insurance Operations']
+	},
+	'energy': {
+		'total_revenue': [
+			'Sales and Other Operating Revenues',
+			'Net Sales and Operating Revenues',
+			'Oil and Gas Sales'
+		],
+		'cost_of_revenue': [
+			'Production and Manufacturing Expenses',
+			'Upstream Operating Expenses',
+			'Exploration Expense'
+		],
+		'capital_expenditures': ['Capital Expenditures for Exploration and Production', 'Development Costs']
+	},
+	'utilities': {
+		'total_revenue': [
+			'Utility Operating Revenues',
+			'Electric Operating Revenues',
+			'Gas Operating Revenues'
+		],
+		'operating_expenses': ['Operation and Maintenance Expense', 'Transmission and Distribution Expense']
+	},
+	'reit': {
+		'operating_income': ['Net Operating Income', 'Funds From Operations'],
+		'operating_cash_flow': ['Funds From Operations', 'Adjusted Funds From Operations'],
+		'total_revenue': ['Rental Revenue', 'Property Revenue']
+	}
+}
+
+
+def _determine_sector_profile(security) -> List[str]:
+	"""Return ordered sector profile tokens for tag selection."""
+	profiles = ['general']
+	try:
+		if getattr(security, 'security_type', 'Stock') != 'Stock':
+			return profiles
+		sector = (security.sector or '').lower()
+		industry = (security.industry or '').lower()
+		name = (security.security_name or '').lower()
+		if _matches_any([sector, industry], ['bank', 'banks', 'diversified financial', 'capital markets']):
+			return ['banks', 'general']
+		if _matches_any([sector, industry], ['insurance', 'insurers', 'reinsurance']):
+			return ['insurance', 'general']
+		if _matches_any([sector, industry, name], ['reit', 'real estate investment trust']):
+			return ['reit', 'general']
+		if _matches_any([sector, industry], ['utility', 'utilities', 'infrastructure']):
+			return ['utilities', 'general']
+		if _matches_any([sector, industry], ['energy', 'oil', 'gas', 'materials', 'mining']):
+			return ['energy', 'general']
+		return profiles
+	except Exception:
+		return profiles
+
+
+def _matches_any(text_list: List[str], keywords: List[str]) -> bool:
+	"""Helper to see if any keyword appears in the provided text snippets."""
+	for text in text_list:
+		if not text:
+			continue
+		for keyword in keywords:
+			if keyword in text:
+				return True
+	return False
+
+
+def _build_tag_config(profiles: List[str]) -> Dict[str, List[str]]:
+	"""Merge base tags with sector overrides for the selected profiles."""
+	if not profiles:
+		profiles = ['general']
+	config = {metric: list(tags) for metric, tags in BASE_METRIC_TAGS.items()}
+	for profile in profiles:
+		overrides = SECTOR_TAG_OVERRIDES.get(profile)
+		if not overrides:
+			continue
+		for metric, additions in overrides.items():
+			config.setdefault(metric, [])
+			for tag in additions:
+				if tag not in config[metric]:
+					config[metric].append(tag)
+	return config
+
 
 def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: bool = True) -> Dict:
 	"""
@@ -42,9 +296,11 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 		# Set SEC API identity (required by SEC)
 		set_identity("phalouvas@gmail.com")
 		
-		# Get security document to check currency
+		# Get security document to check currency and determine sector profile
 		security = frappe.get_doc("CF Security", security_name)
 		expected_currency = security.currency
+		sector_profiles = _determine_sector_profile(security)
+		tag_config = _build_tag_config(sector_profiles)
 		
 		# Initialize result tracking
 		result = {
@@ -55,7 +311,8 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 			'skipped_count': 0,
 			'data_source_used': 'SEC Edgar',
 			'error': None,
-			'currency_mismatches': []
+			'currency_mismatches': [],
+			'sector_profile': sector_profiles[0] if sector_profiles else 'general'
 		}
 		
 		# Get company and filings
@@ -129,7 +386,8 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 					financials=financials,
 					period_end_date=period_end_date,
 					period_type=period_type,
-					document_fiscal_period=getattr(filing_obj, 'fiscal_period', None)
+					document_fiscal_period=getattr(filing_obj, 'fiscal_period', None),
+					tag_config=tag_config
 				)
 				
 				if not period_data:
@@ -208,7 +466,8 @@ def _extract_financial_data(
 	financials,
 	period_end_date: str,
 	period_type: str,
-	document_fiscal_period: Optional[str] = None
+	document_fiscal_period: Optional[str] = None,
+	tag_config: Optional[Dict[str, List[str]]] = None
 ) -> Optional[Dict]:
 	"""
 	Extract financial data for a filing period using standardized SEC statements.
@@ -222,6 +481,10 @@ def _extract_financial_data(
 		Dict with extracted financial data or None if extraction fails
 	"""
 	data = {'period_end_date': period_end_date}
+	tag_config = tag_config or BASE_METRIC_TAGS
+
+	def tags(metric: str) -> List[str]:
+		return tag_config.get(metric) or BASE_METRIC_TAGS.get(metric, [])
 
 	try:
 		fiscal_year, fiscal_quarter = _determine_fiscal_context(
@@ -265,119 +528,33 @@ def _extract_financial_data(
 		)
 
 		# Income statement metrics
-		revenue_tags = [
-			'Revenue', 'Revenues', 'Total Revenue', 'Total Revenues',
-			'Revenue from Contract with Customer Excluding Assessed Tax',
-			'Revenue from Contract with Customer Including Assessed Tax',
-			'Sales Revenue Net', 'Sales Revenue Goods Net', 'Sales Revenue Services Net',
-			'Operating Revenue', 'Operating Revenues', 'Revenues Net of Interest Expense', 'Net Sales'
-		]
-		data['total_revenue'] = _safe_extract_value(income_df, revenue_tags, income_col)
+		data['total_revenue'] = _safe_extract_value(income_df, tags('total_revenue'), income_col)
 		if data['total_revenue'] is None:
 			data['total_revenue'] = _coerce_number(financials.get_revenue())
 
-		cost_tags = [
-			'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
-			'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
-		]
-		data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, income_col)
-
-		gross_profit_tags = ['Gross Profit', 'Gross Margin']
-		data['gross_profit'] = _safe_extract_value(income_df, gross_profit_tags, income_col)
-
-		op_ex_tags = [
-			'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
-			'Operating Costs and Expenses', 'Selling General and Administrative Expense',
-			'Research and Development Expense'
-		]
-		data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, income_col)
-
-		operating_income_tags = [
-			'Operating Income', 'Income from Operations', 'Operating Profit',
-			'OperatingIncomeLoss', 'IncomeLossFromOperations'
-		]
-		data['operating_income'] = _safe_extract_value(income_df, operating_income_tags, income_col)
-
-		ebit_tags = [
-			'Earnings Before Interest and Taxes',
-			'Earnings Before Interest and Tax',
-			'Earnings Before Interest Income Expense and Income Taxes',
-			'Earnings Before Income Taxes and Minority Interest',
-			'Earnings Before Interest Taxes',
-			'EBIT'
-		]
-		data['ebit'] = _safe_extract_value(income_df, ebit_tags, income_col)
+		data['cost_of_revenue'] = _safe_extract_value(income_df, tags('cost_of_revenue'), income_col)
+		data['gross_profit'] = _safe_extract_value(income_df, tags('gross_profit'), income_col)
+		data['operating_expenses'] = _safe_extract_value(income_df, tags('operating_expenses'), income_col)
+		data['operating_income'] = _safe_extract_value(income_df, tags('operating_income'), income_col)
+		data['ebit'] = _safe_extract_value(income_df, tags('ebit'), income_col)
 		if data['ebit'] is None:
 			data['ebit'] = data.get('operating_income')
-
-		ebitda_tags = [
-			'Earnings Before Interest Taxes Depreciation and Amortization',
-			'Earnings Before Interest Taxes Depreciation Amortization and Extraordinary Items',
-			'EBITDA',
-			'Earnings Before Interest Taxes Depreciation Amortization',
-			'Earnings Before Interest Taxes Depreciation and Amortization (EBITDA)'
-		]
-		data['ebitda'] = _safe_extract_value(income_df, ebitda_tags, income_col)
-
-		net_income_tags = ['Net Income', 'Net Income Loss', 'Net Income Attributable to Common Stockholders', 'Net Earnings']
-		data['net_income'] = _safe_extract_value(income_df, net_income_tags, income_col)
+		data['ebitda'] = _safe_extract_value(income_df, tags('ebitda'), income_col)
+		data['net_income'] = _safe_extract_value(income_df, tags('net_income'), income_col)
 		if data['net_income'] is None:
 			data['net_income'] = _coerce_number(financials.get_net_income())
 
-		data['interest_expense'] = _safe_extract_value(
-			income_df,
-			['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
-			income_col
-		)
-		data['tax_provision'] = _safe_extract_value(
-			income_df,
-			['Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'],
-			income_col
-		)
-		data['pretax_income'] = _safe_extract_value(
-			income_df,
-			['Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'],
-			income_col
-		)
+		data['interest_expense'] = _safe_extract_value(income_df, tags('interest_expense'), income_col)
+		data['tax_provision'] = _safe_extract_value(income_df, tags('tax_provision'), income_col)
+		data['pretax_income'] = _safe_extract_value(income_df, tags('pretax_income'), income_col)
 		data['total_costs_and_expenses'] = _safe_extract_value(
 			income_df,
-			['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
+			tags('total_costs_and_expenses'),
 			income_col
 		)
-		data['basic_eps'] = _safe_extract_value(
-			income_df,
-			[
-				'Earnings Per Share Basic',
-				'Earnings Per Share (Basic)',
-				'Basic Earnings Per Share',
-				'Basic EPS',
-				'Earnings per share, basic'
-			],
-			income_col
-		)
-		data['diluted_eps'] = _safe_extract_value(
-			income_df,
-			[
-				'Earnings Per Share Diluted',
-				'Earnings Per Share (Diluted)',
-				'Diluted Earnings Per Share',
-				'Diluted EPS',
-				'Earnings per share, diluted'
-			],
-			income_col
-		)
-		data['shares_outstanding'] = _safe_extract_value(
-			income_df,
-			[
-				'Weighted Average Shares',
-				'Weighted Average Number of Shares Outstanding Basic',
-				'Weighted Average Basic Shares Outstanding',
-				'Common Stock Shares Outstanding',
-				'Weighted Average Number of Diluted Shares Outstanding',
-				'Weighted Average Diluted Shares Outstanding'
-			],
-			income_col
-		)
+		data['basic_eps'] = _safe_extract_value(income_df, tags('basic_eps'), income_col)
+		data['diluted_eps'] = _safe_extract_value(income_df, tags('diluted_eps'), income_col)
+		data['shares_outstanding'] = _safe_extract_value(income_df, tags('shares_outstanding'), income_col)
 
 		if not data.get('shares_outstanding') and data.get('net_income') and data.get('net_income') not in (0, 0.0):
 			eps = data.get('diluted_eps') or data.get('basic_eps')
@@ -385,102 +562,44 @@ def _extract_financial_data(
 				data['shares_outstanding'] = data['net_income'] / eps
 
 		# Balance sheet metrics
-		data['total_assets'] = _safe_extract_value(balance_df, ['Total Assets', 'Assets'], balance_col)
+		data['total_assets'] = _safe_extract_value(balance_df, tags('total_assets'), balance_col)
 		if data['total_assets'] is None:
 			data['total_assets'] = _coerce_number(financials.get_total_assets())
 
-		data['total_liabilities'] = _safe_extract_value(balance_df, ['Total Liabilities', 'Liabilities'], balance_col)
+		data['total_liabilities'] = _safe_extract_value(balance_df, tags('total_liabilities'), balance_col)
 		if data['total_liabilities'] is None:
 			data['total_liabilities'] = _coerce_number(financials.get_total_liabilities())
 
-		data['shareholders_equity'] = _safe_extract_value(
-			balance_df,
-			["Total Stockholders' Equity", "Stockholders' Equity", "Shareholders' Equity", 'Total Equity'],
-			balance_col
-		)
+		data['shareholders_equity'] = _safe_extract_value(balance_df, tags('shareholders_equity'), balance_col)
 		if data['shareholders_equity'] is None:
 			data['shareholders_equity'] = _coerce_number(financials.get_stockholders_equity())
 
-		data['current_assets'] = _safe_extract_value(
-			balance_df,
-			['Total Current Assets', 'Current Assets', 'Assets Current'],
-			balance_col
-		)
+		data['current_assets'] = _safe_extract_value(balance_df, tags('current_assets'), balance_col)
 		if data['current_assets'] is None:
 			data['current_assets'] = _coerce_number(financials.get_current_assets())
 
-		data['current_liabilities'] = _safe_extract_value(
-			balance_df,
-			['Total Current Liabilities', 'Current Liabilities', 'Liabilities Current'],
-			balance_col
-		)
+		data['current_liabilities'] = _safe_extract_value(balance_df, tags('current_liabilities'), balance_col)
 		if data['current_liabilities'] is None:
 			data['current_liabilities'] = _coerce_number(financials.get_current_liabilities())
 
-		data['cash_and_equivalents'] = _safe_extract_value(
-			balance_df,
-			['Cash and Cash Equivalents', 'Cash', 'Cash and Equivalents'],
-			balance_col
-		)
-		data['accounts_receivable'] = _safe_extract_value(
-			balance_df,
-			['Accounts Receivable', 'Accounts Receivable Net', 'Receivables Net'],
-			balance_col
-		)
-		data['inventory'] = _safe_extract_value(
-			balance_df,
-			['Inventory', 'Inventory Net'],
-			balance_col
-		)
-		data['long_term_debt'] = _safe_extract_value(
-			balance_df,
-			['Long-term Debt', 'Long Term Debt Noncurrent', 'Long-Term Debt', 'Debt Noncurrent'],
-			balance_col
-		)
-		data['total_debt'] = _safe_extract_value(
-			balance_df,
-			['Total Debt', 'Debt', 'Total Borrowings'],
-			balance_col
-		)
+		data['cash_and_equivalents'] = _safe_extract_value(balance_df, tags('cash_and_equivalents'), balance_col)
+		data['accounts_receivable'] = _safe_extract_value(balance_df, tags('accounts_receivable'), balance_col)
+		data['inventory'] = _safe_extract_value(balance_df, tags('inventory'), balance_col)
+		data['long_term_debt'] = _safe_extract_value(balance_df, tags('long_term_debt'), balance_col)
+		data['total_debt'] = _safe_extract_value(balance_df, tags('total_debt'), balance_col)
 		if not data.get('total_debt') and data.get('long_term_debt'):
 			data['total_debt'] = data['long_term_debt']
-		data['retained_earnings'] = _safe_extract_value(
-			balance_df,
-			['Retained Earnings', 'Retained Earnings Accumulated Deficit'],
-			balance_col
-		)
+		data['retained_earnings'] = _safe_extract_value(balance_df, tags('retained_earnings'), balance_col)
 
 		# Cash flow metrics
-		depreciation_tags = [
-			'Depreciation and Amortization',
-			'DepreciationDepletionAndAmortization',
-			'Depreciation Amortization and Accretion',
-			'Depreciation And Amortization',
-			'Depreciation'
-		]
-		dep_amort = _safe_extract_value(cashflow_df, depreciation_tags, cashflow_col)
+		dep_amort = _safe_extract_value(cashflow_df, tags('depreciation'), cashflow_col)
 
-		ocf_tags = [
-			'Net Cash Provided by (Used in) Operating Activities',
-			'Net Cash Provided by Used in Operating Activities',
-			'Net Cash Provided by (Used in) Operating Activities Continuing Operations',
-			'Net Cash Provided by Used in Operating Activities Continuing Operations',
-			'Net Cash from Operating Activities',
-			'Operating Cash Flow'
-		]
-		ocf = _safe_extract_value(cashflow_df, ocf_tags, cashflow_col)
+		ocf = _safe_extract_value(cashflow_df, tags('operating_cash_flow'), cashflow_col)
 		if ocf is None:
 			ocf = _coerce_number(financials.get_operating_cash_flow())
 		data['operating_cash_flow'] = ocf
 
-		capex_tags = [
-			'Capital Expenditures',
-			'Payments to Acquire Property Plant and Equipment',
-			'Payments for Property Plant and Equipment',
-			'Purchase of Property and Equipment',
-			'Capital Expenditures and Acquisitions'
-		]
-		capex = _safe_extract_value(cashflow_df, capex_tags, cashflow_col)
+		capex = _safe_extract_value(cashflow_df, tags('capital_expenditures'), cashflow_col)
 		if capex is None:
 			capex = _coerce_number(financials.get_capital_expenditures())
 		if capex is not None:
@@ -495,26 +614,9 @@ def _extract_financial_data(
 		if data.get('ebitda') is None and data.get('ebit') not in (None, 0, 0.0) and dep_amort not in (None, 0, 0.0):
 			data['ebitda'] = data['ebit'] + dep_amort
 
-		investing_tags = [
-			'Net Cash Provided by (Used in) Investing Activities',
-			'Net Cash from Investing Activities',
-			'Net Cash Provided by Used in Investing Activities'
-		]
-		data['investing_cash_flow'] = _safe_extract_value(cashflow_df, investing_tags, cashflow_col)
-
-		financing_tags = [
-			'Net Cash Provided by (Used in) Financing Activities',
-			'Net Cash from Financing Activities',
-			'Net Cash Provided by Used in Financing Activities'
-		]
-		data['financing_cash_flow'] = _safe_extract_value(cashflow_df, financing_tags, cashflow_col)
-
-		dividend_tags = [
-			'Payments of Dividends',
-			'Common Stock Dividends Paid',
-			'Cash Dividends Paid'
-		]
-		data['dividends_paid'] = _safe_extract_value(cashflow_df, dividend_tags, cashflow_col)
+		data['investing_cash_flow'] = _safe_extract_value(cashflow_df, tags('investing_cash_flow'), cashflow_col)
+		data['financing_cash_flow'] = _safe_extract_value(cashflow_df, tags('financing_cash_flow'), cashflow_col)
+		data['dividends_paid'] = _safe_extract_value(cashflow_df, tags('dividends_paid'), cashflow_col)
 
 		# Final sanity checks derived from components
 		if (data.get('total_revenue') in (None, 0, 0.0)) and (
