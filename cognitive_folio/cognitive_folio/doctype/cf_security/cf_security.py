@@ -2484,6 +2484,7 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_buy_price = evaluation.get("Price Target Buy Below", 0)
 		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
 		security.evaluation_stop_loss = evaluation.get("Price Stop Loss", 0)
+		security.ai_fair_value = evaluation.get("Price_Target_Calculation", {}).get("Fair_Value", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		security.news_reasoning = None

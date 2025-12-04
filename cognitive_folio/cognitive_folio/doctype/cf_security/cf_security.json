@@ -38,6 +38,7 @@
   "suggestion_sell_price",
   "suggestion_buy_price",
   "evaluation_stop_loss",
+  "ai_fair_value",
   "column_break_jlfk",
   "intrinsic_value",
   "fair_value",
@@ -539,6 +540,13 @@
    "fieldtype": "Currency",
    "in_list_view": 1,
    "label": "Stop Loss",
+   "options": "currency"
+  },
+  {
+   "fieldname": "ai_fair_value",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "AI Fair Value",
    "options": "currency"
   },
   {
