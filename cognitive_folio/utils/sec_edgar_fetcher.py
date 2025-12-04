@@ -127,7 +127,9 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 				# Extract financial data using financials helper methods
 				period_data = _extract_financial_data(
 					financials=financials,
-					period_end_date=period_end_date
+					period_end_date=period_end_date,
+					period_type=period_type,
+					document_fiscal_period=getattr(filing_obj, 'fiscal_period', None)
 				)
 				
 				if not period_data:
@@ -203,387 +205,437 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 
 def _extract_financial_data(
 	financials,
-	period_end_date: str
+	period_end_date: str,
+	period_type: str,
+	document_fiscal_period: Optional[str] = None
 ) -> Optional[Dict]:
 	"""
-	Extract financial data using edgartools Financials helper methods.
-	
-	This uses edgartools' built-in methods like get_revenue(), get_net_income(), etc.
-	which automatically extract quarterly values (not YTD/cumulative) from 10-Q filings.
-	
+	Extract financial data for a filing period using standardized SEC statements.
+
 	Args:
 		financials: edgartools Financials object
 		period_end_date: Period end date string (YYYY-MM-DD)
-		
+		period_type: 'Annual' or 'Quarterly'
+		document_fiscal_period: Fiscal period label from the filing cover (e.g., Q3)
+
 	Returns:
 		Dict with extracted financial data or None if extraction fails
 	"""
 	data = {'period_end_date': period_end_date}
-	
+
 	try:
-		# Use edgartools helper methods for reliable quarterly data extraction
-		# These methods automatically handle quarterly vs YTD distinction
-		
-		# Income statement items
-		# Try multiple revenue tags with priority order
-		try:
-			revenue = financials.get_revenue()
-			# get_revenue() can return empty string or 0 for some companies
-			if revenue not in (None, "", 0, 0.0):
-				data['total_revenue'] = float(revenue) if isinstance(revenue, str) else revenue
-			else:
-				# Fallback to manual extraction
-				raise ValueError("get_revenue returned empty/zero")
-		except:
-			# Fallback: try extracting from income statement DataFrame with multiple tag variations
-			try:
-				income_df = financials.income_statement().to_dataframe()
-				date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-				if date_cols:
-					latest_col = max(date_cols)
-					# Priority order for revenue tags (check both plural and singular forms)
-					revenue_tags = [
-						'Revenue',
-						'Revenues',
-						'Total Revenue',
-						'Total Revenues',
-						'Revenue from Contract with Customer Excluding Assessed Tax',
-						'Revenue from Contract with Customer Including Assessed Tax',
-						'Sales Revenue Net',
-						'Sales Revenue Goods Net',
-						'Sales Revenue Services Net',
-						'Operating Revenue',
-						'Operating Revenues',
-						'Revenues Net of Interest Expense',
-						'Net Sales'
-					]
-					data['total_revenue'] = _safe_extract_value(income_df, revenue_tags, latest_col)
-				else:
-					data['total_revenue'] = None
-			except Exception as e:
-				frappe.log_error(
-					title="Revenue Extraction Fallback Error",
-					message=f"Could not extract revenue: {str(e)}"
-				)
-				data['total_revenue'] = None
-
-		# Cost of Revenue / COGS
-		try:
-			income_df = financials.income_statement().to_dataframe()
-			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-			if date_cols:
-				latest_col = max(date_cols)
-				cost_tags = [
-					'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
-					'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
-				]
-				data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, latest_col)
-		except Exception:
-			pass
-
-		# Operating Expenses and Gross Profit (if available)
-		try:
-			income_df = financials.income_statement().to_dataframe()
-			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-			if date_cols:
-				latest_col = max(date_cols)
-				op_ex_tags = [
-					'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
-					'Operating Costs and Expenses', 'Selling General and Administrative Expense',
-					'Research and Development Expense'
-				]
-				data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, latest_col)
-				gross_profit_tags = ['Gross Profit', 'Gross Margin']
-				gp_val = _safe_extract_value(income_df, gross_profit_tags, latest_col)
-				if gp_val is not None:
-					data['gross_profit'] = gp_val
-		except Exception:
-			pass
-			
-		try:
-			data['net_income'] = financials.get_net_income()
-		except:
-			data['net_income'] = None
-		
-		# Additional income statement items from DataFrame
-		try:
-			income_df = financials.income_statement().to_dataframe()
-			date_cols = [c for c in income_df.columns if isinstance(c, str) and '-' in c]
-			if date_cols:
-				latest_col = max(date_cols)
-				
-				# Interest Expense
-				data['interest_expense'] = _safe_extract_value(
-					income_df,
-					['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
-					latest_col
-				)
-				
-				# Tax Provision (Income Tax Expense)
-				data['tax_provision'] = _safe_extract_value(
-					income_df,
-					['Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'],
-					latest_col
-				)
-				
-				# Pretax Income
-				data['pretax_income'] = _safe_extract_value(
-					income_df,
-					['Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'],
-					latest_col
-				)
-				
-				# Operating Income (if not from helper method)
-				if not data.get('operating_income'):
-					data['operating_income'] = _safe_extract_value(
-						income_df,
-						[
-							'Operating Income', 'Income from Operations', 'Operating Profit',
-							'OperatingIncomeLoss', 'IncomeLossFromOperations'
-						],
-						latest_col
-					)
-				
-				# Costs and Expenses (useful for calculations)
-				data['total_costs_and_expenses'] = _safe_extract_value(
-					income_df,
-					['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
-					latest_col
-				)
-
-				# EPS and Weighted Average Shares
-				data['basic_eps'] = _safe_extract_value(
-					income_df,
-					[
-						'Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS',
-						'Earnings per share, basic'
-					],
-					latest_col
-				)
-				data['diluted_eps'] = _safe_extract_value(
-					income_df,
-					[
-						'Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS',
-						'Earnings per share, diluted'
-					],
-					latest_col
-				)
-				# Map to shares_outstanding field (CF Financial Period uses this field name)
-				data['shares_outstanding'] = _safe_extract_value(
-					income_df,
-					[
-						'Weighted Average Shares',
-						'Weighted Average Number of Shares Outstanding Basic',
-						'Weighted Average Basic Shares Outstanding',
-						'Common Stock Shares Outstanding',
-						'Weighted Average Number of Diluted Shares Outstanding',
-						'Weighted Average Diluted Shares Outstanding'
-					],
-					latest_col
-				)
-		except Exception as e:
-			frappe.log_error(
-				title="Income Statement Additional Fields Error",
-				message=f"Error extracting additional income fields: {str(e)}"
-			)
-		
-		# Balance sheet items (point-in-time, so DataFrame is safe)
-		try:
-			data['total_assets'] = financials.get_total_assets()
-		except:
-			data['total_assets'] = None
-			
-		try:
-			data['total_liabilities'] = financials.get_total_liabilities()
-		except:
-			data['total_liabilities'] = None
-			
-		try:
-			data['shareholders_equity'] = financials.get_stockholders_equity()
-		except:
-			data['shareholders_equity'] = None
-			
-		try:
-			data['current_assets'] = financials.get_current_assets()
-		except:
-			data['current_assets'] = None
-			
-		try:
-			data['current_liabilities'] = financials.get_current_liabilities()
-		except:
-			data['current_liabilities'] = None
-		
-		# Cash flow items
-		try:
-			# get_operating_cash_flow returns string sometimes, need to handle
-			ocf = financials.get_operating_cash_flow()
-			data['operating_cash_flow'] = float(ocf) if ocf not in (None, "", 0, 0.0) else None
-		except:
-			data['operating_cash_flow'] = None
-
-		# Fallback to cash flow statement DataFrame for OCF if still missing
-		if data.get('operating_cash_flow') in (None, 0, 0.0):
-			try:
-				cf_df = financials.cashflow_statement().to_dataframe()
-				date_cols = [c for c in cf_df.columns if isinstance(c, str) and '-' in c]
-				if date_cols:
-					latest_col = max(date_cols)
-					ocf_tags = [
-						'Net Cash Provided by (Used in) Operating Activities',
-						'Net Cash Provided by Used in Operating Activities',
-						'Net Cash Provided by (Used in) Operating Activities Continuing Operations',
-						'Net Cash Provided by Used in Operating Activities Continuing Operations',
-						'Net Cash from Operating Activities',
-						'Operating Cash Flow'
-					]
-					ocf_val = _safe_extract_value(cf_df, ocf_tags, latest_col)
-					if ocf_val not in (None, 0, 0.0):
-						data['operating_cash_flow'] = ocf_val
-			except Exception as e:
-				frappe.log_error(
-					title="Operating Cash Flow Fallback Error",
-					message=f"Could not extract operating cash flow: {str(e)}"
-				)
-			
-		try:
-			data['capital_expenditures'] = financials.get_capital_expenditures()
-		except:
-			data['capital_expenditures'] = None
-		
-		# Calculate free cash flow
-		try:
-			data['free_cash_flow'] = financials.get_free_cash_flow()
-		except:
-			# Fallback calculation if method fails
-			if data.get('operating_cash_flow') and data.get('capital_expenditures'):
-				data['free_cash_flow'] = data['operating_cash_flow'] + data['capital_expenditures']
-			else:
-				data['free_cash_flow'] = None
-		
-		# For fields not available via helper methods, use DataFrame with point-in-time data only
-		# (Balance sheet items are safe since they're snapshots, not cumulative)
-		try:
-			balance_df = financials.balance_sheet().to_dataframe()
-			date_cols = [c for c in balance_df.columns if isinstance(c, str) and '-' in c]
-			if date_cols:
-				latest_col = max(date_cols)
-				
-				# Extract additional balance sheet items
-				data['cash_and_equivalents'] = _safe_extract_value(
-					balance_df,
-					['Cash and Cash Equivalents', 'Cash', 'Cash and Equivalents'],
-					latest_col
-				)
-				data['accounts_receivable'] = _safe_extract_value(
-					balance_df,
-					['Accounts Receivable', 'Accounts Receivable Net', 'Receivables Net'],
-					latest_col
-				)
-				data['inventory'] = _safe_extract_value(
-					balance_df,
-					['Inventory', 'Inventory Net'],
-					latest_col
-				)
-				data['long_term_debt'] = _safe_extract_value(
-					balance_df,
-					['Long-term Debt', 'Long Term Debt Noncurrent', 'Long-Term Debt', 'Debt Noncurrent'],
-					latest_col
-				)
-			# Try to extract total debt directly
-			data['total_debt'] = _safe_extract_value(
-				balance_df,
-				['Total Debt', 'Debt', 'Total Borrowings'],
-				latest_col
-			)
-			# If not available directly, use long-term debt as approximation
-			if not data.get('total_debt') and data.get('long_term_debt'):
-				data['total_debt'] = data['long_term_debt']
-				data['retained_earnings'] = _safe_extract_value(
-					balance_df,
-					['Retained Earnings', 'Retained Earnings Accumulated Deficit'],
-					latest_col
-				)
-		except Exception as e:
-			frappe.log_error(
-				title="Balance Sheet Extraction Error",
-				message=f"Error extracting balance sheet details: {str(e)}"
-			)
-		
-		# Final sanity checks and derived fallbacks to avoid storing zeros when related data exists
-		try:
-			# Revenue: if missing/zero but gross_profit and cost_of_revenue exist, derive it
-			if (data.get('total_revenue') in (None, 0, 0.0)) and (
-				data.get('gross_profit') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
-			):
-				data['total_revenue'] = data['gross_profit'] + data['cost_of_revenue']
-			# Operating income: if missing/zero but components exist
-			if (data.get('operating_income') in (None, 0, 0.0)) and (
-				data.get('gross_profit') not in (None, 0, 0.0) and data.get('operating_expenses') not in (None, 0, 0.0)
-			):
-				data['operating_income'] = data['gross_profit'] - data['operating_expenses']
-		except Exception:
-			pass
-		
-		# Determine fiscal year and quarter from the filing cover page first
-		# Fallback to calendar-based derivation only if cover data is unavailable
-		fiscal_year = None
-		fiscal_period = None
-		try:
-			cover_stmt = financials.cover()
-			cover_df = cover_stmt.to_dataframe()
-			# Columns in cover_df include date columns like 'YYYY-MM-DD'
-			date_col = period_end_date
-			if cover_df is not None and not cover_df.empty and date_col in cover_df.columns:
-				# Extract Document Fiscal Year Focus
-				fy_row = cover_df[cover_df['label'].str.contains('Document Fiscal Year Focus', case=False, na=False)]
-				if not fy_row.empty:
-					val = fy_row.iloc[0][date_col]
-					if pd.notna(val):
-						try:
-							fiscal_year = int(float(val))
-						except Exception:
-							pass
-				# Extract Document Fiscal Period Focus (Q1/Q2/Q3/Q4/FY)
-				fp_row = cover_df[cover_df['label'].str.contains('Document Fiscal Period Focus', case=False, na=False)]
-				if not fp_row.empty:
-					val = fp_row.iloc[0][date_col]
-					if isinstance(val, str) and val:
-						fiscal_period = val.strip().upper()
-		except Exception as _e:
-			# Ignore and fallback to calendar mapping
-			pass
-
-		if fiscal_year is not None:
-			data['fiscal_year'] = fiscal_year
-		else:
-			# Fallback: derive from calendar year
-			period_date = datetime.strptime(period_end_date, '%Y-%m-%d')
-			data['fiscal_year'] = period_date.year
-
-		if fiscal_period in {'Q1','Q2','Q3','Q4'}:
-			data['fiscal_quarter'] = fiscal_period
-		elif fiscal_period == 'FY':
+		fiscal_year, fiscal_quarter = _determine_fiscal_context(
+			financials=financials,
+			period_end_date=period_end_date,
+			document_fiscal_period=document_fiscal_period,
+			period_type=period_type
+		)
+		data['fiscal_year'] = fiscal_year
+		if period_type != 'Annual' and fiscal_quarter:
+			data['fiscal_quarter'] = fiscal_quarter
+		elif period_type == 'Annual':
 			data['fiscal_quarter'] = None
+
+		income_df = _get_statement_dataframe(financials.income_statement())
+		balance_df = _get_statement_dataframe(financials.balance_sheet())
+		cashflow_df = _get_statement_dataframe(financials.cashflow_statement())
+
+		income_col = _resolve_period_column(
+			df=income_df,
+			period_end_date=period_end_date,
+			period_type=period_type,
+			fiscal_quarter=fiscal_quarter
+		)
+		balance_col = _resolve_period_column(
+			df=balance_df,
+			period_end_date=period_end_date,
+			period_type=period_type,
+			fiscal_quarter=fiscal_quarter
+		)
+		cashflow_col = _resolve_period_column(
+			df=cashflow_df,
+			period_end_date=period_end_date,
+			period_type=period_type,
+			fiscal_quarter=fiscal_quarter
+		)
+
+		# Income statement metrics
+		revenue_tags = [
+			'Revenue', 'Revenues', 'Total Revenue', 'Total Revenues',
+			'Revenue from Contract with Customer Excluding Assessed Tax',
+			'Revenue from Contract with Customer Including Assessed Tax',
+			'Sales Revenue Net', 'Sales Revenue Goods Net', 'Sales Revenue Services Net',
+			'Operating Revenue', 'Operating Revenues', 'Revenues Net of Interest Expense', 'Net Sales'
+		]
+		data['total_revenue'] = _safe_extract_value(income_df, revenue_tags, income_col)
+		if data['total_revenue'] is None:
+			data['total_revenue'] = _coerce_number(financials.get_revenue())
+
+		cost_tags = [
+			'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
+			'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
+		]
+		data['cost_of_revenue'] = _safe_extract_value(income_df, cost_tags, income_col)
+
+		gross_profit_tags = ['Gross Profit', 'Gross Margin']
+		data['gross_profit'] = _safe_extract_value(income_df, gross_profit_tags, income_col)
+
+		op_ex_tags = [
+			'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
+			'Operating Costs and Expenses', 'Selling General and Administrative Expense',
+			'Research and Development Expense'
+		]
+		data['operating_expenses'] = _safe_extract_value(income_df, op_ex_tags, income_col)
+
+		operating_income_tags = [
+			'Operating Income', 'Income from Operations', 'Operating Profit',
+			'OperatingIncomeLoss', 'IncomeLossFromOperations'
+		]
+		data['operating_income'] = _safe_extract_value(income_df, operating_income_tags, income_col)
+
+		net_income_tags = ['Net Income', 'Net Income Loss', 'Net Income Attributable to Common Stockholders', 'Net Earnings']
+		data['net_income'] = _safe_extract_value(income_df, net_income_tags, income_col)
+		if data['net_income'] is None:
+			data['net_income'] = _coerce_number(financials.get_net_income())
+
+		data['interest_expense'] = _safe_extract_value(
+			income_df,
+			['Interest Expense', 'Interest Paid', 'Interest Expense Debt'],
+			income_col
+		)
+		data['tax_provision'] = _safe_extract_value(
+			income_df,
+			['Income Tax Expense', 'Provision for Income Taxes', 'Income Taxes', 'Tax Expense', 'Tax Provision'],
+			income_col
+		)
+		data['pretax_income'] = _safe_extract_value(
+			income_df,
+			['Income Before Tax', 'Pretax Income', 'Income Before Income Taxes', 'Earnings Before Tax'],
+			income_col
+		)
+		data['total_costs_and_expenses'] = _safe_extract_value(
+			income_df,
+			['Costs and Expenses', 'Total Costs and Expenses', 'Operating Costs and Expenses'],
+			income_col
+		)
+		data['basic_eps'] = _safe_extract_value(
+			income_df,
+			['Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS', 'Earnings per share, basic'],
+			income_col
+		)
+		data['diluted_eps'] = _safe_extract_value(
+			income_df,
+			['Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS', 'Earnings per share, diluted'],
+			income_col
+		)
+		data['shares_outstanding'] = _safe_extract_value(
+			income_df,
+			[
+				'Weighted Average Shares',
+				'Weighted Average Number of Shares Outstanding Basic',
+				'Weighted Average Basic Shares Outstanding',
+				'Common Stock Shares Outstanding',
+				'Weighted Average Number of Diluted Shares Outstanding',
+				'Weighted Average Diluted Shares Outstanding'
+			],
+			income_col
+		)
+
+		# Balance sheet metrics
+		data['total_assets'] = _safe_extract_value(balance_df, ['Total Assets', 'Assets'], balance_col)
+		if data['total_assets'] is None:
+			data['total_assets'] = _coerce_number(financials.get_total_assets())
+
+		data['total_liabilities'] = _safe_extract_value(balance_df, ['Total Liabilities', 'Liabilities'], balance_col)
+		if data['total_liabilities'] is None:
+			data['total_liabilities'] = _coerce_number(financials.get_total_liabilities())
+
+		data['shareholders_equity'] = _safe_extract_value(
+			balance_df,
+			["Total Stockholders' Equity", "Stockholders' Equity", "Shareholders' Equity", 'Total Equity'],
+			balance_col
+		)
+		if data['shareholders_equity'] is None:
+			data['shareholders_equity'] = _coerce_number(financials.get_stockholders_equity())
+
+		data['current_assets'] = _safe_extract_value(
+			balance_df,
+			['Total Current Assets', 'Current Assets', 'Assets Current'],
+			balance_col
+		)
+		if data['current_assets'] is None:
+			data['current_assets'] = _coerce_number(financials.get_current_assets())
+
+		data['current_liabilities'] = _safe_extract_value(
+			balance_df,
+			['Total Current Liabilities', 'Current Liabilities', 'Liabilities Current'],
+			balance_col
+		)
+		if data['current_liabilities'] is None:
+			data['current_liabilities'] = _coerce_number(financials.get_current_liabilities())
+
+		data['cash_and_equivalents'] = _safe_extract_value(
+			balance_df,
+			['Cash and Cash Equivalents', 'Cash', 'Cash and Equivalents'],
+			balance_col
+		)
+		data['accounts_receivable'] = _safe_extract_value(
+			balance_df,
+			['Accounts Receivable', 'Accounts Receivable Net', 'Receivables Net'],
+			balance_col
+		)
+		data['inventory'] = _safe_extract_value(
+			balance_df,
+			['Inventory', 'Inventory Net'],
+			balance_col
+		)
+		data['long_term_debt'] = _safe_extract_value(
+			balance_df,
+			['Long-term Debt', 'Long Term Debt Noncurrent', 'Long-Term Debt', 'Debt Noncurrent'],
+			balance_col
+		)
+		data['total_debt'] = _safe_extract_value(
+			balance_df,
+			['Total Debt', 'Debt', 'Total Borrowings'],
+			balance_col
+		)
+		if not data.get('total_debt') and data.get('long_term_debt'):
+			data['total_debt'] = data['long_term_debt']
+		data['retained_earnings'] = _safe_extract_value(
+			balance_df,
+			['Retained Earnings', 'Retained Earnings Accumulated Deficit'],
+			balance_col
+		)
+
+		# Cash flow metrics
+		ocf_tags = [
+			'Net Cash Provided by (Used in) Operating Activities',
+			'Net Cash Provided by Used in Operating Activities',
+			'Net Cash Provided by (Used in) Operating Activities Continuing Operations',
+			'Net Cash Provided by Used in Operating Activities Continuing Operations',
+			'Net Cash from Operating Activities',
+			'Operating Cash Flow'
+		]
+		ocf = _safe_extract_value(cashflow_df, ocf_tags, cashflow_col)
+		if ocf is None:
+			ocf = _coerce_number(financials.get_operating_cash_flow())
+		data['operating_cash_flow'] = ocf
+
+		capex_tags = [
+			'Capital Expenditures',
+			'Payments to Acquire Property Plant and Equipment',
+			'Payments for Property Plant and Equipment',
+			'Purchase of Property and Equipment',
+			'Capital Expenditures and Acquisitions'
+		]
+		capex = _safe_extract_value(cashflow_df, capex_tags, cashflow_col)
+		if capex is None:
+			capex = _coerce_number(financials.get_capital_expenditures())
+		data['capital_expenditures'] = capex
+
+		if ocf is not None and capex is not None:
+			data['free_cash_flow'] = ocf + capex
 		else:
-			# Fallback: estimate based on calendar month
-			period_date = datetime.strptime(period_end_date, '%Y-%m-%d')
-			month = period_date.month
-			if month in [1, 2, 3]:
-				data['fiscal_quarter'] = 'Q1'
-			elif month in [4, 5, 6]:
-				data['fiscal_quarter'] = 'Q2'
-			elif month in [7, 8, 9]:
-				data['fiscal_quarter'] = 'Q3'
-			else:
-				data['fiscal_quarter'] = 'Q4'
-		
+			data['free_cash_flow'] = _coerce_number(financials.get_free_cash_flow())
+
+		investing_tags = [
+			'Net Cash Provided by (Used in) Investing Activities',
+			'Net Cash from Investing Activities',
+			'Net Cash Provided by Used in Investing Activities'
+		]
+		data['investing_cash_flow'] = _safe_extract_value(cashflow_df, investing_tags, cashflow_col)
+
+		financing_tags = [
+			'Net Cash Provided by (Used in) Financing Activities',
+			'Net Cash from Financing Activities',
+			'Net Cash Provided by Used in Financing Activities'
+		]
+		data['financing_cash_flow'] = _safe_extract_value(cashflow_df, financing_tags, cashflow_col)
+
+		dividend_tags = [
+			'Payments of Dividends',
+			'Common Stock Dividends Paid',
+			'Cash Dividends Paid'
+		]
+		data['dividends_paid'] = _safe_extract_value(cashflow_df, dividend_tags, cashflow_col)
+
+		# Final sanity checks derived from components
+		if (data.get('total_revenue') in (None, 0, 0.0)) and (
+			data.get('gross_profit') not in (None, 0, 0.0) and data.get('cost_of_revenue') not in (None, 0, 0.0)
+		):
+			data['total_revenue'] = data['gross_profit'] + data['cost_of_revenue']
+
+		if (data.get('operating_income') in (None, 0, 0.0)) and (
+			data.get('gross_profit') not in (None, 0, 0.0) and data.get('operating_expenses') not in (None, 0, 0.0)
+		):
+			data['operating_income'] = data['gross_profit'] - data['operating_expenses']
+
 		return data
-		
+
 	except Exception as e:
 		frappe.log_error(
 			title="Financial Data Extraction Error",
 			message=f"Error extracting data: {str(e)}\n{frappe.get_traceback()}"
 		)
+		return None
+
+
+def _get_statement_dataframe(statement, use_standard: bool = True) -> pd.DataFrame:
+	"""Return a pandas DataFrame for a statement, preferring standardized rendering."""
+	if statement is None:
+		return pd.DataFrame()
+
+	if use_standard:
+		try:
+			rendered = statement.render(standard=True)
+			df = rendered.to_dataframe()
+			if isinstance(df, pd.DataFrame):
+				return df
+		except Exception:
+			pass
+
+	try:
+		df = statement.to_dataframe()
+		if isinstance(df, pd.DataFrame):
+			return df
+	except Exception:
+		return pd.DataFrame()
+
+	return pd.DataFrame()
+
+
+def _resolve_period_column(
+	df: pd.DataFrame,
+	period_end_date: str,
+	period_type: str,
+	fiscal_quarter: Optional[str]
+) -> Optional[str]:
+	"""Determine which column corresponds to the filing period."""
+	if df is None or df.empty:
+		return None
+
+	metadata_cols = {
+		'concept', 'label', 'level', 'abstract', 'dimension',
+		'balance', 'weight', 'preferred_sign', 'unit', 'point_in_time'
+	}
+	value_columns = [
+		col for col in df.columns
+		if isinstance(col, str) and col not in metadata_cols
+	]
+	if not value_columns:
+		return None
+
+	candidates: List[str] = []
+	normalized_quarter = _normalize_fiscal_period_label(fiscal_quarter)
+	if period_type == 'Quarterly':
+		if normalized_quarter and normalized_quarter.startswith('Q'):
+			candidates.append(f"{period_end_date} ({normalized_quarter})")
+		candidates.append(period_end_date)
+	else:
+		candidates.append(f"{period_end_date} (FY)")
+		candidates.append(period_end_date)
+
+	for candidate in candidates:
+		if candidate in value_columns:
+			return candidate
+
+	for col in value_columns:
+		if period_end_date in col:
+			return col
+
+	date_like = sorted([col for col in value_columns if '-' in col])
+	if date_like:
+		return date_like[-1]
+
+	return value_columns[-1]
+
+
+def _determine_fiscal_context(
+	financials,
+	period_end_date: str,
+	document_fiscal_period: Optional[str],
+	period_type: str
+) -> Tuple[int, Optional[str]]:
+	"""Infer fiscal year and quarter using cover data with calendar fallbacks."""
+	fiscal_year = None
+	fiscal_period_focus = None
+
+	try:
+		cover_stmt = financials.cover()
+		cover_df = cover_stmt.to_dataframe() if cover_stmt else None
+		if cover_df is not None and not cover_df.empty and period_end_date in cover_df.columns:
+			fy_row = cover_df[cover_df['label'].str.contains('Document Fiscal Year Focus', case=False, na=False)]
+			if not fy_row.empty:
+				val = fy_row.iloc[0][period_end_date]
+				if pd.notna(val):
+					try:
+						fiscal_year = int(float(val))
+					except Exception:
+						pass
+
+			fp_row = cover_df[cover_df['label'].str.contains('Document Fiscal Period Focus', case=False, na=False)]
+			if not fp_row.empty:
+				val = fp_row.iloc[0][period_end_date]
+				if isinstance(val, str) and val:
+					fiscal_period_focus = val.strip().upper()
+	except Exception:
+		pass
+
+	if not fiscal_period_focus:
+		normalized = _normalize_fiscal_period_label(document_fiscal_period)
+		if normalized:
+			fiscal_period_focus = normalized
+
+	period_date = datetime.strptime(period_end_date, '%Y-%m-%d')
+	if fiscal_year is None:
+		fiscal_year = period_date.year
+
+	if period_type == 'Annual':
+		return fiscal_year, None
+
+	if fiscal_period_focus in {'Q1', 'Q2', 'Q3', 'Q4'}:
+		return fiscal_year, fiscal_period_focus
+
+	month = period_date.month
+	if month in [1, 2, 3]:
+		return fiscal_year, 'Q1'
+	if month in [4, 5, 6]:
+		return fiscal_year, 'Q2'
+	if month in [7, 8, 9]:
+		return fiscal_year, 'Q3'
+	return fiscal_year, 'Q4'
+
+
+def _normalize_fiscal_period_label(value: Optional[str]) -> Optional[str]:
+	"""Normalize quarter labels like 'Quarter 1' or 'q3' to canonical tokens."""
+	if not value:
+		return None
+
+	text = str(value).strip().upper()
+	text = text.replace('QUARTER', 'Q').replace('QTR', 'Q')
+	if text.startswith('Q') and len(text) >= 2 and text[1].isdigit():
+		return f"Q{text[1]}"
+	if text.startswith('FY'):
+		return 'FY'
+	if text in {'Q1', 'Q2', 'Q3', 'Q4'}:
+		return text
+	return None
+
+
+def _coerce_number(value: Optional[object]) -> Optional[float]:
+	"""Convert assorted numeric types/strings to float, returning None on failure."""
+	if value in (None, ''):
+		return None
+	try:
+		if isinstance(value, str):
+			cleaned = value.replace(',', '').strip()
+			if not cleaned:
+				return None
+			value = cleaned
+		if pd.isna(value):
+			return None
+		return float(value)
+	except Exception:
 		return None
 
 
