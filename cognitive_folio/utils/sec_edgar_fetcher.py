@@ -158,6 +158,7 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 					)
 					result['skipped_count'] += 1
 					continue
+				period_data['currency'] = filing_currency or expected_currency
 				
 				# Upsert the period
 				was_new = _upsert_period(
@@ -216,7 +217,6 @@ def _extract_financial_data(
 		financials: edgartools Financials object
 		period_end_date: Period end date string (YYYY-MM-DD)
 		period_type: 'Annual' or 'Quarterly'
-		document_fiscal_period: Fiscal period label from the filing cover (e.g., Q3)
 
 	Returns:
 		Dict with extracted financial data or None if extraction fails
@@ -237,6 +237,11 @@ def _extract_financial_data(
 			data['fiscal_quarter'] = None
 
 		income_df = _get_statement_dataframe(financials.income_statement())
+
+		if not data.get('shares_outstanding') and data.get('net_income') and data.get('net_income') not in (0, 0.0):
+			eps = data.get('diluted_eps') or data.get('basic_eps')
+			if eps not in (None, 0, 0.0):
+				data['shares_outstanding'] = data['net_income'] / eps
 		balance_df = _get_statement_dataframe(financials.balance_sheet())
 		cashflow_df = _get_statement_dataframe(financials.cashflow_statement())
 
@@ -293,6 +298,27 @@ def _extract_financial_data(
 		]
 		data['operating_income'] = _safe_extract_value(income_df, operating_income_tags, income_col)
 
+		ebit_tags = [
+			'Earnings Before Interest and Taxes',
+			'Earnings Before Interest and Tax',
+			'Earnings Before Interest Income Expense and Income Taxes',
+			'Earnings Before Income Taxes and Minority Interest',
+			'Earnings Before Interest Taxes',
+			'EBIT'
+		]
+		data['ebit'] = _safe_extract_value(income_df, ebit_tags, income_col)
+		if data['ebit'] is None:
+			data['ebit'] = data.get('operating_income')
+
+		ebitda_tags = [
+			'Earnings Before Interest Taxes Depreciation and Amortization',
+			'Earnings Before Interest Taxes Depreciation Amortization and Extraordinary Items',
+			'EBITDA',
+			'Earnings Before Interest Taxes Depreciation Amortization',
+			'Earnings Before Interest Taxes Depreciation and Amortization (EBITDA)'
+		]
+		data['ebitda'] = _safe_extract_value(income_df, ebitda_tags, income_col)
+
 		net_income_tags = ['Net Income', 'Net Income Loss', 'Net Income Attributable to Common Stockholders', 'Net Earnings']
 		data['net_income'] = _safe_extract_value(income_df, net_income_tags, income_col)
 		if data['net_income'] is None:
@@ -320,12 +346,24 @@ def _extract_financial_data(
 		)
 		data['basic_eps'] = _safe_extract_value(
 			income_df,
-			['Earnings Per Share Basic', 'Basic Earnings Per Share', 'Basic EPS', 'Earnings per share, basic'],
+			[
+				'Earnings Per Share Basic',
+				'Earnings Per Share (Basic)',
+				'Basic Earnings Per Share',
+				'Basic EPS',
+				'Earnings per share, basic'
+			],
 			income_col
 		)
 		data['diluted_eps'] = _safe_extract_value(
 			income_df,
-			['Earnings Per Share Diluted', 'Diluted Earnings Per Share', 'Diluted EPS', 'Earnings per share, diluted'],
+			[
+				'Earnings Per Share Diluted',
+				'Earnings Per Share (Diluted)',
+				'Diluted Earnings Per Share',
+				'Diluted EPS',
+				'Earnings per share, diluted'
+			],
 			income_col
 		)
 		data['shares_outstanding'] = _safe_extract_value(
@@ -340,6 +378,11 @@ def _extract_financial_data(
 			],
 			income_col
 		)
+
+		if not data.get('shares_outstanding') and data.get('net_income') and data.get('net_income') not in (0, 0.0):
+			eps = data.get('diluted_eps') or data.get('basic_eps')
+			if eps not in (None, 0, 0.0):
+				data['shares_outstanding'] = data['net_income'] / eps
 
 		# Balance sheet metrics
 		data['total_assets'] = _safe_extract_value(balance_df, ['Total Assets', 'Assets'], balance_col)
@@ -408,6 +451,15 @@ def _extract_financial_data(
 		)
 
 		# Cash flow metrics
+		depreciation_tags = [
+			'Depreciation and Amortization',
+			'DepreciationDepletionAndAmortization',
+			'Depreciation Amortization and Accretion',
+			'Depreciation And Amortization',
+			'Depreciation'
+		]
+		dep_amort = _safe_extract_value(cashflow_df, depreciation_tags, cashflow_col)
+
 		ocf_tags = [
 			'Net Cash Provided by (Used in) Operating Activities',
 			'Net Cash Provided by Used in Operating Activities',
@@ -431,12 +483,17 @@ def _extract_financial_data(
 		capex = _safe_extract_value(cashflow_df, capex_tags, cashflow_col)
 		if capex is None:
 			capex = _coerce_number(financials.get_capital_expenditures())
+		if capex is not None:
+			capex = -abs(capex)
 		data['capital_expenditures'] = capex
 
 		if ocf is not None and capex is not None:
 			data['free_cash_flow'] = ocf + capex
 		else:
 			data['free_cash_flow'] = _coerce_number(financials.get_free_cash_flow())
+
+		if data.get('ebitda') is None and data.get('ebit') not in (None, 0, 0.0) and dep_amort not in (None, 0, 0.0):
+			data['ebitda'] = data['ebit'] + dep_amort
 
 		investing_tags = [
 			'Net Cash Provided by (Used in) Investing Activities',
