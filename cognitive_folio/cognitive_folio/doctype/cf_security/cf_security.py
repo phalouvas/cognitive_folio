@@ -132,7 +132,61 @@ class CFSecurity(Document):
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
-	
+
+	@frappe.whitelist()
+	def fetch_cik(self):
+		"""Fetch and set CIK using the SEC static ticker lists (single method)."""
+		if self.security_type != "Stock":
+			return {"success": False, "message": "CIK lookup only applies to stocks."}
+		if not self.symbol:
+			return {"success": False, "message": "Symbol is required to fetch CIK."}
+
+		ticker = (self.symbol or "").upper()
+		try:
+			import requests
+		except Exception as e:
+			return {"success": False, "message": f"requests unavailable: {e}"}
+
+		urls = [
+			"https://www.sec.gov/files/company_tickers.json",
+			"https://www.sec.gov/files/company_tickers_exchange.json",
+		]
+		headers = {
+			"User-Agent": "cognitive-folio/1.0 (support@kainotomo.com)",
+			"Accept": "application/json",
+		}
+		try:
+			for url in urls:
+				resp = requests.get(url, headers=headers, timeout=8)
+				if resp.status_code != 200:
+					continue
+				try:
+					data = resp.json()
+				except Exception:
+					continue
+				# data can be dict keyed by index or a list; normalize to iterable of entries
+				entries = []
+				if isinstance(data, dict):
+					entries = data.values()
+				elif isinstance(data, list):
+					entries = data
+				for entry in entries:
+					try:
+						symbol_value = (entry.get("ticker") or "").upper()
+						if symbol_value == ticker:
+							cik_int = entry.get("cik_str") or entry.get("cik") or entry.get("ciknumber")
+							if cik_int:
+								self.cik = str(cik_int).zfill(10)
+								self.save(ignore_permissions=True)
+								return {"success": True, "cik": self.cik}
+					except Exception:
+						continue
+			return {"success": False, "message": "CIK not found for this symbol from SEC list."}
+		except Exception as e:
+			err_msg = f"CIK lookup failed for {self.symbol}: {str(e)}"
+			frappe.log_error(err_msg, "CIK Lookup Error")
+			return {"success": False, "message": err_msg}
+
 	@frappe.whitelist()
 	def generate_ai_suggestion(self):
 		"""Queue AI suggestion generation for the security as a background job"""

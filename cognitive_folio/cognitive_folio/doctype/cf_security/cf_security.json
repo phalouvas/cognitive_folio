@@ -11,6 +11,7 @@
   "isin",
   "security_name",
   "symbol",
+    "cik",
   "security_type",
   "column_break_5",
   "stock_exchange",
@@ -111,6 +112,13 @@
    "read_only": 1,
    "reqd": 1,
    "unique": 1
+  },
+  {
+    "fieldname": "cik",
+    "fieldtype": "Data",
+    "in_filter": 1,
+    "label": "CIK",
+    "read_only_depends_on": "eval:doc.security_type !== 'Stock'"
   },
   {
    "description": "International Securities Identification Number",
