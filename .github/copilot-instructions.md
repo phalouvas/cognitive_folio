@@ -14,6 +14,7 @@
 - **Prompt templating**:
   - Portfolio prompts: `((field))` pulls from `CF Portfolio`; `***HOLDINGS*** ... ***HOLDINGS***` sections expand once per holding with `{{field}}` from `CF Security` and `[[field]]` from the holding.
   - Security prompts: `{{field}}` supports nested JSON paths and wildcard `ARRAY` handling (see `utils.helper.replace_variables`).
+  - **Financials variable**: `{{financials:y<years>:q<quarters>}}` expands to JSON-formatted financial statements; uses SEC Edgar cache first (via `get_edgar_data` with edgartools XBRLS stitching) for US companies with CIK, falls back to yfinance cached JSON fields (`profit_loss`, `balance_sheet`, `cash_flow` and quarterly variants) for non-US or when Edgar unavailable. Returns structured JSON for AI parsing efficiency. Examples: `{{financials:y10:q16}}` (10 years + 16 quarters), `{{financials:y2:q4}}` (2 years + 4 quarters).
 - **Data ingestion helpers**:
   - URL embedding for chat prompts via `utils.url_fetcher.fetch_and_embed_url_content`; limits controlled by `CF Settings` (`max_url_fetch`, `url_fetch_timeout`, byte and character caps). HTML → markdown via `markdownify` fallback; PDF size capped at 50MB.
   - PDF attachment references in chat prompts as `<<file.pdf>>` (or HTML-escaped) get inlined with tables via `pdfplumber`.
