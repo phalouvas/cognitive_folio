@@ -25,17 +25,22 @@ BASE_METRIC_TAGS: Dict[str, List[str]] = {
 	],
 	'cost_of_revenue': [
 		'Cost of Revenue', 'Cost Of Revenue', 'Cost of Goods Sold', 'Cost of Goods And Services Sold',
-		'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization'
+		'Cost Of Sales', 'Cost Of Goods Sold Excluding Depreciation Depletion And Amortization',
+		'Production and Manufacturing Expenses', 'Production and manufacturing expenses'
 	],
 	'gross_profit': ['Gross Profit', 'Gross Margin'],
 	'operating_expenses': [
 		'Operating Expenses', 'Total Operating Expenses', 'Operating And Maintenance Expense',
 		'Operating Costs and Expenses', 'Selling General and Administrative Expense',
+		'Selling, General and Administrative Expense',
+		'Selling, general and administrative expense',
 		'Research and Development Expense'
 	],
 	'operating_income': [
 		'Operating Income', 'Income from Operations', 'Operating Profit',
-		'OperatingIncomeLoss', 'IncomeLossFromOperations'
+		'OperatingIncomeLoss', 'IncomeLossFromOperations',
+		'Operating income (loss)', 'Income (Loss) from Operations',
+		'Earnings (Loss) from Operations', 'Operating Profit (Loss)'
 	],
 	'ebit': [
 		'Earnings Before Interest and Taxes',
@@ -144,12 +149,15 @@ BASE_METRIC_TAGS: Dict[str, List[str]] = {
 SECTOR_TAG_OVERRIDES: Dict[str, Dict[str, List[str]]] = {
 	'banks': {
 		'total_revenue': [
+			'Total Net Revenue',
+			'Net Revenue',
 			'Net Interest Income',
 			'Interest Income',
 			'Total Interest Income',
 			'Net Interest Income After Provision for Credit Losses',
 			'Noninterest Income',
 			'Total Noninterest Income',
+			'Noninterest Revenues',
 			'Net Revenues'
 		],
 		'cost_of_revenue': ['Provision for Credit Losses', 'Provision for Loan Losses'],
@@ -209,9 +217,45 @@ SECTOR_TAG_OVERRIDES: Dict[str, Dict[str, List[str]]] = {
 		'operating_expenses': ['Operation and Maintenance Expense', 'Transmission and Distribution Expense']
 	},
 	'reit': {
-		'operating_income': ['Net Operating Income', 'Funds From Operations'],
-		'operating_cash_flow': ['Funds From Operations', 'Adjusted Funds From Operations'],
-		'total_revenue': ['Rental Revenue', 'Property Revenue']
+		'operating_income': [
+			'Net Operating Income',
+			'Funds From Operations',
+			'Income from Real Estate Operations',
+			'Income from Property Operations'
+		],
+		'operating_cash_flow': ['Funds From Operations', 'Adjusted Funds From Operations', 'AFFO'],
+		'capital_expenditures': [
+			'Investment in real estate',
+			'Investments in existing properties',
+			'Improvements to real estate, including leasing costs',
+			'Investment in loans',
+			'Investment in unconsolidated entities'
+		],
+		'total_revenue': [
+			'Rental Revenue',
+			'Property Revenue',
+			'Rental Income',
+			'Minimum Rents',
+			'Base Rent',
+			'Real Estate Revenues',
+			'Rental (including reimbursable)',
+			'Rental income (including reimbursable)',
+			'Rental revenue and reimbursements',
+			'Lease Income'
+		],
+		'operating_expenses': [
+			'Property Operating Expenses',
+			'Real Estate Operating Expenses',
+			'Property (including reimbursable)',
+			'Property expenses'
+		],
+		'cost_of_revenue': [
+			'Property Operating Expenses',
+			'Real Estate Operating Expenses',
+			'Property (including reimbursable)',
+			'Property expenses'
+		],
+		'ebitda': ['Funds From Operations', 'Adjusted Funds From Operations']
 	}
 }
 
@@ -266,6 +310,156 @@ def _build_tag_config(profiles: List[str]) -> Dict[str, List[str]]:
 				if tag not in config[metric]:
 					config[metric].append(tag)
 	return config
+
+
+# Supplemental tag collections used for sector-specific derived metrics that
+# don't map 1:1 with the base CF Financial Period schema.
+BANK_SECTOR_TAGS = {
+	'net_interest_income': [
+		'Net Interest Income',
+		'Net interest income',
+		'Net Interest Income After Provision for Credit Losses',
+		'Interest Income After Provision for Loan Losses'
+	],
+	'non_interest_income': [
+		'Noninterest Income',
+		'Total Noninterest Income',
+		'Other Income'
+	],
+	'non_interest_expense': [
+		'Noninterest Expense',
+		'Total Noninterest Expense',
+		'Other Expense'
+	],
+	'total_net_revenue': ['Total Net Revenue', 'Net Revenue', 'Net Revenues'],
+	'provision_credit_losses': [
+		'Provision for Credit Losses',
+		'Provision for Loan Losses',
+		'Provision for Credit Losses and Other'
+	]
+}
+
+REIT_SECTOR_TAGS = {
+	'rental_revenue': [
+		'Rental Revenue',
+		'Rental income',
+		'Property Revenue',
+		'Real Estate Revenues',
+		'Minimum Rents',
+		'Base Rent',
+		'Rental (including reimbursable)',
+		'Rental income (including reimbursable)',
+		'Rental revenue and reimbursements',
+		'Lease Income'
+	],
+	'noi': [
+		'Net Operating Income',
+		'Income from Real Estate Operations',
+		'Income from Property Operations'
+	],
+	'property_expense': [
+		'Property Operating Expenses',
+		'Real Estate Operating Expenses',
+		'Property (including reimbursable)',
+		'Property expenses'
+	]
+}
+
+
+def _apply_sector_transformations(
+	data: Dict,
+	income_df: pd.DataFrame,
+	cashflow_df: pd.DataFrame,
+	income_col: Optional[str],
+	cashflow_col: Optional[str],
+	sector_profiles: List[str]
+) -> None:
+	"""Adjust generic metrics when sector-specific structures require derived values."""
+	if 'banks' in sector_profiles:
+		_apply_bank_adjustments(data, income_df, income_col)
+	if 'reit' in sector_profiles:
+		_apply_reit_adjustments(data, income_df, cashflow_df, income_col, cashflow_col)
+	if 'banks' in sector_profiles:
+		# Banks rarely report capex; treat OCF as FCF when capex unavailable.
+		if data.get('free_cash_flow') in (None, 0, 0.0) and data.get('operating_cash_flow') not in (None, 0, 0.0):
+			if data.get('capital_expenditures') in (None, 0, 0.0):
+				data['free_cash_flow'] = data['operating_cash_flow']
+
+
+def _apply_bank_adjustments(data: Dict, income_df: pd.DataFrame, income_col: Optional[str]) -> None:
+	if income_col is None or income_df is None or income_df.empty:
+		return
+
+	net_interest_income = _safe_extract_value(income_df, BANK_SECTOR_TAGS['net_interest_income'], income_col)
+	non_interest_income = _safe_extract_value(income_df, BANK_SECTOR_TAGS['non_interest_income'], income_col)
+	total_net_revenue = _safe_extract_value(income_df, BANK_SECTOR_TAGS['total_net_revenue'], income_col)
+	non_interest_expense = _safe_extract_value(income_df, BANK_SECTOR_TAGS['non_interest_expense'], income_col)
+	credit_loss_provision = _safe_extract_value(income_df, BANK_SECTOR_TAGS['provision_credit_losses'], income_col)
+
+	if data.get('total_revenue') in (None, 0, 0.0):
+		if total_net_revenue not in (None, 0, 0.0):
+			data['total_revenue'] = total_net_revenue
+		elif net_interest_income not in (None, 0, 0.0):
+			rev = net_interest_income + (non_interest_income or 0)
+			data['total_revenue'] = rev
+
+	if data.get('cost_of_revenue') in (None, 0, 0.0) and credit_loss_provision not in (None, 0, 0.0):
+		data['cost_of_revenue'] = credit_loss_provision
+
+	if data.get('operating_expenses') in (None, 0, 0.0) and non_interest_expense not in (None, 0, 0.0):
+		data['operating_expenses'] = non_interest_expense
+
+	if data.get('operating_income') in (None, 0, 0.0):
+		revenue = data.get('total_revenue')
+		costs = data.get('cost_of_revenue') or 0
+		opex = data.get('operating_expenses') or 0
+		if revenue not in (None, 0, 0.0) and (costs or opex):
+			data['operating_income'] = revenue - costs - opex
+
+	if data.get('current_assets') in (None, 0, 0.0) and data.get('total_assets') not in (None, 0, 0.0):
+		data['current_assets'] = data['total_assets']
+
+	if data.get('current_liabilities') in (None, 0, 0.0) and data.get('total_liabilities') not in (None, 0, 0.0):
+		data['current_liabilities'] = data['total_liabilities']
+
+
+def _apply_reit_adjustments(
+	data: Dict,
+	income_df: pd.DataFrame,
+	cashflow_df: pd.DataFrame,
+	income_col: Optional[str],
+	cashflow_col: Optional[str]
+) -> None:
+	if income_col and income_df is not None and not income_df.empty:
+		rental_revenue = _safe_extract_value(income_df, REIT_SECTOR_TAGS['rental_revenue'], income_col)
+		noi = _safe_extract_value(income_df, REIT_SECTOR_TAGS['noi'], income_col)
+		prop_expenses = _safe_extract_value(income_df, REIT_SECTOR_TAGS['property_expense'], income_col)
+
+		if data.get('total_revenue') in (None, 0, 0.0) and rental_revenue not in (None, 0, 0.0):
+			data['total_revenue'] = rental_revenue
+
+		if data.get('operating_expenses') in (None, 0, 0.0) and prop_expenses not in (None, 0, 0.0):
+			data['operating_expenses'] = prop_expenses
+
+		if data.get('operating_income') in (None, 0, 0.0) and noi not in (None, 0, 0.0):
+			data['operating_income'] = noi
+
+	if cashflow_col and cashflow_df is not None and not cashflow_df.empty:
+		funds_from_ops = _safe_extract_value(cashflow_df, SECTOR_TAG_OVERRIDES['reit']['operating_cash_flow'], cashflow_col)
+		if data.get('operating_cash_flow') in (None, 0, 0.0) and funds_from_ops not in (None, 0, 0.0):
+			data['operating_cash_flow'] = funds_from_ops
+		if data.get('ebitda') in (None, 0, 0.0) and funds_from_ops not in (None, 0, 0.0):
+			data['ebitda'] = funds_from_ops
+
+		capex_override = _safe_extract_value(cashflow_df, SECTOR_TAG_OVERRIDES['reit']['capital_expenditures'], cashflow_col)
+		if data.get('capital_expenditures') in (None, 0, 0.0) and capex_override not in (None, 0, 0.0):
+			data['capital_expenditures'] = -abs(capex_override)
+
+	if data.get('current_assets') in (None, 0, 0.0) and data.get('total_assets') not in (None, 0, 0.0):
+		data['current_assets'] = data['total_assets']
+
+	if data.get('current_liabilities') in (None, 0, 0.0) and data.get('total_liabilities') not in (None, 0, 0.0):
+		data['current_liabilities'] = data['total_liabilities']
 
 
 def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: bool = True) -> Dict:
@@ -324,11 +518,11 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 		# Fetch quarterly and annual filings
 		if show_progress:
 			frappe.publish_progress(20, 100, description="Fetching 10-Q quarterly filings...")
-		quarterly_filings = company.get_filings(form="10-Q").latest(16)
+		quarterly_filings = company.get_filings(form="10-Q", amendments=False).latest(16)
 		
 		if show_progress:
 			frappe.publish_progress(30, 100, description="Fetching 10-K annual filings...")
-		annual_filings = company.get_filings(form="10-K").latest(10)
+		annual_filings = company.get_filings(form="10-K", amendments=False).latest(10)
 		
 		# Process all filings
 		all_filings = []
@@ -387,7 +581,8 @@ def fetch_sec_edgar_financials(security_name: str, ticker: str, show_progress: b
 					period_end_date=period_end_date,
 					period_type=period_type,
 					document_fiscal_period=getattr(filing_obj, 'fiscal_period', None),
-					tag_config=tag_config
+					tag_config=tag_config,
+					sector_profiles=sector_profiles
 				)
 				
 				if not period_data:
@@ -467,7 +662,8 @@ def _extract_financial_data(
 	period_end_date: str,
 	period_type: str,
 	document_fiscal_period: Optional[str] = None,
-	tag_config: Optional[Dict[str, List[str]]] = None
+	tag_config: Optional[Dict[str, List[str]]] = None,
+	sector_profiles: Optional[List[str]] = None
 ) -> Optional[Dict]:
 	"""
 	Extract financial data for a filing period using standardized SEC statements.
@@ -482,6 +678,7 @@ def _extract_financial_data(
 	"""
 	data = {'period_end_date': period_end_date}
 	tag_config = tag_config or BASE_METRIC_TAGS
+	sector_profiles = sector_profiles or ['general']
 
 	def tags(metric: str) -> List[str]:
 		return tag_config.get(metric) or BASE_METRIC_TAGS.get(metric, [])
@@ -628,6 +825,21 @@ def _extract_financial_data(
 			data.get('gross_profit') not in (None, 0, 0.0) and data.get('operating_expenses') not in (None, 0, 0.0)
 		):
 			data['operating_income'] = data['gross_profit'] - data['operating_expenses']
+
+		if (data.get('operating_income') in (None, 0, 0.0)) and (
+			data.get('total_revenue') not in (None, 0, 0.0)
+			and data.get('total_costs_and_expenses') not in (None, 0, 0.0)
+		):
+			data['operating_income'] = data['total_revenue'] - data['total_costs_and_expenses']
+
+		_apply_sector_transformations(
+			data=data,
+			income_df=income_df,
+			cashflow_df=cashflow_df,
+			income_col=income_col,
+			cashflow_col=cashflow_col,
+			sector_profiles=sector_profiles
+		)
 
 		return data
 
