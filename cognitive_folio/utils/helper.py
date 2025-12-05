@@ -179,6 +179,110 @@ def clear_string(content_string: str) -> dict:
     return content_string
 
 
+def _parse_json_field(field_value):
+    """Safely parse JSON field values coming from Frappe documents."""
+    if field_value is None:
+        return None
+    if isinstance(field_value, (dict, list)):
+        return field_value
+    if isinstance(field_value, str):
+        try:
+            return json.loads(field_value)
+        except json.JSONDecodeError:
+            return None
+    return None
+
+
+def _json_to_markdown_table(data):
+    """Convert a JSON-like object to a markdown table; return empty string if impossible."""
+    try:
+        import pandas as pd
+
+        if data is None:
+            return ""
+
+        if isinstance(data, list):
+            df = pd.DataFrame(data)
+        elif isinstance(data, dict):
+            # If dict values are dict/list, orient as index; else single-row
+            if all(isinstance(v, (dict, list)) for v in data.values()):
+                df = pd.DataFrame(data).transpose()
+            else:
+                df = pd.DataFrame([data])
+        else:
+            return ""
+
+        if df.empty:
+            return ""
+
+        return df.to_markdown(index=True)
+    except Exception:
+        return ""
+
+
+def get_cached_yfinance_data(security):
+    """Return yfinance-stored statements from CF Security as structured objects."""
+    return {
+        "income_statement_annual": _parse_json_field(getattr(security, "profit_loss", None)),
+        "income_statement_quarterly": _parse_json_field(getattr(security, "quarterly_profit_loss", None)),
+        "balance_sheet_annual": _parse_json_field(getattr(security, "balance_sheet", None)),
+        "balance_sheet_quarterly": _parse_json_field(getattr(security, "quarterly_balance_sheet", None)),
+        "cashflow_statement_annual": _parse_json_field(getattr(security, "cash_flow", None)),
+        "cashflow_statement_quarterly": _parse_json_field(getattr(security, "quarterly_cash_flow", None)),
+    }
+
+
+def _render_yfinance_markdown(yf_data):
+    """Render yfinance data to markdown; skip empty parts; return combined markdown."""
+    sections = []
+    mapping = [
+        ("Income Statement (Annual)", yf_data.get("income_statement_annual")),
+        ("Income Statement (Quarterly)", yf_data.get("income_statement_quarterly")),
+        ("Balance Sheet (Annual)", yf_data.get("balance_sheet_annual")),
+        ("Balance Sheet (Quarterly)", yf_data.get("balance_sheet_quarterly")),
+        ("Cash Flow Statement (Annual)", yf_data.get("cashflow_statement_annual")),
+        ("Cash Flow Statement (Quarterly)", yf_data.get("cashflow_statement_quarterly")),
+    ]
+
+    for title, payload in mapping:
+        table_md = _json_to_markdown_table(payload)
+        if table_md:
+            sections.append(f"# {title}\n{table_md}")
+
+    return "\n\n".join(sections)
+
+
+def expand_financials_variable(security, annual_years: int, quarterly_count: int):
+    """
+    Resolve {{financials:yX:qY}} using edgar cache first (via get_edgar_data),
+    then fall back to yfinance JSON stored on CF Security. Returns markdown.
+    """
+    # 1) Try edgar cache via existing helper (may rely on cached files)
+    cik = getattr(security, "cik", None)
+    if cik:
+        try:
+            edgar_md = get_edgar_data(
+                cik=cik,
+                annual_years=annual_years,
+                quarterly_count=quarterly_count,
+                format="markdown",
+            )
+            if edgar_md:
+                return edgar_md
+        except Exception:
+            # Fall through to yfinance
+            pass
+
+    # 2) Fallback to yfinance cached JSON
+    yf_data = get_cached_yfinance_data(security)
+    yf_md = _render_yfinance_markdown(yf_data)
+    if yf_md:
+        return yf_md
+
+    # 3) Placeholder if nothing available
+    return "[financial data unavailable]"
+
+
 def get_edgar_data(
     cik: str,
     annual_years: int = 10,

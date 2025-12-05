@@ -21,28 +21,8 @@
 
 ---
 
-## Latest Financial Results (Last 2 Periods)
-{{periods:quarterly:2:markdown}}
-
----
-
-## Period Comparison - Latest Quarter vs Previous Quarter
-{{periods:compare:latest_quarterly:previous_quarterly}}
-
----
-
-## Year-over-Year Comparison (Latest Quarter vs Same Quarter Last Year)
-{{periods:compare:latest_quarterly:yoy_quarterly}}
-
----
-
-## Latest Annual Results (if applicable)
-{{periods:annual:1:markdown}}
-
----
-
-## Annual Comparison (if new annual data available)
-{{periods:compare:latest_annual:previous_annual}}
+## Financial Statements (2 years annual, 4 quarters)
+{{financials:y2:q4}}
 
 ---
 

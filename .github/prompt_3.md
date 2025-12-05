@@ -9,29 +9,8 @@
 
 ---
 
-## Historical Annual Performance (10 Years)
-{{periods:annual:10:markdown}}
-
----
-
-## Recent Quarterly Trends (16 Quarters)
-{{periods:quarterly:16:markdown}}
-
----
-
-## Period Comparisons
-
-### Latest Annual vs Previous Annual
-{{periods:compare:latest_annual:previous_annual}}
-
-### Latest Annual vs 2 Years Ago
-{{periods:compare:latest_annual:annual_minus_2}}
-
-### Latest Quarter vs Previous Quarter
-{{periods:compare:latest_quarterly:previous_quarterly}}
-
-### Latest Quarter vs Year-Ago Quarter (YoY)
-{{periods:compare:latest_quarterly:yoy_quarterly}}
+## Financial Statements (10 years annual, 16 quarters)
+{{financials:y10:q16}}
 
 ---
 
