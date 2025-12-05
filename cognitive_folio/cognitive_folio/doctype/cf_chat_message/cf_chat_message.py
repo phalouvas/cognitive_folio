@@ -2,7 +2,7 @@ import frappe
 from frappe.model.document import Document
 import re
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-from cognitive_folio.utils.helper import replace_variables
+from cognitive_folio.utils.helper import replace_variables, expand_financials_variable
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
 
 class CFChatMessage(Document):
@@ -325,6 +325,19 @@ class CFChatMessage(Document):
 					prompt = "\n\n".join(final_parts)
 		
 		elif security:
+			# Expand financials placeholder with period parameters (edgar cache first, yfinance fallback)
+			financials_pattern = r'\{\{financials:y(\d+):q(\d+)\}\}'
+
+			def _replace_financials(match):
+				years = int(match.group(1))
+				quarters = int(match.group(2))
+				try:
+					return expand_financials_variable(security, years, quarters)
+				except Exception as e:
+					frappe.log_error(f"Financials expansion failed for {security.name if hasattr(security, 'name') else 'unknown'}: {str(e)}")
+					return "[financial data unavailable]"
+
+			prompt = re.sub(financials_pattern, _replace_financials, prompt)
 			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
 		
 		return prompt

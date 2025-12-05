@@ -95,6 +95,38 @@ frappe.ui.form.on('CF Security', {
                     }
                 });
             }, __('Actions'));
+                
+                frm.add_custom_button(__('Fetch CIK'), function() {
+                    frappe.dom.freeze(__('Fetching CIK...'));
+                    frm.call({
+                        doc: frm.doc,
+                        method: 'fetch_cik',
+                        callback: function(r) {
+                            frappe.dom.unfreeze();
+                            if (r.message && r.message.success) {
+                                frappe.show_alert({
+                                    message: __('CIK set to {0}', [r.message.cik || '']),
+                                    indicator: 'green'
+                                });
+                                frm.reload_doc();
+                            } else {
+                                frappe.msgprint({
+                                    title: __('CIK Lookup'),
+                                    indicator: 'orange',
+                                    message: (r.message && r.message.message) || __('CIK not found')
+                                });
+                            }
+                        },
+                        error: function() {
+                            frappe.dom.unfreeze();
+                            frappe.msgprint({
+                                title: __('CIK Lookup Error'),
+                                indicator: 'red',
+                                message: __('Unable to fetch CIK. Please try again later.')
+                            });
+                        }
+                    });
+                }, __('Actions'));
 
             frm.add_custom_button(__('Fetch Fundamentals'), function() {
                 frappe.dom.freeze(__('Fetching fundamentals and latest data...'));
