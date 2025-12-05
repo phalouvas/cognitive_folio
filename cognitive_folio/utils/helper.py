@@ -179,23 +179,222 @@ def clear_string(content_string: str) -> dict:
     return content_string
 
 
-def get_edgar_data(cik: str, annual_years: int = 10, quarterly_count: int = 16) -> bool:
+def get_edgar_data(
+    cik: str,
+    annual_years: int = 10,
+    quarterly_count: int = 16,
+    format: str = "json",
+    statement_types: list = None
+) -> str:
+    """
+    Fetch and return financial statements from SEC EDGAR filings using statement stitching.
+    
+    This method retrieves multiple filings and stitches them together to create
+    a multi-period view of financial statements, supporting both annual (10-K) 
+    and quarterly (10-Q) data.
+    
+    Args:
+        cik: Company CIK identifier
+        annual_years: Number of annual periods to retrieve (default: 10)
+        quarterly_count: Number of quarterly periods to retrieve (default: 16)
+        format: Output format - 'json', 'csv', or 'markdown' (default: 'json')
+        statement_types: List of statement types to retrieve. 
+                        Options: 'income', 'balance', 'cashflow', 'equity'
+                        Default: all statements
+    
+    Returns:
+        A single text string containing all requested financial statements
+        in the specified format (json, csv, or markdown), with data from
+        multiple periods stitched together.
+    """
     from edgar import set_identity, Company
-    from edgar.xbrl.xbrl import XBRL
+    from edgar.xbrl import XBRLS
+    import json as json_module
+
+    if statement_types is None:
+        statement_types = ['income', 'balance', 'cashflow', 'equity']
+    
+    # Validate format
+    valid_formats = ['json', 'csv', 'markdown']
+    if format not in valid_formats:
+        raise ValueError(f"Format must be one of {valid_formats}, got '{format}'")
 
     set_identity("phalouvas@gmail.com")
 
-    # Get a company's latest 10-K filing
-    company = Company('XOM')
-    filing = company.latest("10-K")
+    company = Company(cik)
+    
+    # Dictionary to store all statement data
+    all_data = {}
 
-    # Parse XBRL data
-    xb = filing.xbrl()
+    # Helper function to convert statement to desired format
+    def convert_statement_to_format(statement, stmt_name, format_type):
+        try:
+            df = statement.to_dataframe()
+            
+            if format_type == 'json':
+                return {
+                    'statement': stmt_name,
+                    'periods': len(df.columns) if hasattr(df, 'columns') else 0,
+                    'data': json_module.loads(df.to_json(orient='records'))
+                }
+            elif format_type == 'csv':
+                return f"# {stmt_name}\n" + df.to_csv(index=True)
+            elif format_type == 'markdown':
+                return f"# {stmt_name}\n" + df.to_markdown(index=True)
+        except Exception as e:
+            return {
+                'statement': stmt_name,
+                'error': str(e)
+            } if format_type == 'json' else f"# {stmt_name}\nError: {str(e)}\n"
 
-    # Access statements through the user-friendly API
-    statements = xb.statements
+    # ===== ANNUAL DATA =====
+    if annual_years > 0:
+        try:
+            # Get multiple 10-K filings for annual statements
+            annual_filings = company.get_filings(form="10-K").head(annual_years)
+            
+            if len(annual_filings) > 0:
+                # Create stitched view across multiple annual filings
+                xbrls_annual = XBRLS.from_filings(annual_filings)
+                statements_annual = xbrls_annual.statements
 
-    # Display financial statements
-    balance_sheet = statements.balance_sheet()
-    income_statement = statements.income_statement()
-    cash_flow = statements.cashflow_statement()
+                # Fetch and convert annual income statement
+                if 'income' in statement_types:
+                    try:
+                        income_annual = statements_annual.income_statement(max_periods=annual_years)
+                        all_data['income_statement_annual'] = convert_statement_to_format(
+                            income_annual, 'Income Statement (Annual)', format
+                        )
+                    except Exception as e:
+                        all_data['income_statement_annual'] = {
+                            'statement': 'Income Statement (Annual)',
+                            'error': str(e)
+                        } if format == 'json' else f"# Income Statement (Annual)\nError: {str(e)}\n"
+
+                # Fetch and convert annual balance sheet
+                if 'balance' in statement_types:
+                    try:
+                        balance_annual = statements_annual.balance_sheet(max_periods=annual_years)
+                        all_data['balance_sheet_annual'] = convert_statement_to_format(
+                            balance_annual, 'Balance Sheet (Annual)', format
+                        )
+                    except Exception as e:
+                        all_data['balance_sheet_annual'] = {
+                            'statement': 'Balance Sheet (Annual)',
+                            'error': str(e)
+                        } if format == 'json' else f"# Balance Sheet (Annual)\nError: {str(e)}\n"
+
+                # Fetch and convert annual cash flow statement
+                if 'cashflow' in statement_types:
+                    try:
+                        cashflow_annual = statements_annual.cashflow_statement(max_periods=annual_years)
+                        all_data['cashflow_statement_annual'] = convert_statement_to_format(
+                            cashflow_annual, 'Cash Flow Statement (Annual)', format
+                        )
+                    except Exception as e:
+                        all_data['cashflow_statement_annual'] = {
+                            'statement': 'Cash Flow Statement (Annual)',
+                            'error': str(e)
+                        } if format == 'json' else f"# Cash Flow Statement (Annual)\nError: {str(e)}\n"
+
+                # Fetch and convert statement of equity (if available)
+                if 'equity' in statement_types:
+                    try:
+                        equity_annual = statements_annual.statement_of_equity(max_periods=annual_years)
+                        all_data['equity_statement_annual'] = convert_statement_to_format(
+                            equity_annual, 'Statement of Equity (Annual)', format
+                        )
+                    except Exception as e:
+                        all_data['equity_statement_annual'] = {
+                            'statement': 'Statement of Equity (Annual)',
+                            'error': f"Statement not available: {str(e)}"
+                        } if format == 'json' else f"# Statement of Equity (Annual)\nNot available: {str(e)}\n"
+        except Exception as e:
+            all_data['annual_error'] = {
+                'error_type': 'Annual data retrieval failed',
+                'message': str(e)
+            } if format == 'json' else f"\n# Annual Data Error\n{str(e)}\n"
+
+    # ===== QUARTERLY DATA =====
+    if quarterly_count > 0:
+        try:
+            # Get multiple 10-Q filings for quarterly statements
+            quarterly_filings = company.get_filings(form="10-Q").head(quarterly_count)
+            
+            if len(quarterly_filings) > 0:
+                # Create stitched view across multiple quarterly filings
+                xbrls_quarterly = XBRLS.from_filings(quarterly_filings)
+                statements_quarterly = xbrls_quarterly.statements
+
+                # Fetch and convert quarterly income statement
+                if 'income' in statement_types:
+                    try:
+                        income_quarterly = statements_quarterly.income_statement(max_periods=quarterly_count)
+                        all_data['income_statement_quarterly'] = convert_statement_to_format(
+                            income_quarterly, 'Income Statement (Quarterly)', format
+                        )
+                    except Exception as e:
+                        all_data['income_statement_quarterly'] = {
+                            'statement': 'Income Statement (Quarterly)',
+                            'error': str(e)
+                        } if format == 'json' else f"# Income Statement (Quarterly)\nError: {str(e)}\n"
+
+                # Fetch and convert quarterly balance sheet
+                if 'balance' in statement_types:
+                    try:
+                        balance_quarterly = statements_quarterly.balance_sheet(max_periods=quarterly_count)
+                        all_data['balance_sheet_quarterly'] = convert_statement_to_format(
+                            balance_quarterly, 'Balance Sheet (Quarterly)', format
+                        )
+                    except Exception as e:
+                        all_data['balance_sheet_quarterly'] = {
+                            'statement': 'Balance Sheet (Quarterly)',
+                            'error': str(e)
+                        } if format == 'json' else f"# Balance Sheet (Quarterly)\nError: {str(e)}\n"
+
+                # Fetch and convert quarterly cash flow statement
+                if 'cashflow' in statement_types:
+                    try:
+                        cashflow_quarterly = statements_quarterly.cashflow_statement(max_periods=quarterly_count)
+                        all_data['cashflow_statement_quarterly'] = convert_statement_to_format(
+                            cashflow_quarterly, 'Cash Flow Statement (Quarterly)', format
+                        )
+                    except Exception as e:
+                        all_data['cashflow_statement_quarterly'] = {
+                            'statement': 'Cash Flow Statement (Quarterly)',
+                            'error': str(e)
+                        } if format == 'json' else f"# Cash Flow Statement (Quarterly)\nError: {str(e)}\n"
+
+                # Fetch and convert quarterly statement of equity (if available)
+                if 'equity' in statement_types:
+                    try:
+                        equity_quarterly = statements_quarterly.statement_of_equity(max_periods=quarterly_count)
+                        all_data['equity_statement_quarterly'] = convert_statement_to_format(
+                            equity_quarterly, 'Statement of Equity (Quarterly)', format
+                        )
+                    except Exception as e:
+                        all_data['equity_statement_quarterly'] = {
+                            'statement': 'Statement of Equity (Quarterly)',
+                            'error': f"Statement not available: {str(e)}"
+                        } if format == 'json' else f"# Statement of Equity (Quarterly)\nNot available: {str(e)}\n"
+        except Exception as e:
+            all_data['quarterly_error'] = {
+                'error_type': 'Quarterly data retrieval failed',
+                'message': str(e)
+            } if format == 'json' else f"\n# Quarterly Data Error\n{str(e)}\n"
+
+    # Combine all data into a single text string
+    if format == 'json':
+        result = json_module.dumps(all_data, indent=2)
+    elif format == 'csv':
+        result = "\n".join([
+            stmt_data if isinstance(stmt_data, str) else f"# {stmt_data.get('statement', 'Unknown')}\n"
+            for stmt_data in all_data.values()
+        ])
+    elif format == 'markdown':
+        result = "\n\n".join([
+            stmt_data if isinstance(stmt_data, str) else f"## {stmt_data.get('statement', 'Unknown')}\n\nError: {stmt_data.get('error', 'Unknown error')}"
+            for stmt_data in all_data.values()
+        ])
+
+    return result
