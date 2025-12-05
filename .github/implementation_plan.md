@@ -88,16 +88,16 @@ grep -r "from_cf_financial_period" --include="*.py"
 
 **Deliverable**: List of all files referencing CF Financial Period to be removed or refactored
 
-#### Step 1.2: Backup Current Prompt Templates
+#### Step 1.2: Backup Current Prompt Templates (Completed)
 **Task**: Save copies of current prompt templates before modification
 **Files to Backup**:
-- cognitive_folio/cognitive_folio/doctype/cf_security/prompt_1.md
-- cognitive_folio/cognitive_folio/doctype/cf_security/prompt_2.md
-- cognitive_folio/cognitive_folio/doctype/cf_security/prompt_3.md
+- cognitive_folio/.github/prompt_1.md
+- cognitive_folio/.github/prompt_2.md
+- cognitive_folio/.github/prompt_3.md
 
 **Command**:
 ```bash
-cd /workspace/development/frappe-bench/apps/cognitive_folio/cognitive_folio/doctype/cf_security
+cd /workspace/development/frappe-bench/apps/cognitive_folio/.github
 cp prompt_1.md prompt_1.md.backup
 cp prompt_2.md prompt_2.md.backup
 cp prompt_3.md prompt_3.md.backup
@@ -105,7 +105,7 @@ cp prompt_3.md prompt_3.md.backup
 
 ### Phase 2: Remove CF Financial Period
 
-#### Step 2.1: Remove CF Financial Period DocType
+#### Step 2.1: Remove CF Financial Period DocType (Completed)
 **Task**: Delete DocType definition and generated files
 
 **Files to Remove**:
