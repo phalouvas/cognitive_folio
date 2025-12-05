@@ -8,7 +8,7 @@ from frappe import _
 from frappe.model.document import Document
 from frappe.utils import flt
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-from cognitive_folio.utils.helper import replace_variables, clear_string
+from cognitive_folio.utils.helper import replace_variables, clear_string, get_edgar_data
 import re
 
 try:
@@ -114,6 +114,8 @@ class CFSecurity(Document):
 			self.news_urls = "\n".join([item['content']['clickThroughUrl']['url'] for item in json.loads(self.news) if item.get('content') and item['content'].get('clickThroughUrl') and item['content']['clickThroughUrl'].get('url')])
 			self.country = ticker_info.get('country', '')
 			if with_fundamentals:
+				if self.cik:
+					get_edgar_data(self.cik)
 				self.profit_loss = ticker.income_stmt.to_json(date_format='iso')
 				self.ttm_profit_loss = ticker.ttm_income_stmt.to_json(date_format='iso')
 				self.quarterly_profit_loss = ticker.quarterly_income_stmt.to_json(date_format='iso')
@@ -123,6 +125,7 @@ class CFSecurity(Document):
 				self.ttm_cash_flow = ticker.ttm_cashflow.to_json(date_format='iso')
 				self.quarterly_cash_flow = ticker.quarterly_cashflow.to_json(date_format='iso')
 				self.dividends = ticker.dividends.to_json(date_format='iso')
+
 			if self.country == "South Korea":
 				self.country = "Korea, Republic of"
 			if not self.region:

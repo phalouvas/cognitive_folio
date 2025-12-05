@@ -1,5 +1,7 @@
 import json
 import re
+import os
+from datetime import datetime
 
 def _handle_wildcard_pattern(data, path_parts):
     """
@@ -175,3 +177,25 @@ def clear_string(content_string: str) -> dict:
     content_string = content_string.replace('\t', '    ')
     
     return content_string
+
+
+def get_edgar_data(cik: str, annual_years: int = 10, quarterly_count: int = 16) -> bool:
+    from edgar import set_identity, Company
+    from edgar.xbrl.xbrl import XBRL
+
+    set_identity("phalouvas@gmail.com")
+
+    # Get a company's latest 10-K filing
+    company = Company('XOM')
+    filing = company.latest("10-K")
+
+    # Parse XBRL data
+    xb = filing.xbrl()
+
+    # Access statements through the user-friendly API
+    statements = xb.statements
+
+    # Display financial statements
+    balance_sheet = statements.balance_sheet()
+    income_statement = statements.income_statement()
+    cash_flow = statements.cashflow_statement()
