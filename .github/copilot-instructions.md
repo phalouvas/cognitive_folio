@@ -345,6 +345,39 @@ bench console
    - Portfolio supports multi-currency via ERPNext exchange rates
    - Financial periods store currency in `CF Security.currency` (inherited from yfinance)
 
+## Sector Coverage & Testing Guidance
+
+### Current Inventory Snapshot
+- 15 CF Securities currently carry a `sec_cik` and therefore exercise the SEC Edgar pipeline (examples: `CL`, `CVX`, `GOOGL`, `JNJ`, `JPM`, `PFE`, `V`, `XOM`).
+- 68 additional stock records have no CIK on file and will continue to rely on Yahoo Finance fundamentals until a CIK is entered (includes US tickers such as `BAC`, `BLK`, `DLR`, `GS`, `KO`, `KHC`, `O`, alongside the broader European/Asia universe such as `SAP.DE`, `ENGI.PA`, `TSM`, `HSBA.L`).
+- 11 non-stock instruments (`security_type` of Cash, Treasury Rate, ETF, etc.) are out of scope for SEC ingestion; treat them as quote-only data sources.
+- Expect European listings (AMS, GER, PAR, LSE, HKG, etc.) to remain non-SEC; document this explicitly in testing notes so agents do not chase missing filings.
+- **CIK maintenance**: When a US stock lacks `sec_cik`, call `CFSecurity._fetch_sec_cik_for_ticker()` (available in `cf_security.py`) to pull the value from the SEC ticker registry, `db_set` it on the document, and `frappe.db.commit()`. Without a populated CIK the SEC pipeline will never run for that ticker.
+
+### Sector-Aware Mapping Plan
+- **Detection**: Use `CF Security` metadata (`sector`, `industry`, `security_type`, `stock_exchange`, `sec_cik`) to decide which mapping profile to apply. Default to the broad profile when the sector is missing.
+   - Heuristics now live in `_determine_sector_profile()` inside `utils/sec_edgar_fetcher.py`. It falls back to the general profile unless keywords such as “bank”, “insurance”, “utility”, “energy/materials”, or “REIT” appear in the sector/industry/name fields for stock securities.
+- **Profiles**: Maintain mapping dictionaries inside `utils/sec_edgar_fetcher.py` for each major sector family:
+   1. General/Industrial/Technology (current behavior – revenue/COGS/operating_income flow-down).
+   2. Banks & Diversified Financials (focus on net interest income, provision for credit losses, deposits, loans, CET1, efficiency ratio; derive revenue from interest + non-interest components when GAAP tags differ).
+   3. Insurance (premiums written/earned, combined ratio inputs, claims, investment income).
+   4. Energy & Materials (production costs, lifting costs, proved reserves where available, capex split).
+   5. Utilities & Infrastructure (regulated vs unregulated revenue, capex, rate-base indicators).
+   6. REITs (FFO/AFFO, NOI, occupancy, same-store metrics, maintenance capex).
+   7. Asset-light/Service sectors (consumer staples/discretionary, healthcare, telco) continue to use the general mapping but add well-known aliases (e.g., `us-gaap:NetSales`, `us-gaap:SalesRevenueNet`).
+- **Fallback Rules**: When a sector-specific tag is not present in a filing, gracefully fall back to the general tag list instead of leaving fields empty. Always respect `data_quality_score` so a lower-quality Yahoo import does not overwrite a higher-quality SEC pull.
+- **Documentation**: Each mapping profile should carry inline comments indicating the GAAP tags covered plus derived formulas (e.g., “Banks: `interest_income_total = interestIncome + interestIncomeAfterProvision`”). Keep the guide updated whenever a new alias is added.
+
+### Representative Regression Tests
+- Run the `FinancialPeriodDataValidator` after every mapping change against at least one security per sector profile:
+   - Technology/General: `AAPL`, `GOOGL`, `MSFT` (SEC) and `SAP.DE`, `TSM` (Yahoo fallback).
+   - Banking: `JPM`, `BAC`, `GS` (SEC once CIKs are populated) plus `HSBA.L` as the non-SEC control.
+   - Insurance: `ALV.DE`, `HNR1.DE` (Yahoo) and `PFG`, `MET` once US insurers are added to the database.
+   - Energy/Materials: `XOM`, `CVX` (SEC) and `RWE.DE`, `TTE.PA` (Yahoo).
+   - REIT/Utilities: `O`, `DLR` (needs CIKs) and `VNA.DE`, `TRN.MI` for international coverage.
+   - Consumer Staples/Healthcare: `JNJ`, `PFE`, `KO`, `SBUX` (some missing CIKs today) plus `NESN.SW`, `HEIA.AS`.
+- Note in commit/test descriptions whether a validation failure is due to true data gaps (e.g., European listings never hitting SEC) versus a missing mapping. This makes it clear to future agents when gaps are intentional.
+
 ## Key Files to Reference
 
 **Financial Data Pipeline**:
