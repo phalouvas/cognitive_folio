@@ -317,6 +317,8 @@ def handle_yfinance_variable(security_name: str, statement_type: str,
         return f"<!-- Error parsing {statement_type}: {str(e)} -->"
 ```
 
+    **Note**: Confirm and document the stored yfinance JSON schema (keys for period types, index vs columns). Normalize before DataFrame creation to ensure consistent markdown and handle missing/extra fields gracefully.
+
 #### Step 3.3: Update replace_variables() Function
 
 **File**: `cognitive_folio/cognitive_folio/utils/helper.py`
@@ -350,6 +352,7 @@ def replace_variables(text: str, security_name: str) -> str:
     import json
     
     # Pattern for edgar variables: {{edgar:income:annual:5:markdown}}
+    # Expand character class if statement/period names include dashes/uppercase.
     edgar_pattern = r'\{\{edgar:(\w+):(\w+):(\d+):(\w+)\}\}'
     
     def edgar_replacer(match):
@@ -359,6 +362,7 @@ def replace_variables(text: str, security_name: str) -> str:
     text = re.sub(edgar_pattern, edgar_replacer, text)
     
     # Pattern for yfinance variables: {{yfinance:profit_loss:annual:markdown}}
+    # Expand character class if needed to support dashes/uppercase.
     yfinance_pattern = r'\{\{yfinance:(\w+):(\w+):(\w+)\}\}'
     
     def yfinance_replacer(match):
@@ -452,7 +456,26 @@ def replace_variables(text: str, security_name: str) -> str:
 
 **File**: `cognitive_folio/cognitive_folio/doctype/cf_security/prompt_3.md`
 
-**Changes**: Similar to prompt_2.md with focus on JSON output format
+**Changes**:
+- Replace `{{periods:...}}` with explicit edgar/yfinance variables matching prompt_2 but frame output as concise JSON-ready summaries
+- Suggested content:
+```markdown
+## Automated JSON Update (Last 4 Quarters)
+
+### Income Statement
+{{edgar:income:quarterly:4:markdown}}
+
+### Balance Sheet
+{{edgar:balance:quarterly:4:markdown}}
+
+### Cash Flow Statement
+{{edgar:cashflow:quarterly:4:markdown}}
+
+<!-- Fallback if edgar unavailable -->
+{{yfinance:profit_loss:quarterly:markdown}}
+{{yfinance:balance_sheet:quarterly:markdown}}
+{{yfinance:cash_flow:quarterly:markdown}}
+```
 
 ### Phase 5: Testing and Validation
 
@@ -460,36 +483,48 @@ def replace_variables(text: str, security_name: str) -> str:
 
 **File**: `cognitive_folio/cognitive_folio/tests/test_variable_handlers.py` (new file)
 
-**Test Cases**:
+**Approach**: Pure unit tests with mocks to avoid network and Frappe runtime. Mock `frappe.get_doc`, `Company.get_filings().latest()`, `XBRLS` statement methods, and yfinance JSON contents.
+
+**Test Cases (sketch)**:
 ```python
 import unittest
-from cognitive_folio.utils.helper import handle_edgar_variable, handle_yfinance_variable
+from unittest.mock import patch, MagicMock
+from cognitive_folio.utils import helper
 
 class TestVariableHandlers(unittest.TestCase):
-    
-    def test_edgar_income_statement(self):
-        """Test edgar income statement variable"""
-        result = handle_edgar_variable("AAPL", "income", "annual", 5, "markdown")
+    @patch("cognitive_folio.utils.helper.XBRLS")
+    @patch("cognitive_folio.utils.helper.Company")
+    @patch("cognitive_folio.utils.helper.frappe")
+    def test_edgar_income_statement(self, frappe_mock, company_mock, xbrls_mock):
+        security = MagicMock(cik="0000320193")
+        frappe_mock.get_doc.return_value = security
+        filings = MagicMock()
+        company_instance = MagicMock()
+        company_instance.get_filings.return_value.latest.return_value = filings
+        company_mock.return_value = company_instance
+        stmt = MagicMock()
+        stmt.to_markdown.return_value = "| Revenue | Net Income |"
+        xbrls = MagicMock(income_statement=MagicMock(return_value=stmt))
+        xbrls_mock.from_filings.return_value = xbrls
+
+        result = helper.handle_edgar_variable("AAPL", "income", "annual", 5, "markdown")
         self.assertIn("Revenue", result)
-        self.assertIn("Net Income", result)
-    
-    def test_edgar_balance_sheet(self):
-        """Test edgar balance sheet variable"""
-        result = handle_edgar_variable("AAPL", "balance", "annual", 3, "markdown")
-        self.assertIn("Assets", result)
-        self.assertIn("Liabilities", result)
-    
-    def test_yfinance_fallback(self):
-        """Test yfinance fallback for non-US companies"""
-        result = handle_yfinance_variable("TEST_SECURITY", "profit_loss", "annual", "markdown")
-        # Should return comment if no data
-        self.assertIn("<!--", result)
-    
+
+    @patch("cognitive_folio.utils.helper.frappe")
+    def test_yfinance_fallback(self, frappe_mock):
+        security = MagicMock()
+        security.profit_loss = '{"annual": {"Revenue": [1,2]}}'
+        frappe_mock.get_doc.return_value = security
+        result = helper.handle_yfinance_variable("TEST", "profit_loss", "annual", "markdown")
+        self.assertIn("Revenue", result)
+
     def test_invalid_statement_type(self):
-        """Test handling of invalid statement type"""
-        result = handle_edgar_variable("AAPL", "invalid", "annual", 5, "markdown")
+        result = helper.handle_edgar_variable("AAPL", "invalid", "annual", 5, "markdown")
         self.assertIn("Invalid statement type", result)
 ```
+
+#### Step 5.2: Integration Tests under Frappe
+Add integration tests (or manual steps) inside Frappe test cases using fixtures to exercise real edgar/yfinance paths separately from unit tests.
 
 #### Step 5.2: Integration Test with Real Security
 
@@ -555,6 +590,8 @@ bench --site kainotomo.localhost migrate
 bench --site kainotomo.localhost clear-cache
 ```
 
+**Caution**: Database deletion/migration is manual and must be confirmed per environment to avoid accidental data loss.
+
 #### Step 6.2: Update Dependencies
 
 **File**: `cognitive_folio/pyproject.toml`
@@ -576,6 +613,7 @@ cd /workspace/development/frappe-bench
 ./env/bin/pip install --upgrade edgartools
 ./env/bin/pip list | grep edgartools  # Verify version >= 4.34.1
 ```
+**Note**: Confirm edgartools API surface for the pinned version (statement method names and `.latest(count)` signature) and adjust handlers if the API differs.
 
 #### Step 6.3: Documentation Updates
 
