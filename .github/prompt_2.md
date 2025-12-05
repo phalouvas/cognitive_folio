@@ -22,7 +22,11 @@
 ---
 
 ## Financial Statements (2 years annual, 4 quarters)
+The following JSON contains structured financial data:
+
+```json
 {{financials:y2:q4}}
+```
 
 ---
 

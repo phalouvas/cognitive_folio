@@ -10,7 +10,11 @@
 ---
 
 ## Financial Statements (10 years annual, 16 quarters)
+The following JSON contains structured financial data:
+
+```json
 {{financials:y10:q16}}
+```
 
 ---
 

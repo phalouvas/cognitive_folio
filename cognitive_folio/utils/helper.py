@@ -255,32 +255,32 @@ def _render_yfinance_markdown(yf_data):
 def expand_financials_variable(security, annual_years: int, quarterly_count: int):
     """
     Resolve {{financials:yX:qY}} using edgar cache first (via get_edgar_data),
-    then fall back to yfinance JSON stored on CF Security. Returns markdown.
+    then fall back to yfinance JSON stored on CF Security. Returns JSON formatted as string.
     """
     # 1) Try edgar cache via existing helper (may rely on cached files)
     cik = getattr(security, "cik", None)
     if cik:
         try:
-            edgar_md = get_edgar_data(
+            edgar_json = get_edgar_data(
                 cik=cik,
                 annual_years=annual_years,
                 quarterly_count=quarterly_count,
-                format="markdown",
+                format="json",
             )
-            if edgar_md:
-                return edgar_md
+            if edgar_json:
+                return edgar_json
         except Exception:
             # Fall through to yfinance
             pass
 
     # 2) Fallback to yfinance cached JSON
     yf_data = get_cached_yfinance_data(security)
-    yf_md = _render_yfinance_markdown(yf_data)
-    if yf_md:
-        return yf_md
+    if any(yf_data.values()):
+        import json
+        return json.dumps(yf_data, indent=2)
 
     # 3) Placeholder if nothing available
-    return "[financial data unavailable]"
+    return '{"error": "financial data unavailable"}'
 
 
 def get_edgar_data(
