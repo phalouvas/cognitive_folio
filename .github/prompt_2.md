@@ -21,11 +21,11 @@
 
 ---
 
-## Financial Statements (2 years annual, 4 quarters)
-The following JSON contains structured financial data:
+## Financial Statements (Latest Quarter)
+The following JSON contains structured financial data for the most recent quarter:
 
 ```json
-{{financials:y2:q4}}
+{{financials:y0:q1}}
 ```
 
 ---

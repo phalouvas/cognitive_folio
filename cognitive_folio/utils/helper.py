@@ -220,15 +220,39 @@ def _json_to_markdown_table(data):
         return ""
 
 
-def get_cached_yfinance_data(security):
-    """Return yfinance-stored statements from CF Security as structured objects."""
+def get_cached_yfinance_data(security, annual_years=None, quarterly_count=None):
+    """Return yfinance-stored statements from CF Security as structured objects.
+    
+    Args:
+        security: CF Security document
+        annual_years: Number of annual periods to return (None = all)
+        quarterly_count: Number of quarterly periods to return (None = all)
+    """
+    def _slice_periods(data, count):
+        """Slice JSON data to requested number of periods."""
+        if data is None or count is None:
+            return data
+        if isinstance(data, dict):
+            # Assumes dict keys are period labels (dates); take first N items
+            return dict(list(data.items())[:count])
+        elif isinstance(data, list):
+            return data[:count]
+        return data
+    
+    annual_income = _parse_json_field(getattr(security, "profit_loss", None))
+    quarterly_income = _parse_json_field(getattr(security, "quarterly_profit_loss", None))
+    annual_balance = _parse_json_field(getattr(security, "balance_sheet", None))
+    quarterly_balance = _parse_json_field(getattr(security, "quarterly_balance_sheet", None))
+    annual_cashflow = _parse_json_field(getattr(security, "cash_flow", None))
+    quarterly_cashflow = _parse_json_field(getattr(security, "quarterly_cash_flow", None))
+    
     return {
-        "income_statement_annual": _parse_json_field(getattr(security, "profit_loss", None)),
-        "income_statement_quarterly": _parse_json_field(getattr(security, "quarterly_profit_loss", None)),
-        "balance_sheet_annual": _parse_json_field(getattr(security, "balance_sheet", None)),
-        "balance_sheet_quarterly": _parse_json_field(getattr(security, "quarterly_balance_sheet", None)),
-        "cashflow_statement_annual": _parse_json_field(getattr(security, "cash_flow", None)),
-        "cashflow_statement_quarterly": _parse_json_field(getattr(security, "quarterly_cash_flow", None)),
+        "income_statement_annual": _slice_periods(annual_income, annual_years),
+        "income_statement_quarterly": _slice_periods(quarterly_income, quarterly_count),
+        "balance_sheet_annual": _slice_periods(annual_balance, annual_years),
+        "balance_sheet_quarterly": _slice_periods(quarterly_balance, quarterly_count),
+        "cashflow_statement_annual": _slice_periods(annual_cashflow, annual_years),
+        "cashflow_statement_quarterly": _slice_periods(quarterly_cashflow, quarterly_count),
     }
 
 
@@ -274,7 +298,7 @@ def expand_financials_variable(security, annual_years: int, quarterly_count: int
             pass
 
     # 2) Fallback to yfinance cached JSON
-    yf_data = get_cached_yfinance_data(security)
+    yf_data = get_cached_yfinance_data(security, annual_years, quarterly_count)
     if any(yf_data.values()):
         import json
         return json.dumps(yf_data, indent=2)
