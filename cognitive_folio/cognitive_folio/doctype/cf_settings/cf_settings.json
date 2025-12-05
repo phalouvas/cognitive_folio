@@ -10,8 +10,7 @@
   "system_content",
   "section_break_models",
   "default_ai_model",
-  "ai_models",
-  "auto_import_financial_periods"
+  "ai_models"
  ],
  "fields": [
   {
@@ -47,13 +46,6 @@
     "fieldname": "system_content",
     "fieldtype": "Markdown Editor",
     "label": "System Content"
-   },
-   {
-    "fieldname": "auto_import_financial_periods",
-    "fieldtype": "Check",
-    "label": "Auto Import Financial Periods",
-    "default": "1",
-    "description": "Automatically import structured CF Financial Period records after fundamentals fetch"
    }
  ],
  "grid_page_length": 50,
