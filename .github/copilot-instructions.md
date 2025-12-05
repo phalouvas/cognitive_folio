@@ -1,0 +1,34 @@
+# Copilot Instructions for `cognitive_folio`
+
+- **What this app is**: Frappe/ERPNext app for AI-assisted portfolio management. Core DocTypes live under `cognitive_folio/cognitive_folio/doctype` and use background jobs plus OpenAI-compatible endpoints defined in `CF Settings`.
+- **Key DocTypes & roles**:
+  - `CF Security` (`cf_security.py`): fetches prices/news via `yfinance`, generates AI suggestions, calculates intrinsic/fair values, and flags alerts. Cash securities force `current_price=1.0` and bypass AI.
+  - `CF Portfolio` (`cf_portfolio.py`): aggregates holdings, runs AI portfolio analysis, and triggers holdings price fetch/news evaluation jobs.
+  - `CF Portfolio Holding` (`cf_portfolio_holding.py`): per-holding currency conversion (GBP rates divided by 100), allocation %, dividend income since portfolio start, and cascaded AI suggestions.
+  - `CF Chat` / `CF Chat Message`: stores AI conversations; messages stream responses and emit `cf_streaming_update`/`cf_job_completed` realtime events.
+  - `CF Settings`: stores OpenAI/OpenWebUI endpoint+key, default model, system prompt, and URL-fetch limits; `check_openwebui_connection` pulls available models into child table.
+- **AI generation patterns**:
+  - Security analysis uses `process_security_ai_suggestion` (background queue `long`), expects JSON with `Evaluation.*` fields, converts to markdown, updates alert thresholds, and creates a `CF Chat` + message for traceability.
+  - Portfolio analysis uses `process_portfolio_ai_analysis` with the portfolio prompt; saves HTML suggestion, logs a chat, and notifies via realtime.
+  - Chat messages stream via OpenAI API (`model` stored on message); token budget ~60k with tiktoken; previous messages are replayed newest-first until budget is hit.
+- **Prompt templating**:
+  - Portfolio prompts: `((field))` pulls from `CF Portfolio`; `***HOLDINGS*** ... ***HOLDINGS***` sections expand once per holding with `{{field}}` from `CF Security` and `[[field]]` from the holding.
+  - Security prompts: `{{field}}` supports nested JSON paths and wildcard `ARRAY` handling (see `utils.helper.replace_variables`).
+- **Data ingestion helpers**:
+  - URL embedding for chat prompts via `utils.url_fetcher.fetch_and_embed_url_content`; limits controlled by `CF Settings` (`max_url_fetch`, `url_fetch_timeout`, byte and character caps). HTML → markdown via `markdownify` fallback; PDF size capped at 50MB.
+  - PDF attachment references in chat prompts as `<<file.pdf>>` (or HTML-escaped) get inlined with tables via `pdfplumber`.
+  - Optional web search path in chat messages (`web_search` flag) builds a search query then prepends results to the prompt.
+- **Scheduling & jobs** (hooks in `hooks.py`):
+  - `0 3 * * *` `auto_fetch_portfolio_prices` fetches holdings prices (stocks only) and then queues news evaluation.
+  - `0 5 * * *` `auto_portfolio_notifications` emails owners about alert/evaluation holdings.
+  - Both tasks commit inside the job; errors logged via `frappe.log_error` but processing continues.
+- **Financial calculations to mind**:
+  - Holdings conversion uses `get_exchange_rate`; GBP rates divided by 100. `base_average_purchase_price` drives P/L.
+  - Dividend totals sum dividend history JSON from security, filtered by portfolio start date, then converted to portfolio currency.
+  - Alerts are set when AI buy/sell targets cross current price; research details always stored in `alert_details` even when no alert.
+- **Frontend bits**: List view scripts in `public/js` (`cf_security_list.js`, `cf_portfolio_holding_list.js`) wire multi-actions like batch fetch/generate AI suggestions.
+- **Dev workflow**:
+  - Bench app; typical site here is `kainotomo.localhost`. Common commands: `bench --site kainotomo.localhost migrate`, `bench --site kainotomo.localhost execute cognitive_folio.tasks.auto_fetch_portfolio_prices`, `bench start` for the dev server.
+  - Tests: `bench --site kainotomo.localhost run-tests --app cognitive_folio` (no bespoke harness). Background jobs rely on Redis workers/queue `long`.
+  - Dependencies installed via `install.after_install` using `bench pip install` (yfinance, openai). Pre-commit uses ruff/eslint/prettier/pyupgrade; ruff config in `pyproject.toml` (line length 110, tab indent).
+- **When changing AI flows**: preserve realtime notifications, chat/message creation for auditability, and prompt expansion rules. Respect long queue and keep token budgeting logic intact when adding context sources.
