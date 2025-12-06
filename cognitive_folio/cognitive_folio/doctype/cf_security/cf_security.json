@@ -11,7 +11,7 @@
   "isin",
   "security_name",
   "symbol",
-    "cik",
+  "cik",
   "security_type",
   "column_break_5",
   "stock_exchange",
@@ -36,8 +36,9 @@
   "suggestion_section",
   "suggestion_action",
   "column_break_rfgw",
-  "suggestion_sell_price",
+  "suggestion_fair_value",
   "suggestion_buy_price",
+  "suggestion_sell_price",
   "evaluation_stop_loss",
   "column_break_jlfk",
   "intrinsic_value",
@@ -114,11 +115,11 @@
    "unique": 1
   },
   {
-    "fieldname": "cik",
-    "fieldtype": "Data",
-    "in_filter": 1,
-    "label": "CIK",
-    "read_only_depends_on": "eval:doc.security_type !== 'Stock'"
+   "fieldname": "cik",
+   "fieldtype": "Data",
+   "in_filter": 1,
+   "label": "CIK",
+   "read_only_depends_on": "eval:doc.security_type !== 'Stock'"
   },
   {
    "description": "International Securities Identification Number",
@@ -273,6 +274,12 @@
    "options": "currency"
   },
   {
+   "fieldname": "suggestion_fair_value",
+   "fieldtype": "Currency",
+   "label": "Fair Value",
+   "options": "currency"
+  },
+  {
    "fieldname": "suggestion_rating",
    "fieldtype": "Rating",
    "in_list_view": 1,
@@ -413,7 +420,7 @@
    "description": "The market-implied value of a stock, considering both fundamentals and market conditions.",
    "fieldname": "fair_value",
    "fieldtype": "Currency",
-   "label": "Fair Value",
+   "label": "Calculated Fair Value",
    "options": "currency",
    "read_only": 1
   },
@@ -614,7 +621,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-06-17 10:06:39.841265",
+ "modified": "2025-12-06 07:31:18.721537",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
