@@ -41,6 +41,7 @@
   "column_break_ppwu",
   "suggestion_rating",
   "suggestion_sell_price",
+    "suggestion_fair_value",
   "fair_value",
   "allocation_section",
   "region",
@@ -299,6 +300,14 @@
    "options": "currency",
    "read_only": 1
   },
+    {
+     "fetch_from": "security.suggestion_fair_value",
+     "fieldname": "suggestion_fair_value",
+     "fieldtype": "Currency",
+     "label": "AI Fair Value",
+     "options": "currency",
+     "read_only": 1
+    },
   {
    "fetch_from": "security.suggestion_rating",
    "fieldname": "suggestion_rating",
