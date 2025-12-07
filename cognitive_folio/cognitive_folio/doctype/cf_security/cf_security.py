@@ -1796,7 +1796,6 @@ def process_security_ai_suggestion(security_name, user):
 		evaluation = suggestion.get("Evaluation", {})
 		security.ai_response = content_string
 		security.suggestion_action = evaluation.get("Recommendation", "")
-		price_target_calc = evaluation.get("Price_Target_Calculation", {}) if isinstance(evaluation, dict) else {}
 		
 		# Handle new nested rating structure
 		rating_data = evaluation.get("Rating", 0)
@@ -1837,7 +1836,7 @@ def process_security_ai_suggestion(security_name, user):
 		
 		security.suggestion_buy_price = evaluation.get("Price Target Buy Below", 0)
 		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
-		security.suggestion_fair_value = price_target_calc.get("Fair_Value", 0)
+		security.suggestion_fair_value = evaluation.get("Fair Value", 0)
 		security.evaluation_stop_loss = evaluation.get("Price Stop Loss", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
