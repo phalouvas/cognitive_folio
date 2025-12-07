@@ -30,7 +30,7 @@ class CFChatMessage(Document):
 		frappe.enqueue(
 			method=self.process_in_background,
 			queue="long",
-			timeout=300,
+			timeout=1800,
 			now=False,
 			job_id=f"chat_message_{self.name}"
 		)
@@ -118,6 +118,10 @@ class CFChatMessage(Document):
 		security = None
 		if chat.security:
 			security = frappe.get_doc("CF Security", chat.security)
+			security.news_reasoning = None
+			security.need_evaluation = False
+			security.ai_modified = frappe.utils.now_datetime().strftime('%Y-%m-%d %H:%M:%S')
+			security.save()
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 	
