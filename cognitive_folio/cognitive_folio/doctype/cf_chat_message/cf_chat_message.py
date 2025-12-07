@@ -30,7 +30,7 @@ class CFChatMessage(Document):
 		frappe.enqueue(
 			method=self.process_in_background,
 			queue="long",
-			timeout=300,
+			timeout=1800,
 			now=False,
 			job_id=f"chat_message_{self.name}"
 		)
