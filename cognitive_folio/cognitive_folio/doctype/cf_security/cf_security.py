@@ -1843,7 +1843,7 @@ def process_security_ai_suggestion(security_name, user):
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		security.news_reasoning = None
 		security.need_evaluation = False
-		security.ai_modified = frappe.utils.now()
+		security.ai_modified = frappe.utils.now_datetime().strftime('%Y-%m-%d %H:%M:%S')
 		
 		# Use flags to ignore timestamp validation and force save
 		security.flags.ignore_version = True
