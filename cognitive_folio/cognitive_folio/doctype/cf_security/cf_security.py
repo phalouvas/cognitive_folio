@@ -229,6 +229,277 @@ class CFSecurity(Document):
 		except Exception as e:
 			frappe.log_error(f"Error queueing security AI suggestion: {str(e)}", "Security AI Suggestion Error")
 			return {'success': False, 'error': str(e)}
+	
+	@frappe.whitelist()
+	def get_financial_data_coverage(self):
+		"""Get available financial data coverage from Yahoo Finance and SEC EDGAR"""
+		try:
+			from datetime import datetime
+			
+			coverage_data = {}
+			
+			# Helper function to parse date and format it
+			def format_period(date_str):
+				"""Convert ISO date string to readable format (Q3 2024 or FY 2023)"""
+				try:
+					dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+					year = dt.year
+					month = dt.month
+					
+					# Determine quarter based on month
+					if month in [1, 2, 3]:
+						return f"Q1 {year}"
+					elif month in [4, 5, 6]:
+						return f"Q2 {year}"
+					elif month in [7, 8, 9]:
+						return f"Q3 {year}"
+					elif month in [10, 11, 12]:
+						return f"Q4 {year}"
+				except:
+					return date_str
+			
+			def format_annual_period(date_str):
+				"""Convert ISO date string to fiscal year format (FY 2023)"""
+				try:
+					dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+					return f"FY {dt.year}"
+				except:
+					return date_str
+			
+			def extract_periods_from_json(json_field, is_annual=False):
+				"""Extract period dates from a JSON field"""
+				if not json_field:
+					return []
+				
+				try:
+					import json as json_module
+					data = json_module.loads(json_field)
+					
+					if isinstance(data, dict):
+						# Get all keys (dates/periods)
+						periods = list(data.keys())
+						# Format periods
+						if is_annual:
+							return [format_annual_period(p) for p in periods]
+						else:
+							return [format_period(p) for p in periods]
+				except:
+					pass
+				
+				return []
+			
+			# Parse Yahoo Finance data
+			# Income Statement
+			income_statement = {
+				'Annual': {},
+				'Quarterly': {},
+				'TTM': {}
+			}
+			
+			if self.profit_loss:
+				periods = extract_periods_from_json(self.profit_loss, is_annual=True)
+				if periods:
+					income_statement['Annual']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			if self.quarterly_profit_loss:
+				periods = extract_periods_from_json(self.quarterly_profit_loss)
+				if periods:
+					income_statement['Quarterly']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			if self.ttm_profit_loss:
+				periods = extract_periods_from_json(self.ttm_profit_loss)
+				if periods:
+					income_statement['TTM']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			coverage_data['Income Statement'] = income_statement
+			
+			# Balance Sheet
+			balance_sheet = {
+				'Annual': {},
+				'Quarterly': {}
+			}
+			
+			if self.balance_sheet:
+				periods = extract_periods_from_json(self.balance_sheet, is_annual=True)
+				if periods:
+					balance_sheet['Annual']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			if self.quarterly_balance_sheet:
+				periods = extract_periods_from_json(self.quarterly_balance_sheet)
+				if periods:
+					balance_sheet['Quarterly']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			coverage_data['Balance Sheet'] = balance_sheet
+			
+			# Cash Flow
+			cash_flow = {
+				'Annual': {},
+				'Quarterly': {},
+				'TTM': {}
+			}
+			
+			if self.cash_flow:
+				periods = extract_periods_from_json(self.cash_flow, is_annual=True)
+				if periods:
+					cash_flow['Annual']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			if self.quarterly_cash_flow:
+				periods = extract_periods_from_json(self.quarterly_cash_flow)
+				if periods:
+					cash_flow['Quarterly']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			if self.ttm_cash_flow:
+				periods = extract_periods_from_json(self.ttm_cash_flow)
+				if periods:
+					cash_flow['TTM']['YFinance'] = {
+						'count': len(periods),
+						'periods': sorted(periods, reverse=True)
+					}
+			
+			coverage_data['Cash Flow'] = cash_flow
+			
+			# Fetch and parse SEC EDGAR data if CIK is available
+			if self.cik:
+				try:
+					import json as json_module
+					
+					# Call get_edgar_data to fetch SEC EDGAR financial statements
+					edgar_json = get_edgar_data(
+						cik=self.cik,
+						annual_years=10,
+						quarterly_count=16,
+						format='json'
+					)
+					
+					if edgar_json:
+						edgar_data = json_module.loads(edgar_json)
+						
+						# Helper function to extract periods from EDGAR data
+						def extract_edgar_periods(statement_data, is_annual=False):
+							"""Extract periods from EDGAR statement data"""
+							if not statement_data or 'error' in statement_data:
+								return []
+							
+							periods_list = statement_data.get('data', [])
+							if not periods_list:
+								return []
+							
+							# Extract column names (periods) from the first data row
+							# EDGAR data structure has periods as column headers
+							period_dates = []
+							
+							# Try to get periods from the data structure
+							if isinstance(periods_list, list) and len(periods_list) > 0:
+								first_row = periods_list[0]
+								if isinstance(first_row, dict):
+									# Define metadata columns to exclude
+									metadata_columns = ['index', 'metric', 'Metric', '', 'label', 'concept']
+									
+									# Get all keys except metadata columns
+									for key in first_row.keys():
+										# Skip metadata columns
+										if key and key not in metadata_columns:
+											period_dates.append(key)
+							
+							# Format the periods
+							formatted_periods = []
+							for period in period_dates:
+								if is_annual:
+									formatted_periods.append(format_annual_period(period))
+								else:
+									formatted_periods.append(format_period(period))
+							
+							return formatted_periods
+						
+						# Parse EDGAR Income Statement
+						if 'income_statement_annual' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['income_statement_annual'], is_annual=True)
+							if periods:
+								income_statement['Annual']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						if 'income_statement_quarterly' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['income_statement_quarterly'])
+							if periods:
+								income_statement['Quarterly']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						# Parse EDGAR Balance Sheet
+						if 'balance_sheet_annual' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['balance_sheet_annual'], is_annual=True)
+							if periods:
+								balance_sheet['Annual']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						if 'balance_sheet_quarterly' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['balance_sheet_quarterly'])
+							if periods:
+								balance_sheet['Quarterly']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						# Parse EDGAR Cash Flow Statement
+						if 'cashflow_statement_annual' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['cashflow_statement_annual'], is_annual=True)
+							if periods:
+								cash_flow['Annual']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						if 'cashflow_statement_quarterly' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['cashflow_statement_quarterly'])
+							if periods:
+								cash_flow['Quarterly']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						# Update coverage data with EDGAR results
+						coverage_data['Income Statement'] = income_statement
+						coverage_data['Balance Sheet'] = balance_sheet
+						coverage_data['Cash Flow'] = cash_flow
+						
+				except Exception as edgar_error:
+					# Log EDGAR errors but don't fail the entire request
+					frappe.log_error(f"Error fetching EDGAR data for CIK {self.cik}: {str(edgar_error)}", "EDGAR Data Fetch Error")
+			
+			return {
+				'success': True,
+				'data': coverage_data
+			}
+			
+		except Exception as e:
+			frappe.log_error(f"Error getting financial data coverage: {str(e)}", "Get Financial Data Coverage Error")
+			return {'success': False, 'error': str(e)}
 			
 	def convert_json_to_markdown(self, data):
 		"""Convert JSON data to markdown format for better display"""
