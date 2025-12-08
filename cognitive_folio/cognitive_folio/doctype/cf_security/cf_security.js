@@ -196,6 +196,39 @@ frappe.ui.form.on('CF Security', {
                 });
             }, __('Actions'));
             
+            // Add button for viewing financial data coverage
+            frm.add_custom_button(__('View Data Coverage'), function() {
+                frappe.dom.freeze(__('Analyzing available financial data...'));
+                
+                frm.call({
+                    doc: frm.doc,
+                    method: 'get_financial_data_coverage',
+                    callback: function(r) {
+                        frappe.dom.unfreeze();
+                        
+                        if (r.message && r.message.success) {
+                            // Display the formatted data coverage in a dialog
+                            formatDataCoverageDialog(r.message.data, frm.doc.security_name);
+                        } else {
+                            frappe.msgprint({
+                                title: __('Data Coverage'),
+                                indicator: 'red',
+                                message: r.message && r.message.error ? 
+                                    r.message.error : __('Failed to retrieve data coverage information')
+                            });
+                        }
+                    },
+                    error: function() {
+                        frappe.dom.unfreeze();
+                        frappe.msgprint({
+                            title: __('Error'),
+                            indicator: 'red',
+                            message: __('An error occurred while retrieving data coverage')
+                        });
+                    }
+                });
+            }, __('Actions'));
+            
             // Add copy buttons for multiple fields
             const fieldsWithCopyButtons = [
                 'balance_sheet', 'quarterly_balance_sheet',
@@ -1127,5 +1160,162 @@ function getCurrencySymbol(currency) {
     };
     
     return currencySymbols[currency] || currency + ' ';
+}
+
+/**
+ * Format and display data coverage in a dialog
+ * @param {Object} data - Data coverage information
+ * @param {string} securityName - Name of the security
+ */
+function formatDataCoverageDialog(data, securityName) {
+    if (!data) {
+        frappe.msgprint(__('No data coverage information available'));
+        return;
+    }
+    
+    let html = `
+        <style>
+            .data-coverage-container {
+                font-family: var(--font-stack);
+                font-size: 14px;
+            }
+            .coverage-table {
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 20px;
+            }
+            .coverage-table th {
+                background-color: #f8f8f8;
+                padding: 10px;
+                text-align: left;
+                border: 1px solid #e0e0e0;
+                font-weight: 600;
+            }
+            .coverage-table td {
+                padding: 10px;
+                border: 1px solid #e0e0e0;
+                vertical-align: top;
+            }
+            .coverage-table tr:nth-child(even) {
+                background-color: #f9f9f9;
+            }
+            .coverage-table tr:hover {
+                background-color: #f0f7ff;
+            }
+            .period-list {
+                margin: 0;
+                padding-left: 20px;
+            }
+            .period-list li {
+                margin: 3px 0;
+            }
+            .source-badge {
+                display: inline-block;
+                padding: 2px 8px;
+                border-radius: 3px;
+                font-size: 11px;
+                font-weight: 600;
+                margin-right: 5px;
+            }
+            .source-yfinance {
+                background-color: #e3f2fd;
+                color: #1976d2;
+            }
+            .source-edgar {
+                background-color: #f3e5f5;
+                color: #7b1fa2;
+            }
+            .count-badge {
+                display: inline-block;
+                background-color: #4caf50;
+                color: white;
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 12px;
+                font-weight: 600;
+            }
+            .no-data {
+                color: #999;
+                font-style: italic;
+            }
+            .statement-header {
+                font-size: 16px;
+                font-weight: 600;
+                margin: 20px 0 10px 0;
+                color: #333;
+                border-bottom: 2px solid #2196f3;
+                padding-bottom: 5px;
+            }
+        </style>
+        <div class="data-coverage-container">
+    `;
+    
+    // Helper function to format periods list
+    const formatPeriodsList = (periods) => {
+        if (!periods || periods.length === 0) {
+            return '<span class="no-data">No data available</span>';
+        }
+        let list = '<ul class="period-list">';
+        periods.forEach(period => {
+            list += `<li>${period}</li>`;
+        });
+        list += '</ul>';
+        return list;
+    };
+    
+    // Process each statement type
+    const statementTypes = ['Income Statement', 'Balance Sheet', 'Cash Flow'];
+    
+    statementTypes.forEach(statementType => {
+        const stmtData = data[statementType];
+        if (!stmtData) return;
+        
+        html += `<div class="statement-header">${statementType}</div>`;
+        html += '<table class="coverage-table">';
+        html += `
+            <thead>
+                <tr>
+                    <th>Period Type</th>
+                    <th>Data Source</th>
+                    <th>Count</th>
+                    <th>Available Periods</th>
+                </tr>
+            </thead>
+            <tbody>
+        `;
+        
+        // Display data for each period type and source
+        ['Annual', 'Quarterly', 'TTM'].forEach(periodType => {
+            if (stmtData[periodType]) {
+                Object.keys(stmtData[periodType]).forEach(source => {
+                    const sourceData = stmtData[periodType][source];
+                    const sourceBadgeClass = source === 'YFinance' ? 'source-yfinance' : 'source-edgar';
+                    
+                    html += `
+                        <tr>
+                            <td><strong>${periodType}</strong></td>
+                            <td><span class="source-badge ${sourceBadgeClass}">${source}</span></td>
+                            <td><span class="count-badge">${sourceData.count}</span></td>
+                            <td>${formatPeriodsList(sourceData.periods)}</td>
+                        </tr>
+                    `;
+                });
+            }
+        });
+        
+        html += `
+            </tbody>
+        </table>
+        `;
+    });
+    
+    html += '</div>';
+    
+    // Display in a dialog
+    frappe.msgprint({
+        title: __('Financial Data Coverage - {0}', [securityName]),
+        message: html,
+        wide: true
+    });
 }
 
