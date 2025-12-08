@@ -379,6 +379,116 @@ class CFSecurity(Document):
 			
 			coverage_data['Cash Flow'] = cash_flow
 			
+			# Fetch and parse SEC EDGAR data if CIK is available
+			if self.cik:
+				try:
+					import json as json_module
+					
+					# Call get_edgar_data to fetch SEC EDGAR financial statements
+					edgar_json = get_edgar_data(
+						cik=self.cik,
+						annual_years=10,
+						quarterly_count=16,
+						format='json'
+					)
+					
+					if edgar_json:
+						edgar_data = json_module.loads(edgar_json)
+						
+						# Helper function to extract periods from EDGAR data
+						def extract_edgar_periods(statement_data, is_annual=False):
+							"""Extract periods from EDGAR statement data"""
+							if not statement_data or 'error' in statement_data:
+								return []
+							
+							periods_list = statement_data.get('data', [])
+							if not periods_list:
+								return []
+							
+							# Extract column names (periods) from the first data row
+							# EDGAR data structure has periods as column headers
+							period_dates = []
+							
+							# Try to get periods from the data structure
+							if isinstance(periods_list, list) and len(periods_list) > 0:
+								first_row = periods_list[0]
+								if isinstance(first_row, dict):
+									# Get all keys except the metric name key
+									for key in first_row.keys():
+										# Skip non-date keys
+										if key and key not in ['index', 'metric', 'Metric', '']:
+											period_dates.append(key)
+							
+							# Format the periods
+							formatted_periods = []
+							for period in period_dates:
+								if is_annual:
+									formatted_periods.append(format_annual_period(period))
+								else:
+									formatted_periods.append(format_period(period))
+							
+							return formatted_periods
+						
+						# Parse EDGAR Income Statement
+						if 'income_statement_annual' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['income_statement_annual'], is_annual=True)
+							if periods:
+								income_statement['Annual']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						if 'income_statement_quarterly' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['income_statement_quarterly'])
+							if periods:
+								income_statement['Quarterly']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						# Parse EDGAR Balance Sheet
+						if 'balance_sheet_annual' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['balance_sheet_annual'], is_annual=True)
+							if periods:
+								balance_sheet['Annual']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						if 'balance_sheet_quarterly' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['balance_sheet_quarterly'])
+							if periods:
+								balance_sheet['Quarterly']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						# Parse EDGAR Cash Flow Statement
+						if 'cashflow_statement_annual' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['cashflow_statement_annual'], is_annual=True)
+							if periods:
+								cash_flow['Annual']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						if 'cashflow_statement_quarterly' in edgar_data:
+							periods = extract_edgar_periods(edgar_data['cashflow_statement_quarterly'])
+							if periods:
+								cash_flow['Quarterly']['EDGAR'] = {
+									'count': len(periods),
+									'periods': sorted(periods, reverse=True)
+								}
+						
+						# Update coverage data with EDGAR results
+						coverage_data['Income Statement'] = income_statement
+						coverage_data['Balance Sheet'] = balance_sheet
+						coverage_data['Cash Flow'] = cash_flow
+						
+				except Exception as edgar_error:
+					# Log EDGAR errors but don't fail the entire request
+					frappe.log_error(f"Error fetching EDGAR data for CIK {self.cik}: {str(edgar_error)}", "EDGAR Data Fetch Error")
+			
 			return {
 				'success': True,
 				'data': coverage_data
