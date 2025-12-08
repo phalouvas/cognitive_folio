@@ -413,10 +413,13 @@ class CFSecurity(Document):
 							if isinstance(periods_list, list) and len(periods_list) > 0:
 								first_row = periods_list[0]
 								if isinstance(first_row, dict):
-									# Get all keys except the metric name key
+									# Define metadata columns to exclude
+									metadata_columns = ['index', 'metric', 'Metric', '', 'label', 'concept']
+									
+									# Get all keys except metadata columns
 									for key in first_row.keys():
-										# Skip non-date keys
-										if key and key not in ['index', 'metric', 'Metric', '']:
+										# Skip metadata columns
+										if key and key not in metadata_columns:
 											period_dates.append(key)
 							
 							# Format the periods
