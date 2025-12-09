@@ -1,6 +1,7 @@
 import frappe
 import re
 import html
+from frappe.utils import md_to_html, sanitize_html
 
 
 def safe_markdown_to_html(text):
@@ -19,15 +20,14 @@ def safe_markdown_to_html(text):
     try:
         # Sanitize text before markdown conversion
         sanitized_text = sanitize_markdown_content(text)
-        
-        # Convert using Frappe's markdown utility
-        html_content = frappe.utils.markdown(sanitized_text)
-        
-        # Check if conversion was successful (not empty and different from input)
-        if html_content and html_content.strip() and html_content != sanitized_text:
-            return html_content
+
+        # Convert using markdown renderer directly to avoid is_html short-circuit
+        html_content = md_to_html(sanitized_text)
+
+        # If conversion yielded output, sanitize it; else fallback
+        if html_content and html_content.strip():
+            return sanitize_html(html_content)
         else:
-            # Fallback to simple HTML conversion
             return fallback_text_to_html(text)
             
     except Exception as e:
@@ -134,11 +134,11 @@ def markdown_to_html_with_validation(text, validate_tables=True):
     
     try:
         sanitized_text = sanitize_markdown_content(text)
-        html_content = frappe.utils.markdown(sanitized_text)
-        
-        if html_content and html_content.strip() and html_content != sanitized_text:
+        html_content = md_to_html(sanitized_text)
+
+        if html_content and html_content.strip():
             return {
-                'html': html_content,
+                'html': sanitize_html(html_content),
                 'success': True,
                 'method': 'markdown',
                 'warnings': warnings
