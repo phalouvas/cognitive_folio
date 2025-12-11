@@ -1,0 +1,523 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Prompt Variable Reference - Cognitive Folio</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background: #f8f9fa;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #16a085;
+            margin-top: 25px;
+            margin-bottom: 15px;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        pre code {
+            background: none;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        table th {
+            background: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+        }
+        table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #ecf0f1;
+        }
+        table tr:hover {
+            background: #f8f9fa;
+        }
+        .tip-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background: #fff9e6;
+            border-left: 4px solid #f39c12;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .example-box {
+            background: #f0f9ff;
+            border: 1px solid #3498db;
+            padding: 15px;
+            margin: 15px 0;
+            border-radius: 4px;
+        }
+        ul {
+            padding-left: 25px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ecf0f1;
+            margin: 30px 0;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>AI Prompt Variable Reference</h1>
+        <p>Unified variable syntax for Cognitive Folio AI prompts across Security, Portfolio, Holding, and Chat contexts.</p>
+
+        <hr>
+
+        <h2>1. Security Fields</h2>
+        <p>Use double curly braces to inject fields from a <code>CF Security</code> document.</p>
+        
+        <div class="example-box">
+            <strong>Example:</strong><br>
+            <code>{{security_name}}</code>, <code>{{symbol}}</code>, <code>{{current_price}}</code>, <code>{{sector}}</code>
+        </div>
+
+        <div class="tip-box">
+            <strong>Rules:</strong>
+            <ul>
+                <li>Dot path for JSON fields: <code>{{ticker_info.marketCap}}</code></li>
+                <li>Wildcard over arrays/dicts: <code>{{news.ARRAY.content.title}}</code> collects all titles</li>
+                <li>Index access: <code>{{news.0.content.title}}</code></li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>2. Holding Fields</h2>
+        <p>Use double square brackets for <code>CF Portfolio Holding</code> fields when holding context exists.</p>
+        
+        <div class="example-box">
+            <strong>Example:</strong><br>
+            <code>[[quantity]]</code>, <code>[[average_purchase_price]]</code>, <code>[[current_value]]</code>, <code>[[allocation_percentage]]</code>
+        </div>
+
+        <hr>
+
+        <h2>3. Portfolio Fields</h2>
+        <p>Use double parentheses for <code>CF Portfolio</code> fields inside portfolio prompts.</p>
+        
+        <div class="example-box">
+            <strong>Example:</strong><br>
+            <code>((portfolio_name))</code>, <code>((risk_profile))</code>, <code>((total_value))</code>
+        </div>
+
+        <hr>
+
+        <h2>4. Structured Financial Periods</h2>
+        <p>Insert clean, formatted historical financial data using the periods syntax.</p>
+        
+        <h3>Pattern:</h3>
+        <pre><code>{{periods:&lt;type&gt;:&lt;count&gt;[:format]}}</code></pre>
+        
+        <ul>
+            <li><code>&lt;type&gt;</code>: <code>annual</code>, <code>quarterly</code>, <code>ttm</code></li>
+            <li><code>&lt;count&gt;</code>: number of periods (e.g. 3, 4, 5)</li>
+            <li><code>format</code> (optional): <code>markdown</code> (default), <code>text</code>, <code>json</code>, <code>table</code></li>
+        </ul>
+
+        <h3>Examples:</h3>
+        <div class="example-box">
+            <ul>
+                <li><code>{{periods:annual:3}}</code> → last 3 annual periods (markdown summary)</li>
+                <li><code>{{periods:quarterly:4:table}}</code> → last 4 quarters as a table</li>
+                <li><code>{{periods:annual:5:text}}</code> → plain text periods</li>
+                <li><code>{{periods:quarterly:8:json}}</code> → raw JSON (be mindful of token size)</li>
+            </ul>
+        </div>
+
+        <div class="warning-box">
+            <strong>Token Guidance:</strong>
+            <ul>
+                <li>Annual 3 (markdown): ~200–400 tokens</li>
+                <li>Quarterly 4 (table): ~250–500 tokens</li>
+                <li>Annual 5 JSON: can exceed 800 tokens</li>
+            </ul>
+            Keep within model limits; prefer smaller counts for exploratory analysis.
+        </div>
+
+        <hr>
+
+        <h2>5. Comparison Syntax</h2>
+        <p>Compare financial periods side-by-side with percentage changes.</p>
+
+        <h3>Pattern:</h3>
+        <pre><code>{{periods:compare:&lt;period1&gt;:&lt;period2&gt;}}</code></pre>
+
+        <h3>Examples:</h3>
+        <div class="example-box">
+            <ul>
+                <li><code>{{periods:compare:2024:2023}}</code> → Annual comparison</li>
+                <li><code>{{periods:compare:2024Q3:2024Q2}}</code> → Quarterly comparison</li>
+            </ul>
+        </div>
+
+        <div class="tip-box">
+            <strong>Natural Language Support:</strong><br>
+            You can also use natural language in chat messages:
+            <ul>
+                <li>"compare Q3 2024 vs Q2 2024"</li>
+                <li>"compare 2024 to 2023"</li>
+                <li>"compare Q3 vs previous quarter"</li>
+            </ul>
+            These will be automatically transformed to comparison syntax.
+        </div>
+
+        <hr>
+
+        <h2>5a. Relative Period Comparisons</h2>
+        <p>Use dynamic relative references that automatically resolve to actual periods based on available data.</p>
+
+        <h3>Pattern:</h3>
+        <pre><code>{{periods:compare:&lt;relative_spec1&gt;:&lt;relative_spec2&gt;}}</code></pre>
+
+        <h3>Available Relative Specifications:</h3>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Relative Spec</th>
+                    <th>Description</th>
+                    <th>Example Resolution</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>latest_annual</code></td>
+                    <td>Most recent annual period</td>
+                    <td>2024</td>
+                </tr>
+                <tr>
+                    <td><code>previous_annual</code></td>
+                    <td>One year before latest</td>
+                    <td>2023 (if latest is 2024)</td>
+                </tr>
+                <tr>
+                    <td><code>annual_minus_2</code></td>
+                    <td>Two years before latest</td>
+                    <td>2022 (if latest is 2024)</td>
+                </tr>
+                <tr>
+                    <td><code>annual_minus_3</code></td>
+                    <td>Three years before latest</td>
+                    <td>2021 (if latest is 2024)</td>
+                </tr>
+                <tr>
+                    <td><code>annual_minus_4</code></td>
+                    <td>Four years before latest</td>
+                    <td>2020 (if latest is 2024)</td>
+                </tr>
+                <tr>
+                    <td><code>latest_quarterly</code></td>
+                    <td>Most recent quarterly period</td>
+                    <td>2024Q3</td>
+                </tr>
+                <tr>
+                    <td><code>previous_quarterly</code></td>
+                    <td>Sequential previous quarter</td>
+                    <td>2024Q2 (if latest is 2024Q3)</td>
+                </tr>
+                <tr>
+                    <td><code>yoy_quarterly</code></td>
+                    <td>Same quarter, previous year</td>
+                    <td>2023Q3 (if latest is 2024Q3)</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Examples:</h3>
+        <div class="example-box">
+            <ul>
+                <li><code>{{periods:compare:latest_annual:previous_annual}}</code> → Compare most recent year to prior year</li>
+                <li><code>{{periods:compare:latest_annual:annual_minus_2}}</code> → Compare current year to 2 years ago</li>
+                <li><code>{{periods:compare:latest_quarterly:previous_quarterly}}</code> → Compare latest quarter to previous quarter (sequential momentum)</li>
+                <li><code>{{periods:compare:latest_quarterly:yoy_quarterly}}</code> → Compare latest quarter to same quarter last year (removes seasonality)</li>
+            </ul>
+        </div>
+
+        <div class="tip-box">
+            <strong>Benefits of Relative Periods:</strong>
+            <ul>
+                <li>Prompts remain valid as new data arrives - no need to update hardcoded years</li>
+                <li>Automatically handles quarter boundaries (e.g., Q1 2024 → Q4 2023)</li>
+                <li>Works for all securities regardless of their reporting schedule</li>
+                <li>Ideal for permanent prompt templates that analyze latest data</li>
+            </ul>
+        </div>
+
+        <div class="warning-box">
+            <strong>Error Handling:</strong><br>
+            When insufficient historical data exists (e.g., newly listed company with only 1 annual period):
+            <ul>
+                <li>Returns: <code>[Insufficient historical data for previous annual]</code></li>
+                <li>Prompt continues processing - does not fail completely</li>
+                <li>AI can acknowledge data limitations in analysis</li>
+            </ul>
+        </div>
+
+        <h3>Best Practice - Investment Analysis:</h3>
+        <div class="example-box">
+            <p>For comprehensive security evaluation, combine historical depth with multiple comparison angles:</p>
+            <pre><code>## Historical Context
+{{periods:annual:5:markdown}}
+{{periods:quarterly:8:markdown}}
+
+## Key Comparisons
+Latest vs Prior Year: {{periods:compare:latest_annual:previous_annual}}
+Latest vs 2 Years Ago: {{periods:compare:latest_annual:annual_minus_2}}
+Sequential Momentum: {{periods:compare:latest_quarterly:previous_quarterly}}
+YoY Growth (removes seasonality): {{periods:compare:latest_quarterly:yoy_quarterly}}</code></pre>
+            <p><small>This provides 5 years of annual trends, 2 years of quarterly patterns, and 4 comparison perspectives for thorough analysis.</small></p>
+        </div>
+
+        <hr>
+
+        <h2>6. JSON Path Extraction</h2>
+        <p>When a field stores JSON (e.g. <code>news</code>, <code>ticker_info</code>):</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Syntax</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Single path</td>
+                    <td><code>{{jsonfield.key}}</code></td>
+                    <td><code>{{ticker_info.marketCap}}</code></td>
+                </tr>
+                <tr>
+                    <td>Array index</td>
+                    <td><code>{{jsonfield.0.key}}</code></td>
+                    <td><code>{{news.0.content.title}}</code></td>
+                </tr>
+                <tr>
+                    <td>Wildcard aggregation</td>
+                    <td><code>{{jsonfield.ARRAY.key}}</code></td>
+                    <td><code>{{news.ARRAY.content.title}}</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <p><small>Wildcard joins all non-empty values with comma separation.</small></p>
+
+        <hr>
+
+        <h2>7. File Attachments</h2>
+        <p>Reference uploaded files in prompts with angle markers:</p>
+        
+        <pre><code>&lt;&lt;filename.pdf&gt;&gt;</code></pre>
+        
+        <p>Ensure the file is attached to the relevant document. The system will extract and embed the content automatically.</p>
+
+        <hr>
+
+        <h2>8. Variable Collision & Fallback</h2>
+        <p>If a variable cannot be resolved:</p>
+        <ul>
+            <li>Returns empty string for field paths</li>
+            <li>Returns <code>[Error: ...]</code> for periods formatting failures</li>
+            <li>JSON decode errors yield blank output</li>
+        </ul>
+
+        <hr>
+
+        <h2>9. Best Practices</h2>
+        
+        <div class="tip-box">
+            <ul>
+                <li>Start with a concise context header (Security + latest periods)</li>
+                <li>Use structured periods instead of dumping raw JSON blobs</li>
+                <li>Avoid mixing large JSON (<code>{{periods:quarterly:8:json}}</code>) with verbose narrative requests</li>
+                <li>Chain reasoning: supply data → ask specific analytical questions</li>
+            </ul>
+        </div>
+
+        <h3>Template Snippet:</h3>
+        <pre><code>Company Overview: {{security_name}} ({{symbol}})
+Sector: {{sector}} Industry: {{industry}}
+
+Latest Annual Performance:
+{{periods:annual:3}}
+
+Quarterly Trend:
+{{periods:quarterly:4:table}}
+
+Key News: {{news.ARRAY.content.title}}</code></pre>
+
+        <hr>
+
+        <h2>10. Troubleshooting</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Issue</th>
+                    <th>Cause</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Empty periods block</td>
+                    <td>No matching CF Financial Period records</td>
+                    <td>Import financials first</td>
+                </tr>
+                <tr>
+                    <td><code>[Error: ...]</code> in output</td>
+                    <td>Formatting or fetch failure</td>
+                    <td>Re-check variable syntax</td>
+                </tr>
+                <tr>
+                    <td>Huge token usage</td>
+                    <td>Too many periods / JSON format</td>
+                    <td>Reduce count or switch to <code>markdown</code></td>
+                </tr>
+                <tr>
+                    <td>Missing holding values</td>
+                    <td>Holding context absent</td>
+                    <td>Ensure prompt executed in portfolio holding loop</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <h2>11. Diff from Legacy</h2>
+        <p>Legacy relied on raw blob fields (<code>profit_loss</code>, <code>balance_sheet</code>, <code>cash_flow</code>). New system uses normalized CF Financial Period records + computed metrics (margins, ROE, growth). Prefer <code>{{periods:...}}</code> going forward.</p>
+
+        <hr>
+
+        <h2>12. Quick Reference Cheat Sheet</h2>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>Syntax</th>
+                    <th>Example</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Security Field</td>
+                    <td><code>{{field}}</code></td>
+                    <td><code>{{current_price}}</code></td>
+                </tr>
+                <tr>
+                    <td>Holding Field</td>
+                    <td><code>[[field]]</code></td>
+                    <td><code>[[quantity]]</code></td>
+                </tr>
+                <tr>
+                    <td>Portfolio Field</td>
+                    <td><code>((field))</code></td>
+                    <td><code>((total_value))</code></td>
+                </tr>
+                <tr>
+                    <td>Financial Periods</td>
+                    <td><code>{{periods:type:count[:format]}}</code></td>
+                    <td><code>{{periods:annual:3}}</code></td>
+                </tr>
+                <tr>
+                    <td>Period Comparison</td>
+                    <td><code>{{periods:compare:A:B}}</code></td>
+                    <td><code>{{periods:compare:2024:2023}}</code></td>
+                </tr>
+                <tr>
+                    <td>Relative Comparison</td>
+                    <td><code>{{periods:compare:latest_annual:previous_annual}}</code></td>
+                    <td><code>{{periods:compare:latest_quarterly:yoy_quarterly}}</code></td>
+                </tr>
+                <tr>
+                    <td>JSON Index</td>
+                    <td><code>{{jsonfield.0.key}}</code></td>
+                    <td><code>{{news.0.content.title}}</code></td>
+                </tr>
+                <tr>
+                    <td>JSON Wildcard</td>
+                    <td><code>{{jsonfield.ARRAY.key}}</code></td>
+                    <td><code>{{news.ARRAY.content.title}}</code></td>
+                </tr>
+                <tr>
+                    <td>Attachment</td>
+                    <td><code>&lt;&lt;file.pdf&gt;&gt;</code></td>
+                    <td><code>&lt;&lt;q3_report.pdf&gt;&gt;</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <div class="footer">
+            <p>For updates watch release notes. Suggestions welcome.</p>
+        </div>
+    </div>
+</body>
+</html>
+{% endraw %}

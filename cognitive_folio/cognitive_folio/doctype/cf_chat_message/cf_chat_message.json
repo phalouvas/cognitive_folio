@@ -119,7 +119,7 @@
    "label": "Web Search"
   },
   {
-    "default": "1",
+    "default": "0",
    "fieldname": "fetch_urls",
    "fieldtype": "Check",
    "label": "Fetch URLs"

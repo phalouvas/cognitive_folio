@@ -1,0 +1,471 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Data Sources - Global Stock Exchanges & Regulators</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background: #f8f9fa;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #16a085;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        h4 {
+            color: #7f8c8d;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+            color: #2980b9;
+        }
+        ul {
+            padding-left: 25px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .tip-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background: #fff9e6;
+            border-left: 4px solid #f39c12;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info-list {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ecf0f1;
+            margin: 30px 0;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Financial Data Sources - Global Stock Exchanges & Regulators</h1>
+        <p>A comprehensive guide to finding financial reports (10-Q, 10-K, Annual Reports, Quarterly Reports) for securities worldwide.</p>
+
+        <hr>
+
+        <div class="section">
+            <h2>United States</h2>
+
+            <h3>SEC EDGAR (Official)</h3>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.sec.gov/edgar/searchedgar/companysearch.html" target="_blank">https://www.sec.gov/edgar/searchedgar/companysearch.html</a></li>
+                    <li><strong>Filings</strong>: 10-Q (Quarterly), 10-K (Annual), 8-K (Current Events)</li>
+                    <li><strong>Format</strong>: PDF and HTML versions available</li>
+                    <li><strong>Language</strong>: English</li>
+                    <li><strong>Coverage</strong>: All US publicly traded companies</li>
+                </ul>
+            </div>
+
+            <h4>Quick Access by Ticker</h4>
+            <ul>
+                <li><strong>Search by Company</strong>: <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&company=&CIK={TICKER}&type=&dateb=&owner=exclude&count=40" target="_blank">SEC Company Search</a></li>
+                <li><strong>Example - Apple (AAPL)</strong>:
+                    <ul>
+                        <li>10-K Filings: <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=10-K&dateb=&owner=exclude&count=10" target="_blank">Apple 10-K</a></li>
+                        <li>10-Q Filings: <a href="https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=0000320193&type=10-Q&dateb=&owner=exclude&count=10" target="_blank">Apple 10-Q</a></li>
+                    </ul>
+                </li>
+            </ul>
+
+            <h4>Major US Company Investor Relations</h4>
+            <ul>
+                <li><strong>Apple</strong>: <a href="https://investor.apple.com/sec-filings/default.aspx" target="_blank">investor.apple.com</a></li>
+                <li><strong>Microsoft</strong>: <a href="https://www.microsoft.com/en-us/Investor/sec-filings.aspx" target="_blank">microsoft.com/investor</a></li>
+                <li><strong>Amazon</strong>: <a href="https://ir.aboutamazon.com/sec-filings/default.aspx" target="_blank">ir.aboutamazon.com</a></li>
+                <li><strong>Google/Alphabet</strong>: <a href="https://abc.xyz/investor/" target="_blank">abc.xyz/investor</a></li>
+                <li><strong>Meta/Facebook</strong>: <a href="https://investor.fb.com/financials/default.aspx" target="_blank">investor.fb.com</a></li>
+                <li><strong>Tesla</strong>: <a href="https://ir.tesla.com/sec-filings" target="_blank">ir.tesla.com</a></li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h2>Europe</h2>
+
+            <h3>United Kingdom</h3>
+            <h4>London Stock Exchange (LSE)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.londonstockexchange.com/" target="_blank">https://www.londonstockexchange.com/</a></li>
+                    <li><strong>Filings</strong>: Annual Reports, Half-Year Reports, Trading Updates</li>
+                    <li><strong>Format</strong>: PDF</li>
+                    <li><strong>Language</strong>: English</li>
+                    <li><strong>Search</strong>: Company name → "Reports & Presentations" section</li>
+                </ul>
+            </div>
+
+            <h4>Major UK Companies</h4>
+            <ul>
+                <li><strong>HSBC</strong>: <a href="https://www.hsbc.com/investors" target="_blank">hsbc.com/investors</a></li>
+                <li><strong>BP</strong>: <a href="https://www.bp.com/en/global/corporate/investors.html" target="_blank">bp.com/investors</a></li>
+                <li><strong>Unilever</strong>: <a href="https://www.unilever.com/investors/" target="_blank">unilever.com/investors</a></li>
+                <li><strong>AstraZeneca</strong>: <a href="https://www.astrazeneca.com/investor-relations.html" target="_blank">astrazeneca.com</a></li>
+            </ul>
+
+            <h3>Germany</h3>
+            <h4>Bundesanzeiger (Federal Gazette)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.bundesanzeiger.de/" target="_blank">https://www.bundesanzeiger.de/</a></li>
+                    <li><strong>Filings</strong>: Annual Reports, Quarterly Reports</li>
+                    <li><strong>Format</strong>: PDF</li>
+                    <li><strong>Language</strong>: German (English available for major companies)</li>
+                </ul>
+            </div>
+
+            <h4>Major German Companies</h4>
+            <ul>
+                <li><strong>SAP</strong>: <a href="https://www.sap.com/investors/en/reports.html" target="_blank">sap.com/investors</a></li>
+                <li><strong>Siemens</strong>: <a href="https://www.siemens.com/investor/en/publications.html" target="_blank">siemens.com/investor</a></li>
+                <li><strong>BMW</strong>: <a href="https://www.bmwgroup.com/en/investor-relations.html" target="_blank">bmwgroup.com</a></li>
+                <li><strong>Deutsche Bank</strong>: <a href="https://investor-relations.db.com/reports-and-events/" target="_blank">investor-relations.db.com</a></li>
+            </ul>
+
+            <h3>France</h3>
+            <h4>Autorité des Marchés Financiers (AMF)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.amf-france.org/" target="_blank">https://www.amf-france.org/</a></li>
+                    <li><strong>Language</strong>: French (English for major companies)</li>
+                </ul>
+            </div>
+
+            <h4>Major French Companies</h4>
+            <ul>
+                <li><strong>LVMH</strong>: <a href="https://www.lvmh.com/investors/" target="_blank">lvmh.com/investors</a></li>
+                <li><strong>TotalEnergies</strong>: <a href="https://totalenergies.com/investors" target="_blank">totalenergies.com/investors</a></li>
+                <li><strong>L'Oréal</strong>: <a href="https://www.loreal-finance.com/" target="_blank">loreal-finance.com</a></li>
+                <li><strong>Air Liquide</strong>: <a href="https://www.airliquide.com/investors" target="_blank">airliquide.com/investors</a></li>
+            </ul>
+
+            <h3>Netherlands</h3>
+            <h4>Euronext Amsterdam</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.euronext.com/en/markets/amsterdam" target="_blank">https://www.euronext.com/en/markets/amsterdam</a></li>
+                    <li><strong>Format</strong>: PDF</li>
+                    <li><strong>Language</strong>: English (most major companies)</li>
+                </ul>
+            </div>
+
+            <h4>Major Dutch Companies</h4>
+            <ul>
+                <li><strong>ASML</strong>: <a href="https://www.asml.com/en/investors/financial-reporting" target="_blank">asml.com/investors</a></li>
+                <li><strong>Shell</strong>: <a href="https://www.shell.com/investors.html" target="_blank">shell.com/investors</a></li>
+                <li><strong>ING</strong>: <a href="https://www.ing.com/Investor-relations.htm" target="_blank">ing.com/investor-relations</a></li>
+                <li><strong>Philips</strong>: <a href="https://www.philips.com/a-w/about/investor-relations.html" target="_blank">philips.com/investors</a></li>
+            </ul>
+
+            <h3>Pan-European</h3>
+            <h4>Euronext (Multi-Country Exchange)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.euronext.com/" target="_blank">https://www.euronext.com/</a></li>
+                    <li><strong>Markets</strong>: Amsterdam, Brussels, Dublin, Lisbon, Milan, Oslo, Paris</li>
+                    <li><strong>Search</strong>: Company name → "Documents" tab</li>
+                    <li><strong>Language</strong>: Varies by country (English for major companies)</li>
+                </ul>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h2>Asia</h2>
+
+            <h3>Japan</h3>
+            <h4>EDINET (Electronic Disclosure for Investors' NETwork)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://disclosure.edinet-fsa.go.jp/" target="_blank">https://disclosure.edinet-fsa.go.jp/</a></li>
+                    <li><strong>Filings</strong>: Annual Securities Reports (有価証券報告書), Quarterly Reports</li>
+                    <li><strong>Language</strong>: Japanese (some English available)</li>
+                </ul>
+            </div>
+
+            <h4>Major Japanese Companies (English Reports)</h4>
+            <ul>
+                <li><strong>Sony</strong>: <a href="https://www.sony.com/en/SonyInfo/IR/library/" target="_blank">sony.com/IR</a></li>
+                <li><strong>Toyota</strong>: <a href="https://global.toyota/en/ir/library/" target="_blank">toyota.com/ir</a></li>
+                <li><strong>Nintendo</strong>: <a href="https://www.nintendo.co.jp/ir/en/library/" target="_blank">nintendo.co.jp/ir</a></li>
+                <li><strong>SoftBank</strong>: <a href="https://group.softbank/en/ir/reports" target="_blank">softbank.com/ir</a></li>
+                <li><strong>Honda</strong>: <a href="https://global.honda/investors/library.html" target="_blank">honda.com/investors</a></li>
+                <li><strong>Mitsubishi</strong>: <a href="https://www.mitsubishicorp.com/jp/en/ir/library/" target="_blank">mitsubishicorp.com/ir</a></li>
+            </ul>
+
+            <h3>Hong Kong</h3>
+            <h4>HKEXnews (Hong Kong Exchanges)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.hkexnews.hk/" target="_blank">https://www.hkexnews.hk/</a></li>
+                    <li><strong>Filings</strong>: Annual Reports, Interim Reports, Announcements</li>
+                    <li><strong>Format</strong>: PDF</li>
+                    <li><strong>Language</strong>: English (required by regulation)</li>
+                    <li><strong>Notes</strong>: Excellent English reporting standards</li>
+                </ul>
+            </div>
+
+            <h4>Major Hong Kong Companies</h4>
+            <ul>
+                <li><strong>Tencent</strong>: <a href="https://www.tencent.com/en-us/investors.html" target="_blank">tencent.com/investors</a></li>
+                <li><strong>Alibaba</strong>: <a href="https://www.alibabagroup.com/en/ir/home" target="_blank">alibabagroup.com</a></li>
+                <li><strong>HSBC</strong>: <a href="https://www.hsbc.com/investors" target="_blank">hsbc.com/investors</a></li>
+                <li><strong>China Mobile</strong>: <a href="https://www.chinamobileltd.com/en/ir/reports.php" target="_blank">chinamobileltd.com</a></li>
+            </ul>
+
+            <h3>Singapore</h3>
+            <h4>Singapore Exchange (SGX)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.sgx.com/" target="_blank">https://www.sgx.com/</a></li>
+                    <li><strong>Filings</strong>: Annual Reports, Financial Statements</li>
+                    <li><strong>Language</strong>: English</li>
+                </ul>
+            </div>
+
+            <h4>Major Singapore Companies</h4>
+            <ul>
+                <li><strong>DBS Bank</strong>: <a href="https://www.dbs.com/investors/default.page" target="_blank">dbs.com/investors</a></li>
+                <li><strong>Singapore Airlines</strong>: <a href="https://www.singaporeair.com/en_UK/sg/about-us/information-for-investors/" target="_blank">singaporeair.com/investors</a></li>
+            </ul>
+
+            <h3>China</h3>
+            <h4>Shanghai & Shenzhen Stock Exchanges</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Shanghai (SSE)</strong>: <a href="http://www.sse.com.cn/" target="_blank">http://www.sse.com.cn/</a></li>
+                    <li><strong>Shenzhen (SZSE)</strong>: <a href="http://www.szse.cn/" target="_blank">http://www.szse.cn/</a></li>
+                    <li><strong>Language</strong>: Chinese (some English)</li>
+                    <li><strong>Note</strong>: H-Share companies (Hong Kong Listed) provide English reports via HKEXnews</li>
+                </ul>
+            </div>
+
+            <h3>South Korea</h3>
+            <h4>DART (Data Analysis, Retrieval and Transfer System)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://dart.fss.or.kr/" target="_blank">https://dart.fss.or.kr/</a></li>
+                    <li><strong>Language</strong>: Korean (limited English)</li>
+                </ul>
+            </div>
+
+            <h4>Major South Korean Companies</h4>
+            <ul>
+                <li><strong>Samsung Electronics</strong>: <a href="https://www.samsung.com/global/ir/" target="_blank">samsung.com/ir</a></li>
+                <li><strong>Hyundai Motor</strong>: <a href="https://www.hyundai.com/worldwide/en/company/ir" target="_blank">hyundai.com/ir</a></li>
+                <li><strong>SK Hynix</strong>: <a href="https://www.skhynix.com/eng/invest.do" target="_blank">skhynix.com</a></li>
+                <li><strong>LG Electronics</strong>: <a href="https://www.lg.com/global/investor-relations" target="_blank">lg.com/investor-relations</a></li>
+            </ul>
+
+            <h3>Taiwan</h3>
+            <h4>Taiwan Stock Exchange (TWSE)</h4>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Website</strong>: <a href="https://www.twse.com.tw/en/" target="_blank">https://www.twse.com.tw/en/</a></li>
+                    <li><strong>Language</strong>: Chinese (English for major companies)</li>
+                </ul>
+            </div>
+
+            <h4>Major Taiwanese Companies</h4>
+            <ul>
+                <li><strong>TSMC</strong>: <a href="https://investor.tsmc.com/english" target="_blank">investor.tsmc.com</a></li>
+                <li><strong>Hon Hai/Foxconn</strong>: <a href="https://www.foxconn.com/en-us/investor-relations" target="_blank">foxconn.com</a></li>
+                <li><strong>MediaTek</strong>: <a href="https://www.mediatek.com/investors" target="_blank">mediatek.com/investors</a></li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h2>Other Regions</h2>
+
+            <h3>Australia</h3>
+            <div class="info-list">
+                <ul>
+                    <li><strong>Australian Securities Exchange (ASX)</strong>: <a href="https://www.asx.com.au/" target="_blank">https://www.asx.com.au/</a></li>
+                    <li><strong>Filings</strong>: Annual Reports, Half-Year Reports</li>
+                    <li><strong>Language</strong>: English</li>
+                </ul>
+            </div>
+
+            <h3>Canada</h3>
+            <div class="info-list">
+                <ul>
+                    <li><strong>SEDAR</strong>: <a href="https://www.sedar.com/" target="_blank">https://www.sedar.com/</a></li>
+                    <li><strong>Filings</strong>: Annual Information Forms, Financial Statements</li>
+                    <li><strong>Language</strong>: English/French</li>
+                </ul>
+            </div>
+
+            <h4>Major Canadian Companies</h4>
+            <ul>
+                <li><strong>Shopify</strong>: <a href="https://investors.shopify.com/" target="_blank">investors.shopify.com</a></li>
+                <li><strong>Royal Bank of Canada</strong>: <a href="https://www.rbc.com/investor-relations/" target="_blank">rbc.com/investor-relations</a></li>
+                <li><strong>Canadian National Railway</strong>: <a href="https://www.cn.ca/en/investors/" target="_blank">cn.ca/investors</a></li>
+            </ul>
+
+            <h3>Brazil</h3>
+            <div class="info-list">
+                <ul>
+                    <li><strong>CVM</strong>: <a href="https://www.gov.br/cvm/" target="_blank">https://www.gov.br/cvm/</a></li>
+                    <li><strong>B3</strong>: <a href="https://www.b3.com.br/en_us/" target="_blank">https://www.b3.com.br/en_us/</a></li>
+                    <li><strong>Language</strong>: Portuguese (some English)</li>
+                </ul>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h2>Tips for Finding Reports</h2>
+
+            <div class="tip-box">
+                <h3>Best Practices</h3>
+                <ol>
+                    <li><strong>Start with Company IR Pages</strong> - Usually cleaner PDFs than regulatory filings, better formatted for parsing</li>
+                    <li><strong>For US Stocks</strong> - SEC EDGAR is the gold standard; 10-Q (quarterly) and 10-K (annual) are standardized</li>
+                    <li><strong>For International Stocks</strong> - Check if company has ADR (American Depositary Receipt) - they file with SEC too</li>
+                    <li><strong>Report Types by Region</strong>:
+                        <ul>
+                            <li><strong>US</strong>: 10-Q (quarterly), 10-K (annual)</li>
+                            <li><strong>Europe</strong>: Interim Report/Half-Year Report (semi-annual), Annual Report</li>
+                            <li><strong>Asia</strong>: Varies - often quarterly or semi-annual + annual</li>
+                        </ul>
+                    </li>
+                    <li><strong>Format Considerations</strong>:
+                        <ul>
+                            <li>PDFs are best for parsing (structured tables)</li>
+                            <li>Avoid HTML versions (inconsistent formatting)</li>
+                            <li>Recent filings (2023+) have more consistent formats</li>
+                        </ul>
+                    </li>
+                </ol>
+            </div>
+
+            <div class="warning-box">
+                <h3>Testing the PDF Parser (Task 3.2)</h3>
+                <p><strong>Recommended Test Order:</strong></p>
+                <ol>
+                    <li><strong>US 10-Q</strong> (easiest) - Apple, Microsoft, Amazon</li>
+                    <li><strong>Hong Kong Reports</strong> - HSBC, Tencent (excellent English)</li>
+                    <li><strong>European Blue Chips</strong> - ASML, SAP, Siemens (clean English)</li>
+                    <li><strong>Japanese ADRs</strong> - Sony, Toyota (dual SEC/Japan filings)</li>
+                </ol>
+                <p><strong>What to Look For:</strong></p>
+                <ul>
+                    <li>Income Statement (P&L)</li>
+                    <li>Balance Sheet</li>
+                    <li>Cash Flow Statement</li>
+                    <li>Tables with consistent row/column structure</li>
+                </ul>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h2>ADR Listings (File with SEC + Home Country)</h2>
+            <p>Companies with ADRs file both with SEC and their home regulator:</p>
+            <ul>
+                <li><strong>Sony (SNE)</strong> - Japan/US</li>
+                <li><strong>Toyota (TM)</strong> - Japan/US</li>
+                <li><strong>ASML (ASML)</strong> - Netherlands/US</li>
+                <li><strong>SAP (SAP)</strong> - Germany/US</li>
+                <li><strong>Alibaba (BABA)</strong> - China/US</li>
+                <li><strong>Baidu (BIDU)</strong> - China/US</li>
+                <li><strong>Taiwan Semiconductor (TSM)</strong> - Taiwan/US</li>
+            </ul>
+            <p><strong>Advantage</strong>: English reports available via SEC EDGAR with standardized US format.</p>
+        </div>
+
+        <hr>
+
+        <div class="section">
+            <h2>IFRS vs US GAAP</h2>
+            <div class="warning-box">
+                <p><strong>Important</strong>: Non-US companies often use IFRS (International Financial Reporting Standards) instead of US GAAP.</p>
+                <p><strong>Key Differences:</strong></p>
+                <ul>
+                    <li>Similar overall structure (Income Statement, Balance Sheet, Cash Flow)</li>
+                    <li>Some terminology differences:
+                        <ul>
+                            <li>"Turnover" vs "Revenue"</li>
+                            <li>"Profit" vs "Net Income"</li>
+                            <li>"Trade Receivables" vs "Accounts Receivable"</li>
+                        </ul>
+                    </li>
+                    <li>PDF parser should handle both with flexible label matching</li>
+                </ul>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p><em>Last Updated: November 2025</em></p>
+            <p>For questions or issues with specific exchanges, check the Cognitive Folio GitHub repository.</p>
+        </div>
+    </div>
+</body>
+</html>
+{% endraw %}
