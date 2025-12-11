@@ -413,8 +413,11 @@ class CFPortfolio(Document):
 				self.annualized_dividends = flt(total_current_value * portfolio_dividend_yield / 100, 2)
 				self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 				self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
-	
+
 			self.save()
+			
+			# Update all asset allocations for this portfolio based on new performance metrics
+			self.update_allocations()
 			
 			return {'success': True}
 			
@@ -422,6 +425,32 @@ class CFPortfolio(Document):
 			frappe.log_error(f"Error calculating portfolio performance: {str(e)}", 
 							"Portfolio Performance Error")
 			return {'success': False, 'error': str(e)}
+	
+	def update_allocations(self):
+		"""Update all asset allocations for this portfolio based on current holdings"""
+		try:
+			# Get all asset allocations for this portfolio
+			allocations = frappe.get_all(
+				"CF Asset Allocation",
+				filters={"portfolio": self.name},
+				fields=["name"]
+			)
+			
+			if not allocations:
+				return
+			
+			# Update each allocation with current values
+			for allocation_record in allocations:
+				allocation = frappe.get_doc("CF Asset Allocation", allocation_record.name)
+				allocation.calculate_current_allocation()
+				allocation.calculate_difference()
+				allocation.save()
+			
+		except Exception as e:
+			frappe.log_error(
+				f"Error updating allocations for portfolio {self.name}: {str(e)}",
+				"Portfolio Allocation Update Error"
+			)
 
 @frappe.whitelist()
 def process_portfolio_ai_analysis(portfolio_name, user):
