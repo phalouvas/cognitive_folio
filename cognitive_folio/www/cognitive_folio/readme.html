@@ -1,0 +1,569 @@
+{% raw %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cognitive Folio - Documentation</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            color: #333;
+            background: #f8f9fa;
+        }
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 3px solid #3498db;
+            padding-bottom: 15px;
+            margin-bottom: 30px;
+        }
+        h2 {
+            color: #34495e;
+            margin-top: 40px;
+            margin-bottom: 20px;
+            padding-bottom: 10px;
+            border-bottom: 2px solid #ecf0f1;
+        }
+        h3 {
+            color: #16a085;
+            margin-top: 30px;
+            margin-bottom: 15px;
+        }
+        h4 {
+            color: #7f8c8d;
+            margin-top: 20px;
+            margin-bottom: 10px;
+        }
+        a {
+            color: #3498db;
+            text-decoration: none;
+        }
+        a:hover {
+            text-decoration: underline;
+            color: #2980b9;
+        }
+        code {
+            background: #f4f4f4;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+            color: #e74c3c;
+        }
+        pre {
+            background: #2c3e50;
+            color: #ecf0f1;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+            margin: 15px 0;
+        }
+        pre code {
+            background: none;
+            color: #ecf0f1;
+            padding: 0;
+        }
+        ul {
+            padding-left: 25px;
+        }
+        li {
+            margin-bottom: 8px;
+        }
+        ol {
+            padding-left: 25px;
+        }
+        ol li {
+            margin-bottom: 10px;
+        }
+        .section {
+            margin-bottom: 30px;
+        }
+        .tip-box {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .warning-box {
+            background: #fff9e6;
+            border-left: 4px solid #f39c12;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success-box {
+            background: #e8f8f5;
+            border-left: 4px solid #27ae60;
+            padding: 15px 20px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .info-list {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 4px;
+            margin: 15px 0;
+        }
+        hr {
+            border: none;
+            border-top: 1px solid #ecf0f1;
+            margin: 30px 0;
+        }
+        .toc {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+        }
+        .toc ul {
+            list-style: none;
+            padding-left: 0;
+        }
+        .toc ul li {
+            margin-bottom: 10px;
+        }
+        .toc ul li a {
+            font-weight: 500;
+        }
+        .footer {
+            margin-top: 50px;
+            padding-top: 20px;
+            border-top: 1px solid #ecf0f1;
+            color: #7f8c8d;
+            font-size: 0.9em;
+            text-align: center;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 0.85em;
+            font-weight: 600;
+            margin-left: 5px;
+        }
+        .badge-success {
+            background: #27ae60;
+            color: white;
+        }
+        .badge-warning {
+            background: #f39c12;
+            color: white;
+        }
+        .badge-info {
+            background: #3498db;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Cognitive Folio</h1>
+        <p style="font-size: 1.2em; color: #7f8c8d; font-style: italic;">AI-Optimized Investing, Thoughtfully Engineered</p>
+
+        <hr>
+
+        <div class="toc">
+            <h3>Table of Contents</h3>
+            <ul>
+                <li><a href="#installation">Installation</a></li>
+                <li><a href="#financial-data-architecture">Financial Data Architecture</a></li>
+                <li><a href="#quick-start-guide">Quick Start Guide</a></li>
+                <li><a href="#api-developer-reference">API & Developer Reference</a></li>
+                <li><a href="#contributing">Contributing</a></li>
+                <li><a href="#license">License</a></li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <div class="section" id="installation">
+            <h2>Installation</h2>
+            <p>You can install this app using the <a href="https://github.com/frappe/bench" target="_blank">bench</a> CLI:</p>
+
+            <pre><code>cd $PATH_TO_YOUR_BENCH
+bench get-app $URL_OF_THIS_REPO --branch develop
+bench install-app cognitive_folio</code></pre>
+
+            <h3>Required Dependencies</h3>
+
+            <pre><code># Core dependencies (required for all stocks)
+cd frappe-bench
+./env/bin/pip install yfinance openai
+
+# SEC Edgar integration (required for US stocks only)
+./env/bin/pip install sec-edgar-downloader python-xbrl lxml pdfplumber</code></pre>
+        </div>
+
+        <hr>
+
+        <div class="section" id="financial-data-architecture">
+            <h2>Financial Data Architecture</h2>
+            <p>Cognitive Folio uses a <strong>structured financial data system</strong> built around the <code>CF Financial Period</code> DocType. This provides a queryable, consistent database for storing and analyzing financial statements - replacing the old approach of storing large JSON blobs.</p>
+
+            <h3>Current Scope: US Stocks Only for Regulatory Filings</h3>
+            <div class="warning-box">
+                <p><strong>⚠️ Important:</strong> The current implementation focuses on <strong>US-listed companies</strong> for SEC Edgar integration. This provides:</p>
+                <ul>
+                    <li><strong>High-quality data</strong> from regulatory filings (10-K, 10-Q) with quality score 95</li>
+                    <li><strong>Automatic XBRL parsing</strong> from SEC Edgar inline XBRL HTML files</li>
+                    <li><strong>Fallback to Yahoo Finance</strong> (quality score 85) for non-US stocks or when SEC data is unavailable</li>
+                </ul>
+                <p><strong>Future Phases:</strong> Integration with Hong Kong (HKEX), UK (Companies House), EU (ESEF), Canada (SEDAR+), Japan (EDINET), and Australia (ASIC) regulatory databases are planned but not yet implemented.</p>
+            </div>
+
+            <h3>Why Structured Financial Data?</h3>
+            <div class="success-box">
+                <p><strong>Benefits:</strong></p>
+                <ul>
+                    <li>✅ <strong>Consistent Format</strong> - All companies use the same field structure</li>
+                    <li>✅ <strong>Historical Tracking</strong> - Built-in time series with automatic YoY growth calculations</li>
+                    <li>✅ <strong>AI Efficiency</strong> - Clean queries reduce token usage and improve response speed</li>
+                    <li>✅ <strong>Automatic Calculations</strong> - Margins, ratios, and growth metrics computed on save</li>
+                    <li>✅ <strong>Data Quality</strong> - Type enforcement, validation rules, and audit trails</li>
+                    <li>✅ <strong>Multi-Source Support</strong> - SEC Edgar (US only), Yahoo Finance (global), PDFs, or manual entry</li>
+                </ul>
+            </div>
+
+            <h3>Core Components</h3>
+
+            <h4>CF Financial Period DocType</h4>
+            <p>Stores individual financial reporting periods with:</p>
+
+            <div class="info-list">
+                <p><strong>Period Identification:</strong></p>
+                <ul>
+                    <li>Security reference</li>
+                    <li>Period type (Annual/Quarterly/TTM)</li>
+                    <li>Fiscal year and quarter</li>
+                    <li>Filing and period end dates</li>
+                    <li>Data source tracking</li>
+                </ul>
+
+                <p><strong>Financial Statements:</strong></p>
+                <ul>
+                    <li><strong>Income Statement</strong>: Revenue, expenses, net income, EPS</li>
+                    <li><strong>Balance Sheet</strong>: Assets, liabilities, equity</li>
+                    <li><strong>Cash Flow</strong>: Operating, investing, financing cash flows</li>
+                </ul>
+
+                <p><strong>Computed Metrics:</strong></p>
+                <ul>
+                    <li><strong>Margins</strong>: Gross, operating, net margins (%)</li>
+                    <li><strong>Profitability</strong>: ROE, ROA</li>
+                    <li><strong>Leverage</strong>: Debt-to-equity ratio</li>
+                    <li><strong>Liquidity</strong>: Current ratio, quick ratio</li>
+                    <li><strong>Growth</strong>: YoY revenue, income, EPS, FCF growth</li>
+                </ul>
+            </div>
+
+            <h4>Data Quality System</h4>
+            
+            <p><strong>Source Priority Hierarchy:</strong></p>
+            <ol>
+                <li><strong>Manual Entry</strong> <span class="badge badge-success">Score: 100</span> - User-verified data</li>
+                <li><strong>SEC Edgar</strong> <span class="badge badge-info">Score: 95</span> - US regulatory filings (10-K, 10-Q)</li>
+                <li><strong>PDF Upload</strong> <span class="badge badge-info">Score: 95</span> - Official documents</li>
+                <li><strong>Yahoo Finance</strong> <span class="badge badge-warning">Score: 85</span> - Third-party aggregator (global)</li>
+            </ol>
+
+            <div class="info-list">
+                <p><strong>Current Implementation:</strong></p>
+                <ul>
+                    <li><strong>US Stocks</strong>: Automatic SEC Edgar integration with XBRL parsing</li>
+                    <li><strong>Global Stocks</strong>: Yahoo Finance fallback for all other markets</li>
+                    <li><strong>Future</strong>: Hong Kong, UK, EU, Canada, Japan, Australia regulatory filings (Phase 3+)</li>
+                </ul>
+
+                <p><strong>Conflict Resolution:</strong></p>
+                <ul>
+                    <li>Higher-quality sources take precedence</li>
+                    <li><code>override_yahoo</code> flag locks data from automatic updates</li>
+                    <li>Import operations respect existing higher-priority data</li>
+                    <li>SEC Edgar data automatically upgrades Yahoo Finance data for US companies</li>
+                </ul>
+            </div>
+        </div>
+
+        <hr>
+
+        <div class="section" id="quick-start-guide">
+            <h2>Quick Start Guide</h2>
+
+            <h3>1. Fetch Financial Data</h3>
+            <p>Navigate to a <strong>CF Security</strong> record and click:</p>
+            <ul>
+                <li><strong>Actions → Fetch Fundamentals</strong></li>
+            </ul>
+
+            <p>The system automatically:</p>
+            <ul>
+                <li><strong>For US stocks</strong>: Fetches from SEC Edgar (10-K, 10-Q filings) with XBRL parsing</li>
+                <li><strong>For other stocks</strong>: Falls back to Yahoo Finance</li>
+                <li>Creates CF Financial Period records for each reporting period</li>
+                <li>Calculates margins, ratios, and growth metrics</li>
+                <li>Handles conflicts using quality scoring (SEC Edgar 95 > Yahoo 85)</li>
+                <li>Auto-upgrades existing Yahoo data when SEC Edgar data becomes available</li>
+            </ul>
+
+            <h3>2. SEC Edgar Integration (US Stocks Only)</h3>
+            
+            <div class="success-box">
+                <p><strong>Automatic Operation:</strong></p>
+                <ul>
+                    <li>System automatically fetches SEC CIK (Central Index Key) for US-listed companies</li>
+                    <li>Downloads 10-K (annual) and 10-Q (quarterly) filings</li>
+                    <li>Parses inline XBRL data from HTML filings</li>
+                    <li>Maps US-GAAP taxonomy to CF Financial Period fields</li>
+                    <li>Quality Score: 95 (higher than Yahoo Finance 85)</li>
+                </ul>
+            </div>
+
+            <h4>Verification:</h4>
+            <pre><code># Check downloaded filings
+ls -la sites/yoursite.com/private/files/sec_edgar/sec-edgar-filings/{CIK}/
+
+# Verify in Frappe console
+import frappe
+from cognitive_folio.utils.sec_edgar_fetcher import fetch_sec_edgar_financials
+result = fetch_sec_edgar_financials('AAPL', '0000320193')
+print(result)</code></pre>
+
+            <div class="tip-box">
+                <p><strong>Note:</strong> There is only one user action "Fetch Fundamentals". The app automatically tries SEC Edgar first for US companies, then falls back to Yahoo Finance.</p>
+            </div>
+
+            <h3>3. Upload Financial Statements (PDF)</h3>
+            <p>For companies not covered by SEC Edgar or Yahoo Finance:</p>
+            <ol>
+                <li>Click <strong>Actions → Upload Financial Statement</strong></li>
+                <li>Select the PDF file (10-Q, 10-K, annual report)</li>
+                <li>Choose period type (Annual/Quarterly)</li>
+                <li>System extracts and structures the data</li>
+            </ol>
+
+            <h3>4. Manual Data Entry</h3>
+            <p>Create new <strong>CF Financial Period</strong> records directly:</p>
+            <ul>
+                <li>Link to security</li>
+                <li>Set period type, fiscal year, quarter</li>
+                <li>Fill in financial statement fields</li>
+                <li>System auto-calculates metrics on save</li>
+            </ul>
+            <div class="tip-box">
+                <p><strong>Pro Tip:</strong> Use the "Copy from Previous Period" button to speed up entry.</p>
+            </div>
+
+            <h3>5. View Reports</h3>
+            <p>Access structured data through:</p>
+            <ul>
+                <li><strong>Financial Period Comparison Report</strong> - Track trends over time with sparklines</li>
+                <li><strong>Security Comparison Report</strong> - Compare multiple companies side-by-side</li>
+                <li><strong>Financial Metrics Dashboard</strong> - Interactive charts and visualizations</li>
+            </ul>
+
+            <h3>6. AI Analysis</h3>
+            <p>Financial data automatically enhances AI analysis:</p>
+
+            <h4>In CF Security AI Suggestions:</h4>
+            <pre><code>Use {{periods:annual:5}} to include last 5 annual periods
+Use {{periods:quarterly:4}} to include last 4 quarters</code></pre>
+
+            <h4>In Chat Messages:</h4>
+            <pre><code>Natural language: "compare Q3 vs Q2"
+Auto-transforms to: {{periods:compare:2024Q3:2024Q2}}</code></pre>
+
+            <h4>In Portfolio Analysis:</h4>
+            <pre><code>Use ((periods:annual:3)) for portfolio-wide financial summary
+Use ((periods:latest)) for most recent data across all holdings</code></pre>
+        </div>
+
+        <hr>
+
+        <div class="section" id="api-developer-reference">
+            <h2>API & Developer Reference</h2>
+
+            <h3>Query Financial Periods</h3>
+            <pre><code>import frappe
+
+# Get last 4 quarters for a security
+periods = frappe.get_all(
+    "CF Financial Period",
+    filters={
+        "security": "AAPL",
+        "period_type": "Quarterly"
+    },
+    fields=[
+        "fiscal_year", "fiscal_quarter", "period_end_date",
+        "total_revenue", "net_income", "free_cash_flow",
+        "gross_margin", "operating_margin", "net_margin",
+        "roe", "roa", "debt_to_equity"
+    ],
+    order_by="period_end_date DESC",
+    limit=4
+)</code></pre>
+
+            <h3>Import from Yahoo Finance</h3>
+            <pre><code>from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import import_from_yahoo_finance
+
+result = import_from_yahoo_finance(
+    security_name="AAPL",
+    replace_existing=False,  # Skip if better data exists
+    respect_override=True    # Honor override_yahoo flag
+)
+
+# Returns: {
+#   "success": True,
+#   "imported": 5,
+#   "updated": 3,
+#   "skipped": 2,
+#   "errors": []
+# }</code></pre>
+
+            <h3>Bulk Import</h3>
+            <pre><code>from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import bulk_import_financial_periods
+
+# Import for multiple securities
+securities = ["AAPL", "MSFT", "GOOGL"]
+result = bulk_import_financial_periods(
+    security_names=securities,
+    replace_existing=False,
+    progress_id="bulk_import_123"  # For realtime progress tracking
+)</code></pre>
+
+            <h3>Format for AI</h3>
+            <pre><code>from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
+
+# Generate AI-ready summary
+ai_context = format_periods_for_ai(
+    security_name="AAPL",
+    period_type="Annual",
+    num_periods=5,
+    include_growth=True,
+    format="markdown"  # Options: markdown, text, json, table
+)
+
+# Use in AI prompt
+prompt = f"Analyze the following financial data:\n\n{ai_context}"</code></pre>
+
+            <h3>Data Freshness Tracking</h3>
+            <pre><code># Check data freshness
+security = frappe.get_doc("CF Security", "AAPL")
+security.update_data_freshness()
+
+print(f"Last period: {security.last_financial_period_date}")
+print(f"Days old: {security.days_since_last_period}")
+print(f"Needs update: {security.needs_update}")  # True if >90 days (quarterly) or >365 days (annual)</code></pre>
+
+            <h3>Valuation Using Structured Data</h3>
+            <pre><code># Valuation methods now use CF Financial Period queries
+security = frappe.get_doc("CF Security", "AAPL")
+
+# Fetch periods for analysis
+periods = security._get_financial_periods(period_type="Annual", limit=5)
+
+# DCF calculation uses structured data
+dcf_value = security._calculate_dcf_value()  # Queries periods internally
+residual_income = security._calculate_residual_income()</code></pre>
+
+            <h3>Period Comparisons in Chat</h3>
+            <p>Natural language comparison queries are automatically detected and transformed:</p>
+            <pre><code># User input: "compare Q3 vs Q2"
+# System transforms to: {{periods:compare:2024Q3:2024Q2}}
+
+# Supported patterns:
+# - "compare Q3 vs Q2"
+# - "compare Q3 2024 vs Q2 2024"
+# - "compare 2024 vs 2023"
+# - "compare Q4 vs previous quarter"
+# - "compare 2024 to previous year"</code></pre>
+
+            <h3>Manual Period Entry Example</h3>
+            <pre><code># Create a new financial period
+period = frappe.get_doc({
+    "doctype": "CF Financial Period",
+    "security": "PRIVATE_COMPANY",
+    "period_type": "Annual",
+    "fiscal_year": 2024,
+    "period_end_date": "2024-12-31",
+    "data_source": "Manual",
+    "total_revenue": 1000000,
+    "cost_of_revenue": 600000,
+    "operating_expenses": 200000,
+    "net_income": 150000,
+    "total_assets": 2000000,
+    "total_liabilities": 800000,
+    "operating_cash_flow": 180000,
+    "capital_expenditures": 50000
+})
+
+period.insert()
+# System automatically calculates:
+# - Gross profit (400,000)
+# - Margins (40%, 20%, 15%)
+# - Free cash flow (130,000)
+# - Debt to equity ratio
+# - ROE, ROA, etc.</code></pre>
+
+            <h3>Best Practices</h3>
+            <div class="tip-box">
+                <ol>
+                    <li><strong>Always use <code>format_periods_for_ai()</code></strong> for AI prompts - handles formatting and null values</li>
+                    <li><strong>Query specific fields</strong> instead of <code>fields=["*"]</code> for better performance</li>
+                    <li><strong>Use <code>period_type</code> filter</strong> to separate Annual, Quarterly, and TTM data</li>
+                    <li><strong>Check <code>data_quality_score</code></strong> when comparing multiple sources</li>
+                    <li><strong>Enable auto-import</strong> in CF Settings for automatic Yahoo Finance imports</li>
+                </ol>
+            </div>
+
+            <h3>Scheduled Tasks</h3>
+            <p>The system includes automated maintenance:</p>
+            <pre><code># Daily bulk import (configured in hooks.py)
+# Runs for all securities with:
+# - replace_existing=False (preserves better data)
+# - respect_override=True (honors user locks)</code></pre>
+        </div>
+
+        <hr>
+
+        <div class="section" id="contributing">
+            <h2>Contributing</h2>
+            <p>This app uses <code>pre-commit</code> for code formatting and linting. Please <a href="https://pre-commit.com/#installation" target="_blank">install pre-commit</a> and enable it for this repository:</p>
+
+            <pre><code>cd apps/cognitive_folio
+pre-commit install</code></pre>
+
+            <p>Pre-commit is configured to use the following tools for checking and formatting your code:</p>
+            <ul>
+                <li>ruff</li>
+                <li>eslint</li>
+                <li>prettier</li>
+                <li>pyupgrade</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <div class="section" id="license">
+            <h2>License</h2>
+            <p>MIT</p>
+        </div>
+
+        <div class="footer">
+            <p><em>Last Updated: November 2025</em></p>
+            <p>For questions or issues, check the Cognitive Folio GitHub repository.</p>
+        </div>
+    </div>
+</body>
+</html>
+{% endraw %}
