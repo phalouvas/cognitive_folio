@@ -163,7 +163,179 @@
         
         <div class="example-box">
             <strong>Example:</strong><br>
-            <code>((portfolio_name))</code>, <code>((risk_profile))</code>, <code>((total_value))</code>
+            <code>((portfolio_name))</code>, <code>((risk_profile))</code>, <code>((current_value))</code>, <code>((returns_total))</code>
+        </div>
+
+        <h3>Performance Metrics:</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Variable</th>
+                    <th>Description</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>((cost))</code></td>
+                    <td>Total cost basis</td>
+                </tr>
+                <tr>
+                    <td><code>((current_value))</code></td>
+                    <td>Current portfolio value</td>
+                </tr>
+                <tr>
+                    <td><code>((returns_price))</code></td>
+                    <td>Price-based returns (amount)</td>
+                </tr>
+                <tr>
+                    <td><code>((returns_percentage_price))</code></td>
+                    <td>Price-based returns (%)</td>
+                </tr>
+                <tr>
+                    <td><code>((returns_dividends))</code></td>
+                    <td>Dividend income received</td>
+                </tr>
+                <tr>
+                    <td><code>((returns_percentage_dividends))</code></td>
+                    <td>Dividend returns (%)</td>
+                </tr>
+                <tr>
+                    <td><code>((returns_total))</code></td>
+                    <td>Total returns (price + dividends)</td>
+                </tr>
+                <tr>
+                    <td><code>((returns_percentage_total))</code></td>
+                    <td>Total returns (%)</td>
+                </tr>
+                <tr>
+                    <td><code>((annualized_percentage_dividends))</code></td>
+                    <td>Portfolio dividend yield (%)</td>
+                </tr>
+                <tr>
+                    <td><code>((annualized_dividends))</code></td>
+                    <td>Annualized dividend income estimate</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <hr>
+
+        <h2>3a. Pre-Computed Portfolio Analytics</h2>
+        <p>These variables provide aggregated portfolio insights computed during performance calculations. They reduce AI computation load and improve reliability.</p>
+        
+        <h3>Concentration Risk:</h3>
+        <div class="example-box">
+            <strong>Variable:</strong> <code>((top_5_concentration))</code><br>
+            <strong>Output:</strong> Sum of the 5 largest holdings by allocation percentage<br>
+            <strong>Example:</strong> <code>45.2</code> (meaning 45.2% of portfolio in top 5 positions)
+        </div>
+
+        <div class="warning-box">
+            <strong>Risk Threshold:</strong> Values >40% indicate high concentration risk and warrant diversification review.
+        </div>
+
+        <h3>Sector Allocation Breakdown:</h3>
+        <div class="example-box">
+            <strong>Variable:</strong> <code>((sector_allocations))</code><br>
+            <strong>Output:</strong> Formatted markdown list of sectors sorted by percentage (descending)<br>
+            <strong>Example Output:</strong>
+            <pre><code>- **Technology:** 35.5%
+- **Healthcare:** 22.3%
+- **Financials:** 18.7%
+- **Consumer Discretionary:** 12.1%
+- **Industrials:** 8.9%
+- **Unknown:** 2.5%</code></pre>
+        </div>
+
+        <h3>Regional Allocation:</h3>
+        <div class="example-box">
+            <strong>Variable:</strong> <code>((region_allocations))</code><br>
+            <strong>Output:</strong> Formatted markdown list of regions sorted by percentage<br>
+            <strong>Example Output:</strong>
+            <pre><code>- **North America:** 62.4%
+- **Europe:** 28.1%
+- **Asia Pacific:** 7.3%
+- **Unknown:** 2.2%</code></pre>
+        </div>
+
+        <h3>Country Breakdown:</h3>
+        <div class="example-box">
+            <strong>Variable:</strong> <code>((country_allocations))</code><br>
+            <strong>Output:</strong> Formatted markdown list of countries sorted by percentage<br>
+            <strong>Example Output:</strong>
+            <pre><code>- **United States:** 58.9%
+- **United Kingdom:** 15.2%
+- **Germany:** 8.7%
+- **France:** 4.2%
+- **Japan:** 5.8%
+- **Unknown:** 7.2%</code></pre>
+        </div>
+
+        <h3>Currency Exposure:</h3>
+        <div class="example-box">
+            <strong>Variable:</strong> <code>((currency_exposure))</code><br>
+            <strong>Output:</strong> Formatted markdown list of currencies sorted by percentage<br>
+            <strong>Example Output:</strong>
+            <pre><code>- **USD:** 62.4%
+- **EUR:** 28.1%
+- **GBP:** 7.3%
+- **JPY:** 2.2%</code></pre>
+        </div>
+
+        <div class="tip-box">
+            <strong>FX Risk Assessment:</strong> Compare currency exposure to portfolio base currency <code>((currency))</code>. High mismatch (>20% in foreign currencies) creates FX risk.
+        </div>
+
+        <h3>Target vs. Actual Allocations:</h3>
+        <div class="example-box">
+            <strong>Variable:</strong> <code>((target_vs_actual_allocations))</code><br>
+            <strong>Source:</strong> CF Asset Allocation records for the portfolio<br>
+            <strong>Output:</strong> Formatted breakdown by allocation type with targets, actuals, and drift<br>
+            <strong>Example Output:</strong>
+            <pre><code>**Asset Class:**
+- Stocks: Target 70%, Current 75.2%, Difference +5.2%
+- Bonds: Target 25%, Current 19.8%, Difference -5.2%
+- Cash: Target 5%, Current 5.0%, Difference +0.0%
+
+**Sector:**
+- Technology: Target 30%, Current 35.5%, Difference +5.5%
+- Healthcare: Target 20%, Current 22.3%, Difference +2.3%
+- Financials: Target 15%, Current 18.7%, Difference +3.7%
+
+**Region:**
+- North America: Target 60%, Current 62.4%, Difference +2.4%
+- Europe: Target 30%, Current 28.1%, Difference -1.9%
+- Asia Pacific: Target 10%, Current 7.3%, Difference -2.7%</code></pre>
+        </div>
+
+        <div class="warning-box">
+            <strong>Rebalancing Trigger:</strong> Allocation drift >15% from target typically warrants rebalancing action.
+        </div>
+
+        <h3>Usage in Prompts:</h3>
+        <div class="example-box">
+            <p>Instead of asking the AI to calculate aggregations, inject pre-computed data:</p>
+            <pre><code>## Portfolio Concentration
+Top 5 Holdings: ((top_5_concentration))% of portfolio
+
+## Sector Exposure
+((sector_allocations))
+
+## Geographic Distribution
+**Regions:**
+((region_allocations))
+
+**Countries:**
+((country_allocations))
+
+## Currency Risk
+Base Currency: ((currency))
+Exposure Breakdown:
+((currency_exposure))
+
+## Target vs. Actual Allocations
+((target_vs_actual_allocations))</code></pre>
+            <p><small>This provides the AI with all key metrics for interpretation rather than calculation.</small></p>
         </div>
 
         <hr>
@@ -395,12 +567,14 @@ YoY Growth (removes seasonality): {{periods:compare:latest_quarterly:yoy_quarter
             <ul>
                 <li>Start with a concise context header (Security + latest periods)</li>
                 <li>Use structured periods instead of dumping raw JSON blobs</li>
+                <li>Use pre-computed portfolio analytics instead of asking AI to calculate aggregations</li>
                 <li>Avoid mixing large JSON (<code>{{periods:quarterly:8:json}}</code>) with verbose narrative requests</li>
                 <li>Chain reasoning: supply data → ask specific analytical questions</li>
+                <li>For portfolio analysis: inject all pre-computed metrics upfront for AI interpretation</li>
             </ul>
         </div>
 
-        <h3>Template Snippet:</h3>
+        <h3>Security Analysis Template:</h3>
         <pre><code>Company Overview: {{security_name}} ({{symbol}})
 Sector: {{sector}} Industry: {{industry}}
 
@@ -411,6 +585,31 @@ Quarterly Trend:
 {{periods:quarterly:4:table}}
 
 Key News: {{news.ARRAY.content.title}}</code></pre>
+
+        <h3>Portfolio Analysis Template:</h3>
+        <pre><code>Portfolio: ((portfolio_name))
+Risk Profile: ((risk_profile))
+Base Currency: ((currency))
+Current Value: ((current_value))
+Total Returns: ((returns_total)) (((returns_percentage_total))%)
+
+## Concentration Risk
+Top 5 Holdings: ((top_5_concentration))%
+
+## Sector Exposure
+((sector_allocations))
+
+## Geographic Distribution
+((region_allocations))
+
+## Currency Exposure
+((currency_exposure))
+
+## Target vs. Actual Allocations
+((target_vs_actual_allocations))
+
+## Holdings Performance
+[Holdings data expands here via ***HOLDINGS*** blocks]</code></pre>
 
         <hr>
 
@@ -479,7 +678,37 @@ Key News: {{news.ARRAY.content.title}}</code></pre>
                 <tr>
                     <td>Portfolio Field</td>
                     <td><code>((field))</code></td>
-                    <td><code>((total_value))</code></td>
+                    <td><code>((current_value))</code></td>
+                </tr>
+                <tr>
+                    <td>Pre-Computed Analytics</td>
+                    <td><code>((analytics_field))</code></td>
+                    <td><code>((top_5_concentration))</code></td>
+                </tr>
+                <tr>
+                    <td>Sector Allocations</td>
+                    <td><code>((sector_allocations))</code></td>
+                    <td>Formatted markdown list</td>
+                </tr>
+                <tr>
+                    <td>Region Allocations</td>
+                    <td><code>((region_allocations))</code></td>
+                    <td>Formatted markdown list</td>
+                </tr>
+                <tr>
+                    <td>Country Allocations</td>
+                    <td><code>((country_allocations))</code></td>
+                    <td>Formatted markdown list</td>
+                </tr>
+                <tr>
+                    <td>Currency Exposure</td>
+                    <td><code>((currency_exposure))</code></td>
+                    <td>Formatted markdown list</td>
+                </tr>
+                <tr>
+                    <td>Target vs Actual</td>
+                    <td><code>((target_vs_actual_allocations))</code></td>
+                    <td>Formatted comparison blocks</td>
                 </tr>
                 <tr>
                     <td>Financial Periods</td>

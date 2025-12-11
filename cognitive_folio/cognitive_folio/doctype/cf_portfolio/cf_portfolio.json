@@ -34,12 +34,21 @@
   "returns_percentage_total",
   "annualized_total",
   "annualized_percentage_total",
+  "ai_tab",
   "section_break_8",
   "ai_suggestion_html",
   "ai_suggestion",
-  "ai_tab",
+  "section_break_kotg",
   "template_prompt",
-  "ai_prompt"
+  "ai_prompt",
+  "analytics_tab",
+  "analytics_section",
+  "top_5_concentration",
+  "column_break_analytics",
+  "sector_allocations",
+  "region_allocations",
+  "country_allocations",
+  "currency_exposure"
  ],
  "fields": [
   {
@@ -235,7 +244,51 @@
    "read_only": 1
   },
   {
-   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{alert_details}} {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}} <b>Portfolio </b> - ((Target Allocations)) ((portfolio_name)) ((risk_profile)) ((currency)) ((total_value)) ((total_profit_loss)) <b>Holding</b> - [[current_price]] [[current_price_sec]] [[quantity]] [[average_purchase_price]] [[base_average_purchase_price]] [[base_cost]] [[current_value]] [[allocation_percentage]] [[yearly_dividend_income]] [[total_dividend_income]] [[profit_loss_percentage]] [[profit_loss]] <b>JSON</b> - {{news.0.content.title}} {{news.ARRAY.content.title}}  <b>Files</b> - &lt;&lt;filename.pdf&gt;&gt;",
+   "fieldname": "analytics_section",
+   "fieldtype": "Section Break",
+   "label": "Pre-Computed Analytics"
+  },
+  {
+   "description": "Sum of the 5 largest holdings by allocation percentage",
+   "fieldname": "top_5_concentration",
+   "fieldtype": "Percent",
+   "label": "Top 5 Concentration",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_analytics",
+   "fieldtype": "Column Break"
+  },
+  {
+   "description": "JSON: {\"Sector Name\": percentage, ...}",
+   "fieldname": "sector_allocations",
+   "fieldtype": "Long Text",
+   "label": "Sector Allocations (JSON)",
+   "read_only": 1
+  },
+  {
+   "description": "JSON: {\"Region Name\": percentage, ...}",
+   "fieldname": "region_allocations",
+   "fieldtype": "Long Text",
+   "label": "Region Allocations (JSON)",
+   "read_only": 1
+  },
+  {
+   "description": "JSON: {\"Country Name\": percentage, ...}",
+   "fieldname": "country_allocations",
+   "fieldtype": "Long Text",
+   "label": "Country Allocations (JSON)",
+   "read_only": 1
+  },
+  {
+   "description": "JSON: {\"Currency Code\": percentage, ...}",
+   "fieldname": "currency_exposure",
+   "fieldtype": "Long Text",
+   "label": "Currency Exposure (JSON)",
+   "read_only": 1
+  },
+  {
+   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{alert_details}} {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}} <b>Portfolio </b> - ((target_vs_actual_allocations)) ((top_5_concentration)) ((sector_allocations)) ((region_allocations)) ((country_allocations)) ((currency_exposure)) ((portfolio_name)) ((risk_profile)) ((currency)) ((total_value)) ((total_profit_loss)) <b>Holding</b> - [[current_price]] [[current_price_sec]] [[quantity]] [[average_purchase_price]] [[base_average_purchase_price]] [[base_cost]] [[current_value]] [[allocation_percentage]] [[yearly_dividend_income]] [[total_dividend_income]] [[profit_loss_percentage]] [[profit_loss]] <b>JSON</b> - {{news.0.content.title}} {{news.ARRAY.content.title}}  <b>Files</b> - &lt;&lt;filename.pdf&gt;&gt;",
    "fieldname": "ai_prompt",
    "fieldtype": "Markdown Editor",
    "label": "AI Prompt"
@@ -250,6 +303,15 @@
    "fieldtype": "Link",
    "label": "Template Prompt",
    "options": "CF Prompt"
+  },
+  {
+   "fieldname": "section_break_kotg",
+   "fieldtype": "Section Break"
+  },
+  {
+   "fieldname": "analytics_tab",
+   "fieldtype": "Tab Break",
+   "label": "Analytics"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -275,7 +337,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-06-06 14:58:52.306070",
+ "modified": "2025-12-11 09:12:38.415970",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",

@@ -414,6 +414,9 @@ class CFPortfolio(Document):
 				self.annualized_percentage_total = flt(self.annualized_percentage_price + self.annualized_percentage_dividends, 2)
 				self.annualized_total = flt(self.annualized_price + self.annualized_dividends, 2)
 
+			# Pre-compute analytics aggregations for AI analysis
+			self._compute_analytics_aggregations(holdings)
+
 			self.save()
 			
 			# Update all asset allocations for this portfolio based on new performance metrics
@@ -425,6 +428,52 @@ class CFPortfolio(Document):
 			frappe.log_error(f"Error calculating portfolio performance: {str(e)}", 
 							"Portfolio Performance Error")
 			return {'success': False, 'error': str(e)}
+	
+	def _compute_analytics_aggregations(self, holdings):
+		"""Pre-compute sector/region/country/currency aggregations and top 5 concentration"""
+		import json
+		
+		sector_allocations = {}
+		region_allocations = {}
+		country_allocations = {}
+		currency_exposure = {}
+		top_holdings = []
+		
+		for holding in holdings:
+			allocation_pct = flt(holding.allocation_percentage or 0)
+			
+			# Aggregate by sector
+			sector = holding.sector or "Unknown"
+			sector_allocations[sector] = flt(sector_allocations.get(sector, 0) + allocation_pct, 2)
+			
+			# Aggregate by region
+			region = holding.region or "Unknown"
+			region_allocations[region] = flt(region_allocations.get(region, 0) + allocation_pct, 2)
+			
+			# Aggregate by country
+			country = holding.country or "Unknown"
+			country_allocations[country] = flt(country_allocations.get(country, 0) + allocation_pct, 2)
+			
+			# Aggregate by currency
+			currency = holding.currency or "Unknown"
+			currency_exposure[currency] = flt(currency_exposure.get(currency, 0) + allocation_pct, 2)
+			
+			# Track for top holdings
+			if allocation_pct > 0:
+				top_holdings.append({
+					'name': holding.security_name or holding.security,
+					'weight': allocation_pct
+				})
+		
+		# Calculate top 5 concentration
+		top_holdings.sort(key=lambda x: x['weight'], reverse=True)
+		self.top_5_concentration = flt(sum(h['weight'] for h in top_holdings[:5]), 2)
+		
+		# Store as JSON strings
+		self.sector_allocations = json.dumps(sector_allocations, indent=2)
+		self.region_allocations = json.dumps(region_allocations, indent=2)
+		self.country_allocations = json.dumps(country_allocations, indent=2)
+		self.currency_exposure = json.dumps(currency_exposure, indent=2)
 	
 	def update_allocations(self):
 		"""Update all asset allocations for this portfolio based on current holdings"""
@@ -451,6 +500,64 @@ class CFPortfolio(Document):
 				f"Error updating allocations for portfolio {self.name}: {str(e)}",
 				"Portfolio Allocation Update Error"
 			)
+
+def _build_target_vs_actual_allocations(portfolio_name):
+	"""Build formatted text block for target vs actual allocations from CF Asset Allocation"""
+	allocations = frappe.get_all(
+		"CF Asset Allocation",
+		filters={"portfolio": portfolio_name},
+		fields=["allocation_type", "asset_class", "target_percentage", "current_percentage", "difference"],
+		order_by="allocation_type, asset_class"
+	)
+	
+	if not allocations:
+		return "No target allocations defined for this portfolio."
+	
+	# Group by allocation_type
+	grouped = {}
+	for alloc in allocations:
+		alloc_type = alloc.allocation_type
+		if alloc_type not in grouped:
+			grouped[alloc_type] = []
+		grouped[alloc_type].append(alloc)
+	
+	# Format output
+	lines = []
+	for alloc_type, items in grouped.items():
+		lines.append(f"**{alloc_type}:**")
+		for item in items:
+			diff_sign = "+" if item.difference > 0 else ""
+			lines.append(
+				f"- {item.asset_class}: Target {item.target_percentage}%, "
+				f"Current {item.current_percentage}%, "
+				f"Difference {diff_sign}{item.difference}%"
+			)
+		lines.append("")
+	
+	return "\n".join(lines)
+
+def _format_json_allocations(json_str, label):
+	"""Format JSON allocations into readable markdown"""
+	import json
+	
+	if not json_str:
+		return f"No {label.lower()} data available."
+	
+	try:
+		data = json.loads(json_str)
+		if not data:
+			return f"No {label.lower()} data available."
+		
+		# Sort by percentage descending
+		sorted_items = sorted(data.items(), key=lambda x: x[1], reverse=True)
+		
+		lines = []
+		for name, percentage in sorted_items:
+			lines.append(f"- **{name}:** {percentage}%")
+		
+		return "\n".join(lines)
+	except (json.JSONDecodeError, Exception):
+		return f"Error formatting {label.lower()} data."
 
 @frappe.whitelist()
 def process_portfolio_ai_analysis(portfolio_name, user):
@@ -495,8 +602,28 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 			if not holdings:
 				raise ValueError(_('No holdings found in this portfolio'))
 			
+			# Use the prompt from the portfolio's ai_prompt field
 			prompt = portfolio.ai_prompt or ""
 			
+			if not prompt:
+				raise ValueError(_('No AI prompt configured for this portfolio. Please set an AI prompt or select a template.'))
+			
+			# Build target vs actual allocations text
+			target_allocations_text = _build_target_vs_actual_allocations(portfolio_name)
+			
+			# Format pre-computed analytics for injection
+			import json
+			sector_allocs_formatted = _format_json_allocations(portfolio.sector_allocations, "Sector")
+			region_allocs_formatted = _format_json_allocations(portfolio.region_allocations, "Region")
+			country_allocs_formatted = _format_json_allocations(portfolio.country_allocations, "Country")
+			currency_exposure_formatted = _format_json_allocations(portfolio.currency_exposure, "Currency")
+			
+			# Replace portfolio-level variables including new pre-computed analytics
+			prompt = re.sub(r'\(\(target_vs_actual_allocations\)\)', target_allocations_text, prompt)
+			prompt = re.sub(r'\(\(sector_allocations\)\)', sector_allocs_formatted, prompt)
+			prompt = re.sub(r'\(\(region_allocations\)\)', region_allocs_formatted, prompt)
+			prompt = re.sub(r'\(\(country_allocations\)\)', country_allocs_formatted, prompt)
+			prompt = re.sub(r'\(\(currency_exposure\)\)', currency_exposure_formatted, prompt)
 			prompt = re.sub(r'\(\((\w+)\)\)', lambda match: replace_variables(match, portfolio), prompt)
 			
 			holdings = frappe.get_all(
