@@ -235,8 +235,7 @@
    "fieldname": "current_price",
    "fieldtype": "Currency",
    "label": "Current Price",
-   "options": "currency",
-   "read_only": 1
+   "options": "currency"
   },
   {
    "fieldname": "ai_suggestion_html",
@@ -621,7 +620,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-06 07:31:18.721537",
+ "modified": "2025-12-13 08:49:51.325147",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
