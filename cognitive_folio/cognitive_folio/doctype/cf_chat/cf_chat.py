@@ -6,6 +6,15 @@ from frappe.model.document import Document
 
 
 class CFChat(Document):
+    def validate(self):
+        """Fetch default temperature and top_p from CF Settings if not set"""
+        if self.temperature is None or self.top_p is None:
+            settings = frappe.get_single("CF Settings")
+            if self.temperature is None and settings.default_temperature:
+                self.temperature = settings.default_temperature
+            if self.top_p is None and settings.default_top_p:
+                self.top_p = settings.default_top_p
+
     def on_trash(self):
         """Delete all related chat messages before deleting the chat"""
         # Delete all cf_chat_messages linked to this chat
