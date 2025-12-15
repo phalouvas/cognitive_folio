@@ -12,6 +12,8 @@
   "duplicated_from",
   "column_break_zqji",
   "system_prompt",
+  "temperature",
+  "top_p",
   "messages_section",
   "messages"
  ],
@@ -51,6 +53,20 @@
    "fieldname": "system_prompt",
    "fieldtype": "Markdown Editor",
    "label": "System Prompt"
+  },
+  {
+   "description": "Controls randomness (0.0-2.0). Leave empty to use default from Settings.",
+   "fieldname": "temperature",
+   "fieldtype": "Float",
+   "label": "Temperature",
+   "options": "0.0-2.0"
+  },
+  {
+   "description": "Controls diversity (0.0-1.0). Leave empty to use default from Settings.",
+   "fieldname": "top_p",
+   "fieldtype": "Float",
+   "label": "Top P",
+   "options": "0.0-1.0"
   },
   {
    "fieldname": "model",

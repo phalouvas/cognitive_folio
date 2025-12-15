@@ -8,6 +8,8 @@
   "chat",
   "status",
   "model",
+  "temperature",
+  "top_p",
   "web_search",
   "fetch_urls",
   "column_break_cbjh",
@@ -61,6 +63,20 @@
    "fieldtype": "Select",
    "label": "Model",
    "options": "\ndeepseek-chat\ndeepseek-reasoner"
+  },
+  {
+   "description": "Controls randomness (0.0-2.0)",
+   "fieldname": "temperature",
+   "fieldtype": "Float",
+   "label": "Temperature",
+   "options": "0.0-2.0"
+  },
+  {
+   "description": "Controls diversity (0.0-1.0)",
+   "fieldname": "top_p",
+   "fieldtype": "Float",
+   "label": "Top P",
+   "options": "0.0-1.0"
   },
   {
    "fieldname": "column_break_cbjh",
