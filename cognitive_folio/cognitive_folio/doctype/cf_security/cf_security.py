@@ -2,6 +2,7 @@
 # For license information, please see license.txt
 
 import json
+import os
 import requests
 import frappe
 from frappe import _
@@ -133,6 +134,10 @@ class CFSecurity(Document):
 			if not self.region:
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
+			
+			# Automatically extract financial data after fetching fundamentals
+			if with_fundamentals:
+				self.extract_financial_data()
 	
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
@@ -228,6 +233,43 @@ class CFSecurity(Document):
 		
 		except Exception as e:
 			frappe.log_error(f"Error queueing security AI suggestion: {str(e)}", "Security AI Suggestion Error")
+			return {'success': False, 'error': str(e)}
+	
+	@frappe.whitelist()
+	def extract_financial_data(self):
+		"""Queue financial data extraction for the security as a background job"""
+		if self.security_type != "Stock":
+			return {'success': False, 'error': _('Financial data extraction is only for stock securities')}
+		
+		self.fetched_data = frappe.as_json({"status": "processing", "message": "Processing your request..."})
+		self.save()
+		
+		try:
+			from frappe.utils.background_jobs import enqueue
+			
+			# Create a unique job name to prevent duplicates
+			job_name = f"financial_data_extraction_{self.name}_{frappe.utils.now()}"
+			
+			# Enqueue the job
+			enqueue(
+				method="cognitive_folio.cognitive_folio.doctype.cf_security.cf_security.process_financial_data_extraction",
+				queue="long",
+				timeout=1800,  # 30 minutes
+				job_id=job_name,
+				now=False,
+				security_name=self.name,
+				user=frappe.session.user
+			)
+			
+			frappe.msgprint(
+				_("Financial data extraction has been queued. You will be notified when it's complete."),
+				alert=True
+			)
+			
+			return {'success': True, 'message': _('Financial data extraction has been queued')}
+		
+		except Exception as e:
+			frappe.log_error(f"Error queueing financial data extraction: {str(e)}", "Financial Data Extraction Error")
 			return {'success': False, 'error': str(e)}
 	
 	@frappe.whitelist()
@@ -2185,6 +2227,308 @@ def process_security_ai_suggestion(security_name, user):
 			short_title = f"AI Suggestion Error"[:140]
 		
 		# FIXED: Correct parameter order - title first, then message
+		frappe.log_error(short_title, error_message)
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'security_id': security_name,
+				'status': 'error',
+				'error': error_message[:200],  # Truncate for realtime message too
+				'message': error_message[:200]
+			},
+			user=user
+		)
+		
+		return False
+
+def process_financial_data_extraction(security_name, user):
+	"""Process financial data extraction for the security (meant to be run as a background job)"""
+	try:
+		# Get the security document
+		security = frappe.get_doc("CF Security", security_name)
+		
+		if security.security_type == "Cash":
+			return False
+		
+		try:
+			from openai import OpenAI
+		except ImportError:
+			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "Financial Data Extraction Error")
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'security_id': security_name,
+					'status': 'error',
+					'error': 'OpenAI package is not installed',
+					'message': 'Please run "bench pip install openai" to install the required package.'
+				},
+				user=user
+			)
+			return False
+		
+		try:
+			# Get OpenWebUI settings
+			settings = frappe.get_single("CF Settings")
+			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+			
+			# Read the prompt template from file
+			app_path = frappe.get_app_path('cognitive_folio')
+			prompt_file_path = os.path.join(app_path, 'prompts', 'extract_data.md')
+			
+			if not os.path.exists(prompt_file_path):
+				raise FileNotFoundError(f"Prompt template not found at {prompt_file_path}")
+			
+			with open(prompt_file_path, 'r', encoding='utf-8') as f:
+				prompt = f.read()
+			
+			# Expand only the approved variables for consistency
+			# Variables: security_name, symbol, sector, industry, currency, financials:y10:q16
+			# Note: current_price is excluded for consistency (replace with null)
+			prompt = prompt.replace("{{current_price}}", "null")
+			prompt = re.sub(r'\{\{([\w\.\:]+)\}\}', lambda match: replace_variables(match, security), prompt)
+			
+			# Call DeepSeek with specific parameters for consistency
+			messages = [
+				{"role": "system", "content": settings.system_content},
+				{"role": "user", "content": prompt},
+			]
+			response = client.chat.completions.create(
+				model="deepseek-chat",  # Hardcoded for consistency
+				messages=messages,
+				stream=False,
+				temperature=0,  # Deterministic output
+				top_p=0.1,  # Minimal randomness
+				seed=42,  # Fixed seed for reproducibility
+				frequency_penalty=0,  # No frequency penalty
+				presence_penalty=0,  # No presence penalty
+				n=1  # Single completion for deterministic behavior
+			)
+			
+			# Check if response has choices and content
+			if not response.choices or not response.choices[0].message.content:
+				raise ValueError("Empty response received from AI model")
+			
+			content_string = response.choices[0].message.content.strip()
+			
+			# Validate that we got actual content
+			if not content_string:
+				raise ValueError("No content in AI response")
+			
+		except Exception as api_error:
+			error_message = f"AI API error: {str(api_error)}"
+			frappe.log_error(error_message, "OpenAI API Error")
+			
+			# Update security with error status
+			security.reload()
+			security.fetched_data = frappe.as_json({
+				"status": "error",
+				"error": str(api_error),
+				"message": f"Error generating financial data extraction: {str(api_error)}"
+			})
+			security.flags.ignore_version = True
+			security.flags.ignore_mandatory = True
+			security.save()
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'security_id': security_name,
+					'status': 'error',
+					'error': error_message,
+					'message': error_message
+				},
+				user=user
+			)
+			
+			return False
+		
+		try:
+			# deepseek-chat wraps JSON in markdown code blocks, so strip them explicitly
+			if content_string.startswith('```'):
+				# Remove opening code fence
+				content_string = content_string.split('```', 1)[1]
+				# Remove language identifier (e.g., 'json')
+				if content_string.startswith('json'):
+					content_string = content_string[4:].lstrip()
+				# Remove closing code fence
+				if '```' in content_string:
+					content_string = content_string.rsplit('```', 1)[0]
+			
+			# Use clear_string helper for additional cleanup
+			content_string = clear_string(content_string)
+			extracted_data = json.loads(content_string)
+			
+			# Validate the JSON structure
+			if not isinstance(extracted_data, dict):
+				raise ValueError("AI response is not a valid JSON object")
+			
+			# Validate expected structure
+			required_sections = ["company_info", "data_quality", "annual_data", "quarterly_data"]
+			missing_sections = [section for section in required_sections if section not in extracted_data]
+			
+			if missing_sections:
+				frappe.log_error(f"AI response missing required sections: {missing_sections}", "Financial Data Extraction Validation Warning")
+				# Continue processing with available data
+			
+		except json.JSONDecodeError as json_error:
+			# If JSON parsing still fails, try a more robust cleanup approach
+			try:
+				# Remove markdown formatting and fix common JSON issues
+				cleaned = content_string.strip()
+				
+				# Find all string values in the JSON and clean them
+				def clean_json_string(match):
+					string_content = match.group(1)
+					# Replace literal newlines with \n
+					string_content = string_content.replace('\n', '\\n')
+					# Replace other problematic characters
+					string_content = string_content.replace('\r', '\\r')
+					string_content = string_content.replace('\t', '\\t')
+					string_content = string_content.replace('&nbsp;', ' ')
+					# Handle unescaped quotes within strings
+					string_content = re.sub(r'(?<!\\)"', '\\"', string_content)
+					return f'"{string_content}"'
+				
+				# Apply cleaning to all JSON string values
+				cleaned = re.sub(r'"([^"]*(?:\\.[^"]*)*)"', clean_json_string, cleaned, flags=re.DOTALL)
+				
+				extracted_data = json.loads(cleaned)
+				
+			except (json.JSONDecodeError, Exception) as secondary_error:
+				error_message = f"Invalid JSON in AI response: {str(json_error)}"
+				frappe.log_error(f"{error_message}\nRaw response: {content_string}", "Financial Data Extraction JSON Parse Error")
+				
+				# Fallback: save the raw response
+				security.reload()
+				security.fetched_data = frappe.as_json({
+					"status": "error",
+					"error": "JSON parsing failed",
+					"raw_response": content_string[:1000]  # Truncate to avoid huge data
+				})
+				security.flags.ignore_version = True
+				security.flags.ignore_mandatory = True
+				security.save()
+				
+				# Notify user of partial success
+				frappe.publish_realtime(
+					event='cf_job_completed',
+					message={
+						'security_id': security_name,
+						'status': 'error',
+						'error': 'AI response format issue - raw response saved',
+						'message': 'AI response had formatting issues'
+					},
+					user=user
+				)
+				
+				return False
+		
+		except Exception as parse_error:
+			error_message = f"Error parsing AI response: {str(parse_error)}"
+			frappe.log_error("Financial Data Extraction Response Parse Error", error_message)
+			
+			# Update security with error status
+			security.reload()
+			security.fetched_data = frappe.as_json({
+				"status": "error",
+				"error": str(parse_error),
+				"message": f"Error processing AI response: {str(parse_error)}"
+			})
+			security.flags.ignore_version = True
+			security.flags.ignore_mandatory = True
+			security.save()
+			
+			# Notify user of failure
+			frappe.publish_realtime(
+				event='cf_job_completed',
+				message={
+					'security_id': security_name,
+					'status': 'error',
+					'error': error_message,
+					'message': error_message
+				},
+				user=user
+			)
+			
+			return False
+		
+		# Reload the document to get the latest version and avoid modification conflicts
+		security.reload()
+		
+		# Store the extracted data
+		security.fetched_data = frappe.as_json(extracted_data)
+		
+		# Use flags to ignore timestamp validation and force save
+		security.flags.ignore_version = True
+		security.flags.ignore_mandatory = True
+		security.save()
+		
+		# Create CF Chat and CF Chat Message
+		chat_doc = frappe.new_doc("CF Chat")
+		chat_doc.security = security_name
+		chat_doc.title = f"Financial Data Extraction for {security.security_name or security.symbol} @ {frappe.utils.today()}"
+		chat_doc.system_prompt = settings.system_content
+		chat_doc.save()
+		
+		# Create the chat message
+		message_doc = frappe.new_doc("CF Chat Message")
+		message_doc.chat = chat_doc.name
+		message_doc.prompt = prompt
+		message_doc.response = json.dumps(extracted_data, indent=2)
+		message_doc.response_html = f"<pre>{json.dumps(extracted_data, indent=2)}</pre>"
+		message_doc.model = "deepseek-chat"
+		message_doc.status = "Success"
+		message_doc.system_prompt = settings.system_content
+		message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
+		message_doc.flags.ignore_before_save = True
+		message_doc.save()
+		
+		frappe.db.commit()  # Single commit for all changes
+		
+		# Notify the user that the extraction is complete
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'security_id': security_name,
+				'status': 'success',
+				'chat_id': chat_doc.name,
+				'message': f"Financial data extraction completed for {security.security_name or security.symbol}.",
+			},
+			user=user
+		)
+		
+		return True
+			
+	except requests.exceptions.RequestException as e:
+		error_message = f"Request error: {str(e)}"
+		frappe.log_error("OpenWebUI API Error", error_message)
+		
+		# Notify user of failure
+		frappe.publish_realtime(
+			event='cf_job_completed',
+			message={
+				'security_id': security_name,
+				'status': 'error',
+				'error': error_message,
+				'message': error_message
+			},
+			user=user
+		)
+		
+		return False
+		
+	except Exception as e:
+		error_message = f"Error extracting financial data: {str(e)}"
+		
+		# Create a short, descriptive title for the error log
+		short_title = f"Financial Data Extraction Error - {security_name}"
+		if len(short_title) > 140:
+			short_title = f"Financial Data Extraction Error"[:140]
+		
 		frappe.log_error(short_title, error_message)
 		
 		# Notify user of failure
