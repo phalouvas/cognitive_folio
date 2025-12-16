@@ -21,6 +21,7 @@
   "is_alert",
   "need_evaluation",
   "ai_modified",
+  "suggestion_action",
   "suggestion_rating",
   "news_reasoning",
   "rating_section",
@@ -34,7 +35,6 @@
   "column_break_bphw",
   "rating_industry",
   "suggestion_section",
-  "suggestion_action",
   "column_break_rfgw",
   "suggestion_fair_value",
   "suggestion_buy_price",
@@ -635,7 +635,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-16 07:30:23.382540",
+ "modified": "2025-12-16 14:33:05.865088",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
