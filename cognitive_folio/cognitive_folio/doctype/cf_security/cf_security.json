@@ -77,6 +77,8 @@
   "quarterly_cash_flow_html",
   "cash_flow_html",
   "raw_data_tab",
+  "fetched_data_section",
+  "fetched_data",
   "ticker_info_section",
   "ticker_info",
   "news_urls_section",
@@ -599,6 +601,19 @@
    "fieldname": "quarterly_cash_flow_html",
    "fieldtype": "HTML",
    "label": "Cash Flow Quarterly"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "fetched_data_section",
+   "fieldtype": "Section Break",
+   "label": "Fetched Data"
+  },
+  {
+   "default": "{}",
+   "description": "Stores raw ticker.info data as JSON",
+   "fieldname": "fetched_data",
+   "fieldtype": "JSON",
+   "label": "Fetched Data Raw"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -620,7 +635,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-13 08:49:51.325147",
+ "modified": "2025-12-16 07:30:23.382540",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
