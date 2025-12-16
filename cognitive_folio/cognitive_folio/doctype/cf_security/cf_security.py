@@ -2320,15 +2320,17 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_action = investment.get("Action") or evaluation.get("Recommendation", "")
 		
 		# Extract individual ratings directly from Evaluation (standard format)
+		# AI returns 1-10 scale, but Frappe Rating fields use 0.1-1.0 scale (0.1=1 star, 0.2=2 stars, etc.)
+		# So divide by 10 and round to 1 decimal place
 		try:
-			security.rating_moat = float(evaluation.get("Moat", 0))
-			security.rating_management = float(evaluation.get("Management", 0))
-			security.rating_financials = float(evaluation.get("Financials", 0))
-			security.rating_valuation = float(evaluation.get("Valuation", 0))
-			security.rating_industry = float(evaluation.get("Industry", 0))
+			security.rating_moat = round(float(evaluation.get("Moat", 0)) / 10, 1)
+			security.rating_management = round(float(evaluation.get("Management", 0)) / 10, 1)
+			security.rating_financials = round(float(evaluation.get("Financials", 0)) / 10, 1)
+			security.rating_valuation = round(float(evaluation.get("Valuation", 0)) / 10, 1)
+			security.rating_industry = round(float(evaluation.get("Industry", 0)) / 10, 1)
 			
-			# Use the Overall from JSON directly (don't recalculate)
-			security.suggestion_rating = float(evaluation.get("Overall", 0))
+			# Use the Overall from JSON directly (don't recalculate), convert to 0.1-1.0 scale
+			security.suggestion_rating = round(float(evaluation.get("Overall", 0)) / 10, 1)
 		except (ValueError, TypeError):
 			# Fallback if conversion fails
 			security.rating_moat = 0
