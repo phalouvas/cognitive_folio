@@ -74,6 +74,34 @@ def _navigate_nested_path(data, path_parts):
 def replace_variables(match, doc):
     variable_name = match.group(1)
     try:
+        # Handle special financial ratios variable
+        if variable_name == 'financial_ratios':
+            fetched_data_dict = _parse_json_field(getattr(doc, 'fetched_data', None))
+            if fetched_data_dict and 'financial_ratios' in fetched_data_dict:
+                return json.dumps(fetched_data_dict['financial_ratios'], indent=2)
+            else:
+                return "Financial ratios not yet calculated. Please run data extraction first."
+        
+        # Handle code-calculated fair value alias
+        if variable_name == 'code_fair_value':
+            fair_value = getattr(doc, 'fair_value', None)
+            if fair_value is not None:
+                return str(fair_value)
+            else:
+                return "Not calculated"
+        
+        # Handle data quality from financial ratios
+        if variable_name == 'data_quality':
+            fetched_data_dict = _parse_json_field(getattr(doc, 'fetched_data', None))
+            if fetched_data_dict and 'financial_ratios' in fetched_data_dict:
+                data_quality = fetched_data_dict['financial_ratios'].get('data_quality', {})
+                coverage = data_quality.get('coverage', 'Unknown')
+                annual = data_quality.get('annual_periods', 0)
+                quarterly = data_quality.get('quarterly_periods', 0)
+                return f"Coverage: {coverage} ({annual} annual periods, {quarterly} quarterly periods)"
+            else:
+                return "Data quality not available"
+        
         # Handle nested JSON variables like {{field_name.key}} or {{field_name.0.key}} for arrays
         if '.' in variable_name:
             parts = variable_name.split('.')

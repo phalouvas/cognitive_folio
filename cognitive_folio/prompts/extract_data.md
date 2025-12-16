@@ -39,11 +39,15 @@ A **single JSON object** with this exact structure. All arrays should contain th
     "cost_of_goods_sold": [600, 540, 480, 420, 360, 300],
     "gross_profit": [400, 360, 320, 280, 240, 200],
     "operating_income": [200, 180, 160, 140, 120, 100],
+    "ebit": [200, 180, 160, 140, 120, 100],
+    "interest_expense": [10, 9, 8, 7, 6, 5],
     "net_income": [150, 135, 120, 105, 90, 75],
     "operating_cash_flow": [180, 162, 144, 126, 108, 90],
     "capital_expenditures": [30, 27, 24, 21, 18, 15],
     "total_assets": [2000, 1800, 1600, 1400, 1200, 1000],
     "current_assets": [800, 720, 640, 560, 480, 400],
+    "inventory": [200, 180, 160, 140, 120, 100],
+    "accounts_receivable": [150, 135, 120, 105, 90, 75],
     "current_liabilities": [400, 360, 320, 280, 240, 200],
     "total_debt": [500, 450, 400, 350, 300, 250],
     "shareholders_equity": [1000, 900, 800, 700, 600, 500],
@@ -70,11 +74,15 @@ Map common alternative names to these standard names:
 - Cost of Goods Sold: "CostOfGoodsSold", "COGS", "Cost of Sales"
 - Gross Profit: "GrossProfit", "Gross Margin"
 - Operating Income: "OperatingIncome", "Operating Profit", "EBIT"
+- EBIT: "EBIT", "Earnings Before Interest and Tax", "Operating Income"
+- Interest Expense: "InterestExpense", "Interest Paid", "Finance Costs"
 - Net Income: "NetIncome", "Net Profit", "Profit After Tax"
 - Operating Cash Flow: "OperatingCashFlow", "Cash from Operations"
 - Capital Expenditures: "CapitalExpenditures", "CAPEX", "Purchase of PPE"
 - Total Assets: "TotalAssets", "Assets"
 - Current Assets: "CurrentAssets", "Short-term Assets"
+- Inventory: "Inventory", "Inventories", "Stock"
+- Accounts Receivable: "AccountsReceivable", "Receivables", "Trade Receivables"
 - Current Liabilities: "CurrentLiabilities", "Short-term Liabilities"
 - Total Debt: "TotalDebt", "Long Term Debt", "Total Liabilities"
 - Shareholders Equity: "ShareholdersEquity", "Total Equity", "Stockholders Equity"

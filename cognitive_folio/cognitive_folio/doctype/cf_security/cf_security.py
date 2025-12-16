@@ -555,57 +555,52 @@ class CFSecurity(Document):
 		if "Evaluation" in data:
 			eval_data = data["Evaluation"]
 			markdown.append("## Evaluation")
+			markdown.append("### Rating Breakdown:")
 			
-			# Handle new nested rating structure
-			rating_data = eval_data.get("Rating", 0)
-			if isinstance(rating_data, dict):
-				# New format: calculate average of all rating components
-				rating_values = []
-				for component, value in rating_data.items():
-					try:
-						rating_values.append(float(value))
-					except (ValueError, TypeError):
-						continue
-		
-				if rating_values:
-					avg_rating = sum(rating_values) / len(rating_values)
-					rating_value = avg_rating * 5  # Convert to 5-star scale
+			# Extract ratings directly from Evaluation (standard format: 1-10 scale)
+			moat = float(eval_data.get("Moat", 0))
+			management = float(eval_data.get("Management", 0))
+			financials = float(eval_data.get("Financials", 0))
+			valuation = float(eval_data.get("Valuation", 0))
+			industry = float(eval_data.get("Industry", 0))
+			overall = float(eval_data.get("Overall", 0))
 			
-					# Add detailed breakdown
-					markdown.append("### Rating Breakdown:")
-					for component, value in rating_data.items():
-						try:
-							component_rating = float(value) * 5
-							component_full_stars = int(component_rating)
-							component_half_star = 1 if component_rating - component_full_stars >= 0.5 else 0
-							component_stars = "⭐" * component_full_stars + "✩" * component_half_star
-							markdown.append(f"- **{component}**: {component_stars} ({value})")
-						except (ValueError, TypeError):
-							markdown.append(f"- **{component}**: {value}")
+			# Convert 1-10 scale to 5-star scale (stars = rating / 2)
+			def get_stars(rating):
+				if rating <= 0:
+					return "N/A", 0
+				star_value = rating / 2
+				full_stars = int(star_value)
+				half_star = 1 if star_value - full_stars >= 0.5 else 0
+				star_display = "⭐" * full_stars + "✩" * half_star
+				return star_display, star_value
 			
-					markdown.append("")
-					markdown.append("### Overall Rating:")
-				else:
-					rating_value = 0
-			else:
-				# Old format: direct numeric value
-				try:
-					rating_value = float(rating_data) * 5
-				except (ValueError, TypeError):
-					rating_value = 0
-	
-			full_stars = int(rating_value)  # Number of full stars
-			half_star = 1 if rating_value - full_stars >= 0.5 else 0  # Add half star if needed
-			rating = "⭐" * full_stars + "✩" * half_star
-			markdown.append(f"- **Overall Rating**: {rating} ({rating_value/5:.2f})")
-			markdown.append(f"- **Recommendation**: **{eval_data.get('Recommendation', '-')}**")
-			markdown.append(f"- **Buy Below**: **{self.currency} {eval_data.get('Price Target Buy Below', '-')}**")
-			markdown.append(f"- **Sell Above**: **{self.currency} {eval_data.get('Price Target Sell Above', '-')}**")
+			# Display individual ratings
+			for label, value in [("Moat", moat), ("Management", management), 
+			                       ("Financials", financials), ("Valuation", valuation), 
+			                       ("Industry", industry)]:
+				star_display, star_value = get_stars(value)
+				if value > 0:
+					markdown.append(f"- **{label}**: {star_display} ({value}/10)")
 			
-			# Add stop loss if available
-			stop_loss = eval_data.get('Price Stop Loss')
-			if stop_loss and stop_loss != '-':
-				markdown.append(f"- **Stop Loss**: **{self.currency} {stop_loss}**")
+			markdown.append("")
+			markdown.append("### Overall Rating:")
+			star_display, star_value = get_stars(overall)
+			if overall > 0:
+				markdown.append(f"- **Overall**: {star_display} ({overall}/10)")
+			
+			# Get investment details
+			investment = data.get("Investment", {})
+			markdown.append(f"- **Recommendation**: **{investment.get('Action', 'Hold')}**")
+			markdown.append(f"- **Conviction**: **{investment.get('Conviction', 'Medium')}**")
+			if investment.get('FairValue'):
+				markdown.append(f"- **Fair Value**: **{self.currency} {investment['FairValue']}**")
+			if investment.get('BuyBelowPrice'):
+				markdown.append(f"- **Buy Below**: **{self.currency} {investment['BuyBelowPrice']}**")
+			if investment.get('SellAbovePrice'):
+				markdown.append(f"- **Sell Above**: **{self.currency} {investment['SellAbovePrice']}**")
+			if investment.get('StopLoss'):
+				markdown.append(f"- **Stop Loss**: **{self.currency} {investment['StopLoss']}**")
 			
 			markdown.append("")
 		
@@ -615,7 +610,12 @@ class CFSecurity(Document):
 
 		# Add Risks
 		if "Risks" in data:
-			markdown.append(f"## Risks\n{data['Risks']}\n")
+			markdown.append(f"## Risks")
+			if isinstance(data["Risks"], list):
+				for risk in data["Risks"]:
+					markdown.append(f"- {risk}")
+			else:
+				markdown.append(f"{data['Risks']}\n")
 
 		return "\n".join(markdown)
 
@@ -1799,6 +1799,210 @@ class CFSecurity(Document):
 			frappe.log_error(f"Error in residual income calculation: {str(e)}", "Residual Income Error")
 			return None
 
+	def calculate_financial_ratios(self):
+		"""
+		Calculate financial ratios from extracted financial data.
+		
+		Returns:
+			dict: Comprehensive ratio analysis with liquidity, profitability, efficiency,
+				  growth, valuation, debt, and quality metrics. Includes data_quality section.
+		"""
+		try:
+			# Parse fetched_data
+			fetched_data_dict = frappe.parse_json(self.fetched_data) if self.fetched_data else {}
+			annual_data = fetched_data_dict.get('annual_data', {})
+			quarterly_data = fetched_data_dict.get('quarterly_data', {})
+			
+			# Helper function to safely get values
+			def safe_get(data_dict, key, index=0, default=None):
+				"""Safely get value from data dict with array values"""
+				try:
+					values = data_dict.get(key, [])
+					if isinstance(values, list) and len(values) > index:
+						val = values[index]
+						return float(val) if val is not None and val != '' else default
+					return default
+				except (ValueError, TypeError, IndexError):
+					return default
+			
+			def safe_divide(numerator, denominator):
+				"""Safely divide, return None if division by zero"""
+				if denominator is None or denominator == 0:
+					return None
+				if numerator is None:
+					return None
+				return numerator / denominator
+			
+			# Get data quality metrics
+			annual_periods = len(annual_data.get('years', []))
+			quarterly_periods = len(quarterly_data.get('periods', []))
+			
+			# Determine coverage level (prioritize annual data for long-term analysis)
+			if (annual_periods >= 5 and quarterly_periods >= 8) or (annual_periods >= 6):
+				coverage = "High"
+			elif annual_periods >= 3 or (annual_periods >= 2 and quarterly_periods >= 8):
+				coverage = "Medium"
+			else:
+				coverage = "Low"
+			
+			# Get most recent annual values (index 0 = most recent)
+			revenue = safe_get(annual_data, 'revenue', 0)
+			net_income = safe_get(annual_data, 'net_income', 0)
+			total_assets = safe_get(annual_data, 'total_assets', 0)
+			current_assets = safe_get(annual_data, 'current_assets', 0)
+			current_liabilities = safe_get(annual_data, 'current_liabilities', 0)
+			inventory = safe_get(annual_data, 'inventory', 0, 0)  # Default to 0 if missing
+			total_debt = safe_get(annual_data, 'total_debt', 0, 0)
+			shareholders_equity = safe_get(annual_data, 'shareholders_equity', 0)
+			operating_income = safe_get(annual_data, 'operating_income', 0)
+			gross_profit = safe_get(annual_data, 'gross_profit', 0)
+			operating_cash_flow = safe_get(annual_data, 'operating_cash_flow', 0)
+			capital_expenditures = safe_get(annual_data, 'capital_expenditures', 0, 0)
+			interest_expense = safe_get(annual_data, 'interest_expense', 0)
+			ebit = safe_get(annual_data, 'ebit', 0)
+			accounts_receivable = safe_get(annual_data, 'accounts_receivable', 0)
+			
+			# A. LIQUIDITY RATIOS
+			liquidity = {
+				"current_ratio": safe_divide(current_assets, current_liabilities),
+				"quick_ratio": safe_divide((current_assets - inventory) if current_assets and inventory is not None else current_assets, current_liabilities),
+				"working_capital": (current_assets - current_liabilities) if (current_assets is not None and current_liabilities is not None) else None,
+				"working_capital_ratio": safe_divide((current_assets - current_liabilities) if (current_assets is not None and current_liabilities is not None) else None, revenue)
+			}
+			
+			# B. PROFITABILITY RATIOS
+			profitability = {
+				"net_profit_margin": safe_divide(net_income, revenue),
+				"gross_profit_margin": safe_divide(gross_profit, revenue),
+				"operating_margin": safe_divide(operating_income, revenue),
+				"roa": safe_divide(net_income, total_assets),
+				"roe": safe_divide(net_income, shareholders_equity),
+				"roic": None  # Requires NOPAT and invested capital calculation
+			}
+			
+			# C. EFFICIENCY RATIOS
+			efficiency = {
+				"asset_turnover": safe_divide(revenue, total_assets),
+				"receivables_days": safe_divide(accounts_receivable, revenue) * 365 if (accounts_receivable is not None and revenue) else None
+			}
+			
+			# D. GROWTH METRICS (Year-over-year changes)
+			growth = {
+				"revenue_growth_5y": [],
+				"earnings_growth_5y": [],
+				"eps_growth_5y": []
+			}
+			
+			# Calculate YoY growth for available years
+			revenue_list = annual_data.get('revenue', [])
+			net_income_list = annual_data.get('net_income', [])
+			
+			for i in range(min(5, len(revenue_list) - 1)):
+				current_rev = safe_get(annual_data, 'revenue', i)
+				prior_rev = safe_get(annual_data, 'revenue', i + 1)
+				if current_rev is not None and prior_rev is not None and prior_rev != 0:
+					growth["revenue_growth_5y"].append(((current_rev - prior_rev) / prior_rev) * 100)
+				else:
+					growth["revenue_growth_5y"].append(None)
+			
+			for i in range(min(5, len(net_income_list) - 1)):
+				current_ni = safe_get(annual_data, 'net_income', i)
+				prior_ni = safe_get(annual_data, 'net_income', i + 1)
+				if current_ni is not None and prior_ni is not None and prior_ni != 0:
+					growth["earnings_growth_5y"].append(((current_ni - prior_ni) / prior_ni) * 100)
+				else:
+					growth["earnings_growth_5y"].append(None)
+			
+			# EPS growth (if shares outstanding available)
+			shares_outstanding = safe_get(annual_data, 'shares_outstanding', 0)
+			if shares_outstanding:
+				# Calculate EPS growth if data available
+				growth["eps_growth_5y"] = []  # Would need historical shares outstanding
+			
+			# E. VALUATION RATIOS
+			current_price = flt(self.current_price) if self.current_price else None
+			eps = safe_divide(net_income, shares_outstanding) if shares_outstanding else None
+			book_value_per_share = safe_divide(shareholders_equity, shares_outstanding) if shares_outstanding else None
+			
+			valuation = {
+				"pe_ratio": safe_divide(current_price, eps) if (current_price and eps) else None,
+				"pb_ratio": safe_divide(current_price, book_value_per_share) if (current_price and book_value_per_share) else None,
+				"dividend_yield": None,  # Requires dividend data
+				"payout_ratio": None  # Requires dividend data
+			}
+			
+			# Add dividend metrics if available
+			try:
+				dividends_data = frappe.parse_json(self.dividends) if self.dividends else {}
+				if dividends_data and current_price:
+					# Calculate annual dividend (sum of recent year)
+					annual_dividend = sum([float(d) for d in list(dividends_data.values())[-12:] if d]) if dividends_data else 0
+					if annual_dividend > 0:
+						valuation["dividend_yield"] = (annual_dividend / current_price) * 100
+						valuation["payout_ratio"] = safe_divide(annual_dividend * shares_outstanding if shares_outstanding else None, net_income) * 100 if net_income else None
+			except:
+				pass
+			
+			# F. DEBT & FINANCIAL HEALTH
+			debt_health = {
+				"debt_to_equity": safe_divide(total_debt, shareholders_equity),
+				"debt_to_assets": safe_divide(total_debt, total_assets),
+				"interest_coverage": safe_divide(ebit, interest_expense) if interest_expense else None,
+				"free_cash_flow": (operating_cash_flow - capital_expenditures) if (operating_cash_flow is not None and capital_expenditures is not None) else None
+			}
+			
+			# G. QUALITY & STABILITY INDICATORS
+			quality = {
+				"earnings_stability": None,  # Requires 5-year standard deviation calculation
+				"fcf_conversion": safe_divide(debt_health["free_cash_flow"], net_income),
+				"revenue_consistency": None  # Requires variance calculation
+			}
+			
+			# Calculate earnings stability (5-year coefficient of variation)
+			if len(net_income_list) >= 5:
+				recent_earnings = [safe_get(annual_data, 'net_income', i) for i in range(5)]
+				recent_earnings = [e for e in recent_earnings if e is not None]
+				if len(recent_earnings) >= 3:
+					import statistics
+					avg_earnings = statistics.mean(recent_earnings)
+					if avg_earnings != 0:
+						std_dev = statistics.stdev(recent_earnings) if len(recent_earnings) > 1 else 0
+						quality["earnings_stability"] = std_dev / abs(avg_earnings)  # Coefficient of variation
+			
+			# Calculate revenue consistency (variance of YoY growth rates)
+			if growth["revenue_growth_5y"]:
+				valid_growth = [g for g in growth["revenue_growth_5y"] if g is not None]
+				if len(valid_growth) >= 2:
+					import statistics
+					quality["revenue_consistency"] = statistics.stdev(valid_growth) if len(valid_growth) > 1 else 0
+			
+			# Return structured ratios
+			return {
+				"liquidity": liquidity,
+				"profitability": profitability,
+				"efficiency": efficiency,
+				"growth": growth,
+				"valuation": valuation,
+				"debt_health": debt_health,
+				"quality": quality,
+				"data_quality": {
+					"annual_periods": annual_periods,
+					"quarterly_periods": quarterly_periods,
+					"coverage": coverage
+				}
+			}
+			
+		except Exception as e:
+			frappe.log_error(f"Error calculating ratios for {self.symbol}: {str(e)}", "Financial Ratios Calculation Error")
+			return {
+				"error": str(e),
+				"data_quality": {
+					"annual_periods": 0,
+					"quarterly_periods": 0,
+					"coverage": "None"
+				}
+			}
+
 	def calculate_fair_value(self):
 		"""Calculate fair value"""
 		"""The market-implied value of a stock, considering both fundamentals and market conditions."""
@@ -1953,9 +2157,9 @@ def process_security_ai_suggestion(security_name, user):
 			# Get OpenWebUI settings
 			settings = frappe.get_single("CF Settings")
 			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-			model = settings.default_ai_model
-			if not model:
-				raise ValueError(_('Default AI model is not configured in CF Settings'))
+			
+			# Use deepseek-chat model for consistency with financial data extraction
+			model = "deepseek-chat"
 
 			prompt = security.ai_prompt or ""
 
@@ -1970,7 +2174,7 @@ def process_security_ai_suggestion(security_name, user):
 				model=model,
 				messages=messages,
 				stream=False,
-				temperature=0.2
+				temperature=0.1  # Low variance for deterministic output
 			)
 			
 			# Check if response has choices and content
@@ -2109,50 +2313,36 @@ def process_security_ai_suggestion(security_name, user):
 
 		# Safely extract values with defaults
 		evaluation = suggestion.get("Evaluation", {})
+		investment = suggestion.get("Investment", {})
 		security.ai_response = content_string
-		security.suggestion_action = evaluation.get("Recommendation", "")
 		
-		# Handle new nested rating structure
-		rating_data = evaluation.get("Rating", 0)
-		if isinstance(rating_data, dict):
-			# New format: extract individual ratings and calculate overall
-			security.rating_moat = float(rating_data.get("Moat", 0))
-			security.rating_management = float(rating_data.get("Management", 0))
-			security.rating_financials = float(rating_data.get("Financials", 0))
-			security.rating_valuation = float(rating_data.get("Valuation", 0))
-			security.rating_industry = float(rating_data.get("Industry", 0))
-			
-			# Calculate overall rating as average of all components
-			rating_values = []
-			for component in ["Moat", "Management", "Financials", "Valuation", "Industry"]:
-				value = rating_data.get(component)
-				if value is not None:
-					try:
-						rating_values.append(float(value))
-					except (ValueError, TypeError):
-						continue
-			
-			if rating_values:
-				security.suggestion_rating = sum(rating_values) / len(rating_values)
-			else:
-				security.suggestion_rating = 0
-		else:
-			# Old format: direct numeric value
-			try:
-				security.suggestion_rating = float(rating_data)
-				# Clear individual ratings if using old format
-				security.rating_moat = 0
-				security.rating_management = 0
-				security.rating_financials = 0
-				security.rating_valuation = 0
-				security.rating_industry = 0
-			except (ValueError, TypeError):
-				security.suggestion_rating = 0
+		# Extract action from Investment section (new format) or Evaluation (backward compatibility)
+		security.suggestion_action = investment.get("Action") or evaluation.get("Recommendation", "")
 		
-		security.suggestion_buy_price = evaluation.get("Price Target Buy Below", 0)
-		security.suggestion_sell_price = evaluation.get("Price Target Sell Above", 0)
-		security.suggestion_fair_value = evaluation.get("Fair Value", 0)
-		security.evaluation_stop_loss = evaluation.get("Price Stop Loss", 0)
+		# Extract individual ratings directly from Evaluation (standard format)
+		try:
+			security.rating_moat = float(evaluation.get("Moat", 0))
+			security.rating_management = float(evaluation.get("Management", 0))
+			security.rating_financials = float(evaluation.get("Financials", 0))
+			security.rating_valuation = float(evaluation.get("Valuation", 0))
+			security.rating_industry = float(evaluation.get("Industry", 0))
+			
+			# Use the Overall from JSON directly (don't recalculate)
+			security.suggestion_rating = float(evaluation.get("Overall", 0))
+		except (ValueError, TypeError):
+			# Fallback if conversion fails
+			security.rating_moat = 0
+			security.rating_management = 0
+			security.rating_financials = 0
+			security.rating_valuation = 0
+			security.rating_industry = 0
+			security.suggestion_rating = 0
+		
+		# Extract price targets from Investment section (new format) or Evaluation (backward compatibility)
+		security.suggestion_fair_value = investment.get("FairValue") or evaluation.get("Fair Value", 0)
+		security.suggestion_buy_price = investment.get("BuyBelowPrice") or evaluation.get("Price Target Buy Below", 0)
+		security.suggestion_sell_price = investment.get("SellAbovePrice") or evaluation.get("Price Target Sell Above", 0)
+		security.evaluation_stop_loss = investment.get("StopLoss") or evaluation.get("Price Stop Loss", 0)
 		security.ai_suggestion = markdown_content
 		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		security.news_reasoning = None
@@ -2461,6 +2651,17 @@ def process_financial_data_extraction(security_name, user):
 		
 		# Store the extracted data
 		security.fetched_data = frappe.as_json(extracted_data)
+		
+		# Calculate financial ratios from extracted data
+		try:
+			financial_ratios = security.calculate_financial_ratios()
+			# Merge ratios into extracted_data
+			extracted_data_with_ratios = extracted_data.copy()
+			extracted_data_with_ratios['financial_ratios'] = financial_ratios
+			security.fetched_data = frappe.as_json(extracted_data_with_ratios)
+		except Exception as ratio_error:
+			frappe.log_error(f"Error calculating ratios for {security_name}: {str(ratio_error)}", "Financial Ratios Integration Error")
+			# Continue without ratios - don't fail the entire extraction
 		
 		# Use flags to ignore timestamp validation and force save
 		security.flags.ignore_version = True
