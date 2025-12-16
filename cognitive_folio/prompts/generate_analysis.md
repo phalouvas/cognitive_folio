@@ -119,11 +119,6 @@ If `data_quality.coverage` is "Low" or "Medium":
 - Reduce conviction level
 - Widen margin of safety
 
-Example:
-```
-⚠️ Data Quality: Medium coverage (3 years annual, 8 quarters). Analysis confidence is moderate due to limited historical data.
-```
-
 ### 5. Ratio-Based Reasoning
 The AI MUST reference specific ratios when justifying ratings:
 - **Financials rating**: Cite profitability margins, ROE, ROA, debt ratios
@@ -131,12 +126,3 @@ The AI MUST reference specific ratios when justifying ratings:
 - **Example**: "Financials: 8/10 - Strong ROE of 18%, healthy debt-to-equity of 0.4, but declining operating margin (12% → 9%) is concerning."
 
 ---
-
-## Model Configuration
-
-- **Model**: `deepseek-chat` (hardcoded for consistency)
-- **Temperature**: `0.1` (low variance for deterministic output)
-- **Top-p**: `0.95`
-- **JSON Mode**: Enabled
-- **Presence Penalty**: `0.0`
-- **Frequency Penalty**: `0.0`
