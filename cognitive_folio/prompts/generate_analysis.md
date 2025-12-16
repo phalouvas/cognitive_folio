@@ -1,8 +1,4 @@
-# Investment Analysis Prompt Template
-
-**NOTE**: This file is for documentation and git history purposes only. At runtime, the system uses database-stored prompts from the `CF Prompt` doctype via the `template_prompt` field. This document serves as a reference for the expected prompt structure and AI response format.
-
----
+# Generate Analysis
 
 ## Purpose
 
@@ -21,10 +17,6 @@ The prompt should include access to the following variables (via template replac
 - `{{current_price}}` - Current stock price
 - `{{currency}}` - Currency denomination
 
-### Code-Calculated Valuation (Reference Only)
-- `{{intrinsic_value}}` - True fundamental worth based on DCF/DDM/Graham models
-- `{{fair_value}}` - Market-adjusted value (authoritative code calculation)
-
 ### Financial Ratios (Pre-Calculated)
 - `{{financial_ratios}}` - Complete ratio analysis including:
   - **Liquidity**: current_ratio, quick_ratio, working_capital, working_capital_ratio
@@ -38,10 +30,6 @@ The prompt should include access to the following variables (via template replac
 
 ### Raw Financial Data
 - `{{fetched_data}}` - Complete extracted financial statements (annual/quarterly)
-- `{{ticker_info}}` - Company metadata from Yahoo Finance
-- `{{profit_loss}}`, `{{balance_sheet}}`, `{{cash_flow}}` - Financial statements
-- `{{dividends}}` - Dividend payment history
-- `{{news}}`, `{{news_urls}}` - Recent news and sentiment
 
 ---
 
@@ -104,7 +92,6 @@ The AI must return **valid JSON only** with the following structure:
 The AI should:
 - Calculate `FairValue` based on:
   - Financial ratios (profitability, growth, debt health)
-  - Code-calculated `fair_value` as reference (but not required to match exactly)
   - Industry comparables (P/E, P/B ratios)
   - Qualitative factors (moat, management, industry trends)
 - Derive `BuyBelowPrice` using risk-based margin of safety:
@@ -153,69 +140,3 @@ The AI MUST reference specific ratios when justifying ratings:
 - **JSON Mode**: Enabled
 - **Presence Penalty**: `0.0`
 - **Frequency Penalty**: `0.0`
-
----
-
-## Example Prompt Template (Database-Stored)
-
-```markdown
-You are an investment analyst. Analyze the following security and provide investment recommendations in valid JSON format.
-
-## Security Information
-- **Company**: {{security_name}} ({{symbol}})
-- **Sector**: {{sector}} | **Industry**: {{industry}}
-- **Location**: {{country}}, {{region}}
-- **Current Price**: {{currency}} {{current_price}}
-
-## Code-Calculated Valuations (Reference)
-- **Intrinsic Value**: {{currency}} {{intrinsic_value}}
-- **Fair Value**: {{currency}} {{fair_value}}
-
-## Financial Ratios (Pre-Calculated)
-{{financial_ratios}}
-
-## Data Quality
-{{data_quality}}
-
-## Recent News
-{{news}}
-
-## Instructions
-1. Evaluate the company on 5 dimensions (Moat, Management, Financials, Valuation, Industry) - integers 1-10 only
-2. Use the financial ratios to justify your Financials and Valuation ratings
-3. Calculate your own fair value estimate and price targets (BuyBelowPrice, SellAbovePrice, StopLoss)
-4. Include data quality warnings in your Analysis if coverage is Low/Medium
-5. Return ONLY valid JSON (no markdown, no commentary)
-
-**Output Format:**
-{
-    "Evaluation": {
-        "Moat": <1-10>,
-        "Management": <1-10>,
-        "Financials": <1-10>,
-        "Valuation": <1-10>,
-        "Industry": <1-10>,
-        "Overall": <1-10>
-    },
-    "Investment": {
-        "Action": "Buy|Hold|Sell",
-        "Conviction": "High|Medium|Low",
-        "FairValue": <number>,
-        "BuyBelowPrice": <number>,
-        "SellAbovePrice": <number>,
-        "StopLoss": <number>
-    },
-    "Summary": "...",
-    "Risks": ["...", "..."],
-    "Analysis": "..."
-}
-```
-
----
-
-## Notes
-
-- **Fair Value Authority**: The code-calculated `fair_value` is authoritative for system consistency. AI's `suggestion_fair_value` provides qualitative confirmation.
-- **Backward Compatibility**: Existing templates using old response format are supported via parsing logic in `process_security_ai_suggestion()`.
-- **Template Customization**: Users can edit prompts via CF Prompt doctype for specific analysis needs.
-- **Git History**: This file tracks prompt evolution and serves as reference documentation.
