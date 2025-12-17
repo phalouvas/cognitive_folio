@@ -1013,6 +1013,7 @@ def process_security_ai_suggestion(security_name, user):
 		
 		# Extract action from Investment section (new format) or Evaluation (backward compatibility)
 		security.suggestion_action = investment.get("Action") or evaluation.get("Recommendation", "")
+		security.suggestion_conviction = investment.get("Conviction")
 		
 		# Extract individual ratings directly from Evaluation (standard format)
 		# AI returns 1-10 scale, but Frappe Rating fields use 0.1-1.0 scale (0.1=1 star, 0.2=2 stars, etc.)

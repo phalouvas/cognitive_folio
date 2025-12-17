@@ -24,6 +24,7 @@
   "column_break_rfgw",
   "suggestion_rating",
   "suggestion_action",
+  "suggestion_conviction",
   "column_break_jylf",
   "rating_moat",
   "current_price",
@@ -570,6 +571,12 @@
   {
    "fieldname": "column_break_jylf",
    "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "suggestion_conviction",
+   "fieldtype": "Select",
+   "label": "Conviction",
+   "options": "\nHigh\nMedium\nLow"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -591,7 +598,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-17 06:29:33.460427",
+ "modified": "2025-12-17 07:46:56.462911",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
