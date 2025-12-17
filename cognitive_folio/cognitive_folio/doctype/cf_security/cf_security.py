@@ -548,59 +548,6 @@ class CFSecurity(Document):
 		if "Summary" in data:
 			markdown.append(f"## Summary\n{data['Summary']}\n")
 		
-		# Add Evaluation as bullet points
-		if "Evaluation" in data:
-			eval_data = data["Evaluation"]
-			markdown.append("## Evaluation")
-			markdown.append("### Rating Breakdown:")
-			
-			# Extract ratings directly from Evaluation (standard format: 1-10 scale)
-			moat = float(eval_data.get("Moat", 0))
-			management = float(eval_data.get("Management", 0))
-			financials = float(eval_data.get("Financials", 0))
-			valuation = float(eval_data.get("Valuation", 0))
-			industry = float(eval_data.get("Industry", 0))
-			overall = float(eval_data.get("Overall", 0))
-			
-			# Convert 1-10 scale to 5-star scale (stars = rating / 2)
-			def get_stars(rating):
-				if rating <= 0:
-					return "N/A", 0
-				star_value = rating / 2
-				full_stars = int(star_value)
-				half_star = 1 if star_value - full_stars >= 0.5 else 0
-				star_display = "⭐" * full_stars + "✩" * half_star
-				return star_display, star_value
-			
-			# Display individual ratings
-			for label, value in [("Moat", moat), ("Management", management), 
-			                       ("Financials", financials), ("Valuation", valuation), 
-			                       ("Industry", industry)]:
-				star_display, star_value = get_stars(value)
-				if value > 0:
-					markdown.append(f"- **{label}**: {star_display} ({value}/10)")
-			
-			markdown.append("")
-			markdown.append("### Overall Rating:")
-			star_display, star_value = get_stars(overall)
-			if overall > 0:
-				markdown.append(f"- **Overall**: {star_display} ({overall}/10)")
-			
-			# Get investment details
-			investment = data.get("Investment", {})
-			markdown.append(f"- **Recommendation**: **{investment.get('Action', 'Hold')}**")
-			markdown.append(f"- **Conviction**: **{investment.get('Conviction', 'Medium')}**")
-			if investment.get('FairValue'):
-				markdown.append(f"- **Fair Value**: **{self.currency} {investment['FairValue']}**")
-			if investment.get('BuyBelowPrice'):
-				markdown.append(f"- **Buy Below**: **{self.currency} {investment['BuyBelowPrice']}**")
-			if investment.get('SellAbovePrice'):
-				markdown.append(f"- **Sell Above**: **{self.currency} {investment['SellAbovePrice']}**")
-			if investment.get('StopLoss'):
-				markdown.append(f"- **Stop Loss**: **{self.currency} {investment['StopLoss']}**")
-			
-			markdown.append("")
-		
 		# Add Analysis
 		if "Analysis" in data:
 			markdown.append(f"## Analysis\n{data['Analysis']}\n")
