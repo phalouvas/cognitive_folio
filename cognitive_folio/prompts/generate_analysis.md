@@ -73,6 +73,7 @@ The following are strict technical requirements for valid output:
 - All Investment fields can be numbers or null (when unable to determine)
 - Action must be exactly one of: "Buy", "Hold", "Sell"
 - Conviction must be exactly one of: "High", "Medium", "Low"
+- End the `Summary` with a compact owner guidance line: "If you own: <Add|Hold|Reduce|Sell>; If not: <Buy|Watch|Avoid>" based on computed targets and conviction.
 
 ### 2. Rating Scale Interpretation
 
@@ -210,6 +211,22 @@ The `Analysis` field must include:
 - Valuation Assessment (methodology + calculation)
 - Risk Factors
 - Investment Conclusion
+
+**5. Owner Scenarios (brief):**
+- **If you own the stock**: Provide concise guidance using existing results:
+    - At/above `SellAbovePrice` → "Sell" or "Reduce" (state which and why)
+    - At/below `StopLoss` → "Sell" unless thesis intact, otherwise consider "Reduce/Hold"
+    - At/below `BuyBelowPrice` → "Add" if fundamentals and conviction are strong
+    - Otherwise → "Hold" with clear checkpoints to reassess
+- **If you do not own**: Provide entry guidance:
+    - At/under `BuyBelowPrice` → "Buy"
+    - Above `BuyBelowPrice` → "Watch"; specify target level and catalysts that would change the call
+    - If fundamentals are weak or data quality is poor → "Avoid" with rationale
+
+**6. Owner Advice Edge Cases:**
+- `FairValue` or targets are `null`: Advise "IfOwn: Hold; IfNotOwn: Watch" and explain uncertainty.
+- `data_quality.coverage` is "Low" or "Medium": Prefer conservative stances ("Reduce/Hold"; "Watch/Avoid") and explicitly disclose limitations.
+- `current_price` already below `StopLoss`: Recommend immediate risk management ("Sell" or "Reduce") unless thesis remains intact; explain what would validate continuation.
 
 **Example of good ratio-based reasoning:**
 "Financials: 8/10 - Strong ROE of 18% and ROIC of 15% demonstrate efficient capital deployment. Healthy debt-to-equity of 0.4 provides financial flexibility. However, declining operating margin (12% → 9% over 3 years) is concerning and warrants monitoring. Free cash flow conversion of 85% is solid."
