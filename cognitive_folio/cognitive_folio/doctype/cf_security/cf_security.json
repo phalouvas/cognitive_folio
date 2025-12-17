@@ -8,46 +8,40 @@
  "doctype": "DocType",
  "engine": "InnoDB",
  "field_order": [
-  "isin",
   "security_name",
   "symbol",
+  "isin",
   "cik",
-  "security_type",
   "column_break_5",
+  "security_type",
   "stock_exchange",
   "currency",
-  "current_price",
   "column_break_rvai",
-  "is_alert",
   "need_evaluation",
   "ai_modified",
-  "suggestion_action",
-  "suggestion_rating",
   "news_reasoning",
-  "rating_section",
-  "rating_moat",
-  "column_break_pmrd",
-  "rating_management",
-  "column_break_ypbf",
-  "rating_financials",
-  "column_break_gtkx",
-  "rating_valuation",
-  "column_break_bphw",
-  "rating_industry",
   "suggestion_section",
   "column_break_rfgw",
-  "suggestion_fair_value",
-  "suggestion_buy_price",
-  "suggestion_sell_price",
-  "evaluation_stop_loss",
+  "suggestion_rating",
+  "suggestion_action",
+  "column_break_jylf",
+  "rating_moat",
+  "current_price",
   "column_break_jlfk",
-  "intrinsic_value",
-  "fair_value",
+  "rating_management",
+  "suggestion_fair_value",
+  "column_break_lvvf",
+  "rating_financials",
+  "suggestion_buy_price",
+  "column_break_eron",
+  "rating_valuation",
+  "suggestion_sell_price",
+  "column_break_hqag",
+  "rating_industry",
+  "evaluation_stop_loss",
   "analysis_section",
   "ai_suggestion_html",
   "ai_suggestion",
-  "alert_section",
-  "alert_details",
   "section_break_8",
   "country",
   "region",
@@ -246,7 +240,8 @@
   },
   {
    "fieldname": "suggestion_section",
-   "fieldtype": "Section Break"
+   "fieldtype": "Section Break",
+   "label": "Evaluation"
   },
   {
    "fieldname": "suggestion_action",
@@ -315,7 +310,7 @@
    "label": "AI"
   },
   {
-   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{alert_details}} {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}}",
+   "description": "<b>Security</b> - <b>Details:</b> {{security_name}} {{isin}} {{symbol}} <b>Classification:</b> {{country}} {{region}} {{subregion}} {{sector}} {{industry}} <b>Pricing:</b> {{currency}} {{current_price}} {{ticker_info}} <b>Fundamentals:</b> {{profit_loss}} {{balance_sheet}} {{cash_flow}} {{dividends}} <b>News:</b>{{news}} {{news_urls}} <b>Analysis:</b> {{suggestion_action}} {{suggestion_rating}} <b>Valuation:</b> {{suggestion_buy_price}} {{suggestion_sell_price}} {{intrinsic_value}} {{fair_value}}",
    "fieldname": "ai_prompt",
    "fieldtype": "Markdown Editor",
    "label": "AI Prompt"
@@ -392,40 +387,6 @@
    "read_only": 1
   },
   {
-   "collapsible": 1,
-   "fieldname": "alert_section",
-   "fieldtype": "Section Break",
-   "label": "Alert"
-  },
-  {
-   "default": "0",
-   "fieldname": "is_alert",
-   "fieldtype": "Check",
-   "in_filter": 1,
-   "label": "Alert"
-  },
-  {
-   "fieldname": "alert_details",
-   "fieldtype": "Markdown Editor",
-   "label": "Alert Details"
-  },
-  {
-   "description": "The true, fundamental worth of a stock based on its underlying business performance, cash flows, and assets.",
-   "fieldname": "intrinsic_value",
-   "fieldtype": "Currency",
-   "label": "Intrinsic Value",
-   "options": "currency",
-   "read_only": 1
-  },
-  {
-   "description": "The market-implied value of a stock, considering both fundamentals and market conditions.",
-   "fieldname": "fair_value",
-   "fieldtype": "Currency",
-   "label": "Calculated Fair Value",
-   "options": "currency",
-   "read_only": 1
-  },
-  {
    "fieldname": "template_prompt",
    "fieldtype": "Link",
    "label": "Template Prompt",
@@ -479,27 +440,6 @@
   },
   {
    "fieldname": "column_break_jlfk",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "rating_section",
-   "fieldtype": "Section Break",
-   "label": "Evaluation"
-  },
-  {
-   "fieldname": "column_break_pmrd",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_ypbf",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_gtkx",
-   "fieldtype": "Column Break"
-  },
-  {
-   "fieldname": "column_break_bphw",
    "fieldtype": "Column Break"
   },
   {
@@ -614,6 +554,22 @@
    "fieldname": "fetched_data",
    "fieldtype": "JSON",
    "label": "Fetched Data Raw"
+  },
+  {
+   "fieldname": "column_break_lvvf",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_eron",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_hqag",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "column_break_jylf",
+   "fieldtype": "Column Break"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -635,7 +591,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-16 14:33:05.865088",
+ "modified": "2025-12-17 06:29:33.460427",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

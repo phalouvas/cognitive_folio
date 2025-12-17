@@ -2,7 +2,7 @@
 
 - **What this app is**: Frappe/ERPNext app for AI-assisted portfolio management. Core DocTypes live under `cognitive_folio/cognitive_folio/doctype` and use background jobs plus OpenAI-compatible endpoints defined in `CF Settings`.
 - **Key DocTypes & roles**:
-  - `CF Security` (`cf_security.py`): fetches prices/news via `yfinance`, generates AI suggestions, calculates intrinsic/fair values, and flags alerts. Cash securities force `current_price=1.0` and bypass AI.
+  - `CF Security` (`cf_security.py`): fetches prices/news via `yfinance`, generates AI suggestions, calculates fair values, and flags alerts. Cash securities force `current_price=1.0` and bypass AI.
   - `CF Portfolio` (`cf_portfolio.py`): aggregates holdings, runs AI portfolio analysis, and triggers holdings price fetch/news evaluation jobs.
   - `CF Portfolio Holding` (`cf_portfolio_holding.py`): per-holding currency conversion (GBP rates divided by 100), allocation %, dividend income since portfolio start, and cascaded AI suggestions.
   - `CF Chat` / `CF Chat Message`: stores AI conversations; messages stream responses and emit `cf_streaming_update`/`cf_job_completed` realtime events.
@@ -21,12 +21,10 @@
   - Optional web search path in chat messages (`web_search` flag) builds a search query then prepends results to the prompt.
 - **Scheduling & jobs** (hooks in `hooks.py`):
   - `0 3 * * *` `auto_fetch_portfolio_prices` fetches holdings prices (stocks only) and then queues news evaluation.
-  - `0 5 * * *` `auto_portfolio_notifications` emails owners about alert/evaluation holdings.
   - Both tasks commit inside the job; errors logged via `frappe.log_error` but processing continues.
 - **Financial calculations to mind**:
   - Holdings conversion uses `get_exchange_rate`; GBP rates divided by 100. `base_average_purchase_price` drives P/L.
   - Dividend totals sum dividend history JSON from security, filtered by portfolio start date, then converted to portfolio currency.
-  - Alerts are set when AI buy/sell targets cross current price; research details always stored in `alert_details` even when no alert.
 - **Frontend bits**: List view scripts in `public/js` (`cf_security_list.js`, `cf_portfolio_holding_list.js`) wire multi-actions like batch fetch/generate AI suggestions.
 - **Dev workflow**:
   - Bench app; typical site here is `kainotomo.localhost`. Common commands: `bench --site kainotomo.localhost migrate`, `bench --site kainotomo.localhost execute cognitive_folio.tasks.auto_fetch_portfolio_prices`, `bench start` for the dev server.
