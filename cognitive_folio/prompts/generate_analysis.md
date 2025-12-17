@@ -61,24 +61,6 @@ The AI must return **valid JSON only** with the following structure:
 }
 ```
 
-### Field Mappings to CF Security Doctype
-
-| AI Response Field | CF Security Field | Type | Notes |
-|-------------------|-------------------|------|-------|
-| `Evaluation.Moat` | `rating_moat` | Rating (1-10) | Competitive advantages |
-| `Evaluation.Management` | `rating_management` | Rating (1-10) | Leadership quality |
-| `Evaluation.Financials` | `rating_financials` | Rating (1-10) | **Use ratios to justify** |
-| `Evaluation.Valuation` | `rating_valuation` | Rating (1-10) | Fair value assessment |
-| `Evaluation.Industry` | `rating_industry` | Rating (1-10) | Industry trends |
-| Average of all 5 ratings | `suggestion_rating` | Rating (1-10) | Composite score |
-| `Investment.Action` | `suggestion_action` | Select | Buy/Hold/Sell |
-| `Investment.FairValue` | `suggestion_fair_value` | Currency | **AI-calculated fair value** |
-| `Investment.BuyBelowPrice` | `suggestion_buy_price` | Currency | Entry price target |
-| `Investment.SellAbovePrice` | `suggestion_sell_price` | Currency | Exit price target |
-| `Investment.StopLoss` | `evaluation_stop_loss` | Currency | Risk management level |
-| Full JSON | `ai_response` | JSON | Raw response for audit |
-| Markdown conversion | `ai_suggestion` | Markdown | Display version |
-
 ---
 
 ## Critical Rules for AI Analysis
