@@ -18,7 +18,6 @@
   "base_average_purchase_price",
   "base_cost",
   "currency",
-  "is_alert",
   "need_evaluation",
   "section_break_hwcf",
   "current_price_sec",
@@ -32,17 +31,13 @@
   "column_break_gvpf",
   "profit_loss_percentage",
   "profit_loss",
-  "alert_section",
-  "alert_details",
   "suggestion_section",
   "suggestion_action",
   "suggestion_buy_price",
-  "intrinsic_value",
   "column_break_ppwu",
   "suggestion_rating",
   "suggestion_sell_price",
-    "suggestion_fair_value",
-  "fair_value",
+  "suggestion_fair_value",
   "allocation_section",
   "region",
   "country",
@@ -300,14 +295,14 @@
    "options": "currency",
    "read_only": 1
   },
-    {
-     "fetch_from": "security.suggestion_fair_value",
-     "fieldname": "suggestion_fair_value",
-     "fieldtype": "Currency",
-     "label": "AI Fair Value",
-     "options": "currency",
-     "read_only": 1
-    },
+  {
+   "fetch_from": "security.suggestion_fair_value",
+   "fieldname": "suggestion_fair_value",
+   "fieldtype": "Currency",
+   "label": "AI Fair Value",
+   "options": "currency",
+   "read_only": 1
+  },
   {
    "fetch_from": "security.suggestion_rating",
    "fieldname": "suggestion_rating",
@@ -372,47 +367,6 @@
   },
   {
    "default": "0",
-   "fetch_from": "security.is_alert",
-   "fieldname": "is_alert",
-   "fieldtype": "Check",
-   "in_filter": 1,
-   "label": "Alert",
-   "read_only": 1
-  },
-  {
-   "description": "The true, fundamental worth of a stock based on its underlying business performance, cash flows, and assets.",
-   "fetch_from": "security.intrinsic_value",
-   "fieldname": "intrinsic_value",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Intrinsic Value",
-   "options": "currency",
-   "read_only": 1
-  },
-  {
-   "description": "The market-implied value of a stock, considering both fundamentals and market conditions.",
-   "fetch_from": "security.fair_value",
-   "fieldname": "fair_value",
-   "fieldtype": "Currency",
-   "in_list_view": 1,
-   "label": "Fair Value",
-   "options": "currency",
-   "read_only": 1
-  },
-  {
-   "collapsible": 1,
-   "fieldname": "alert_section",
-   "fieldtype": "Section Break",
-   "label": "Alert"
-  },
-  {
-   "fetch_from": "security.alert_details",
-   "fieldname": "alert_details",
-   "fieldtype": "Markdown Editor",
-   "label": "Alert Details"
-  },
-  {
-   "default": "0",
    "fetch_from": "security.need_evaluation",
    "fieldname": "need_evaluation",
    "fieldtype": "Check",
@@ -429,7 +383,7 @@
  ],
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-06 09:22:48.226423",
+ "modified": "2025-12-16 17:38:16.347992",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio Holding",
