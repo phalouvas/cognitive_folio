@@ -74,6 +74,7 @@ The following are strict technical requirements for valid output:
 - Action must be exactly one of: "Buy", "Hold", "Sell"
 - Conviction must be exactly one of: "High", "Medium", "Low"
 - End the `Summary` with a compact owner guidance line: "If you own: <Add|Hold|Reduce|Sell>; If not: <Buy|Watch|Avoid>" based on computed targets and conviction.
+- Format the `Analysis` value as **markdown** with clear headings and bullet lists (no HTML). Use the required structure defined below to improve human readability.
 
 ### 2. Rating Scale Interpretation
 
@@ -205,12 +206,18 @@ The `Analysis` field must include:
 - Discuss competitive position and market dynamics
 - Address key risks and uncertainties
 
-**4. Structured Format** (suggested):
-- Business Overview & Competitive Position
-- Financial Health Analysis (with specific metrics)
-- Valuation Assessment (methodology + calculation)
-- Risk Factors
-- Investment Conclusion
+**4. Structured Markdown Format** (required):
+- Use markdown headings and bullets inside the `Analysis` string.
+- Include the following sections with these exact headings:
+    - ### Business Overview & Competitive Position
+    - ### Financial Health Analysis
+    - ### Valuation Assessment
+    - ### Risk Factors
+    - ### Investor Guidance
+        - If you own the stock
+        - If you do not own
+    - ### Conclusion
+- Under each section, use concise bullet points referencing specific metrics and reasoning.
 
 **5. Owner Scenarios (brief):**
 - **If you own the stock**: Provide concise guidance using existing results:
