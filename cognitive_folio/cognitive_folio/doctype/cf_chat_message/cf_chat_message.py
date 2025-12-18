@@ -13,14 +13,6 @@ class CFChatMessage(Document):
 			if chat.system_prompt:
 				self.system_prompt = chat.system_prompt
 		
-		# Fetch temperature and top_p defaults from settings if not set
-		if self.temperature is None or self.top_p is None:
-			settings = frappe.get_single("CF Settings")
-			if self.temperature is None:
-				self.temperature = settings.default_temperature or 1.0
-			if self.top_p is None:
-				self.top_p = settings.default_top_p or 0.9
-		
 		# Convert variables in prompt on save for preview
 		if self.prompt and self.chat:
 			try:
@@ -230,8 +222,7 @@ class CFChatMessage(Document):
 			model=self.model,
 			messages=messages,
 			stream=True,  # Enable streaming
-			temperature=self.temperature if self.temperature is not None else 1.0,
-			top_p=self.top_p if self.top_p is not None else 0.9
+			temperature=1.0
 		)
 	
 		# Initialize response variables

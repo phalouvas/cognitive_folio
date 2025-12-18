@@ -41,7 +41,6 @@
   "rating_industry",
   "evaluation_stop_loss",
   "analysis_section",
-  "ai_suggestion_html",
   "ai_suggestion",
   "section_break_8",
   "country",
@@ -72,8 +71,6 @@
   "quarterly_cash_flow_html",
   "cash_flow_html",
   "raw_data_tab",
-  "fetched_data_section",
-  "fetched_data",
   "ticker_info_section",
   "ticker_info",
   "news_urls_section",
@@ -225,7 +222,6 @@
   {
    "fieldname": "ai_suggestion",
    "fieldtype": "Markdown Editor",
-   "hidden": 1,
    "label": "AI Suggestion"
   },
   {
@@ -233,11 +229,6 @@
    "fieldtype": "Currency",
    "label": "Current Price",
    "options": "currency"
-  },
-  {
-   "fieldname": "ai_suggestion_html",
-   "fieldtype": "HTML",
-   "label": "AI Suggestion HTML"
   },
   {
    "fieldname": "suggestion_section",
@@ -544,19 +535,6 @@
    "label": "Cash Flow Quarterly"
   },
   {
-   "collapsible": 1,
-   "fieldname": "fetched_data_section",
-   "fieldtype": "Section Break",
-   "label": "Fetched Data"
-  },
-  {
-   "default": "{}",
-   "description": "Stores raw ticker.info data as JSON",
-   "fieldname": "fetched_data",
-   "fieldtype": "JSON",
-   "label": "Fetched Data Raw"
-  },
-  {
    "fieldname": "column_break_lvvf",
    "fieldtype": "Column Break"
   },
@@ -598,7 +576,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-17 07:46:56.462911",
+ "modified": "2025-12-18 06:59:45.980945",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

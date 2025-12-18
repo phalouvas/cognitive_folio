@@ -132,7 +132,6 @@ class CFPortfolio(Document):
 		"""Queue AI analysis generation for the portfolio as a background job"""
 
 		self.ai_suggestion = "Processing your request..."
-		self.ai_suggestion_html = safe_markdown_to_html(self.ai_suggestion)
 		self.save()
 
 		try:

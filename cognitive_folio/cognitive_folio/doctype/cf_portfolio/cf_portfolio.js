@@ -6,14 +6,6 @@ frappe.ui.form.on("CF Portfolio", {
         // Only show buttons for saved documents (not new ones)
         if (!frm.is_new()) {
 
-            if(frm.doc.ai_suggestion) {
-                let md_html = frappe.markdown(frm.doc.ai_suggestion);
-                frm.set_df_property('ai_suggestion_html', 'options', frm.doc.ai_suggestion);
-            } else {
-                frm.set_df_property('ai_suggestion_html', 'options',
-                    `<div class="text-muted">No AI suggestion available.</div>`);
-            }
-            
             // Add "Fetch All Prices" button
             frm.add_custom_button(__('Fetch Latest Data'), function() {
                 frm.call({

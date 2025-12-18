@@ -132,10 +132,6 @@ class CFSecurity(Document):
 				self.region, self.subregion = get_country_region_from_api(self.country)
 			self.save()
 			
-			# Automatically extract financial data after fetching fundamentals
-			if with_fundamentals:
-				self.extract_financial_data()
-	
 		except Exception as e:
 			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
 			frappe.throw("Error fetching current price. Please check the symbol.")
@@ -201,7 +197,6 @@ class CFSecurity(Document):
 			return {'success': False, 'error': _('AI suggestion is only for non-stock securities')}
 		
 		self.ai_suggestion = "Processing your request..."
-		self.ai_suggestion_html = safe_markdown_to_html(self.ai_suggestion)
 		self.save()
 		
 		try:
@@ -230,43 +225,6 @@ class CFSecurity(Document):
 		
 		except Exception as e:
 			frappe.log_error(f"Error queueing security AI suggestion: {str(e)}", "Security AI Suggestion Error")
-			return {'success': False, 'error': str(e)}
-	
-	@frappe.whitelist()
-	def extract_financial_data(self):
-		"""Queue financial data extraction for the security as a background job"""
-		if self.security_type != "Stock":
-			return {'success': False, 'error': _('Financial data extraction is only for stock securities')}
-		
-		self.fetched_data = frappe.as_json({"status": "processing", "message": "Processing your request..."})
-		self.save()
-		
-		try:
-			from frappe.utils.background_jobs import enqueue
-			
-			# Create a unique job name to prevent duplicates
-			job_name = f"financial_data_extraction_{self.name}_{frappe.utils.now()}"
-			
-			# Enqueue the job
-			enqueue(
-				method="cognitive_folio.cognitive_folio.doctype.cf_security.cf_security.process_financial_data_extraction",
-				queue="long",
-				timeout=1800,  # 30 minutes
-				job_id=job_name,
-				now=False,
-				security_name=self.name,
-				user=frappe.session.user
-			)
-			
-			frappe.msgprint(
-				_("Financial data extraction has been queued. You will be notified when it's complete."),
-				alert=True
-			)
-			
-			return {'success': True, 'message': _('Financial data extraction has been queued')}
-		
-		except Exception as e:
-			frappe.log_error(f"Error queueing financial data extraction: {str(e)}", "Financial Data Extraction Error")
 			return {'success': False, 'error': str(e)}
 	
 	@frappe.whitelist()
@@ -563,210 +521,6 @@ class CFSecurity(Document):
 
 		return "\n".join(markdown)
 
-	def calculate_financial_ratios(self):
-		"""
-		Calculate financial ratios from extracted financial data.
-		
-		Returns:
-			dict: Comprehensive ratio analysis with liquidity, profitability, efficiency,
-				  growth, valuation, debt, and quality metrics. Includes data_quality section.
-		"""
-		try:
-			# Parse fetched_data
-			fetched_data_dict = frappe.parse_json(self.fetched_data) if self.fetched_data else {}
-			annual_data = fetched_data_dict.get('annual_data', {})
-			quarterly_data = fetched_data_dict.get('quarterly_data', {})
-			
-			# Helper function to safely get values
-			def safe_get(data_dict, key, index=0, default=None):
-				"""Safely get value from data dict with array values"""
-				try:
-					values = data_dict.get(key, [])
-					if isinstance(values, list) and len(values) > index:
-						val = values[index]
-						return float(val) if val is not None and val != '' else default
-					return default
-				except (ValueError, TypeError, IndexError):
-					return default
-			
-			def safe_divide(numerator, denominator):
-				"""Safely divide, return None if division by zero"""
-				if denominator is None or denominator == 0:
-					return None
-				if numerator is None:
-					return None
-				return numerator / denominator
-			
-			# Get data quality metrics
-			annual_periods = len(annual_data.get('years', []))
-			quarterly_periods = len(quarterly_data.get('periods', []))
-			
-			# Determine coverage level (prioritize annual data for long-term analysis)
-			if (annual_periods >= 5 and quarterly_periods >= 8) or (annual_periods >= 6):
-				coverage = "High"
-			elif annual_periods >= 3 or (annual_periods >= 2 and quarterly_periods >= 8):
-				coverage = "Medium"
-			else:
-				coverage = "Low"
-			
-			# Get most recent annual values (index 0 = most recent)
-			revenue = safe_get(annual_data, 'revenue', 0)
-			net_income = safe_get(annual_data, 'net_income', 0)
-			total_assets = safe_get(annual_data, 'total_assets', 0)
-			current_assets = safe_get(annual_data, 'current_assets', 0)
-			current_liabilities = safe_get(annual_data, 'current_liabilities', 0)
-			inventory = safe_get(annual_data, 'inventory', 0, 0)  # Default to 0 if missing
-			total_debt = safe_get(annual_data, 'total_debt', 0, 0)
-			shareholders_equity = safe_get(annual_data, 'shareholders_equity', 0)
-			operating_income = safe_get(annual_data, 'operating_income', 0)
-			gross_profit = safe_get(annual_data, 'gross_profit', 0)
-			operating_cash_flow = safe_get(annual_data, 'operating_cash_flow', 0)
-			capital_expenditures = safe_get(annual_data, 'capital_expenditures', 0, 0)
-			interest_expense = safe_get(annual_data, 'interest_expense', 0)
-			ebit = safe_get(annual_data, 'ebit', 0)
-			accounts_receivable = safe_get(annual_data, 'accounts_receivable', 0)
-			
-			# A. LIQUIDITY RATIOS
-			liquidity = {
-				"current_ratio": safe_divide(current_assets, current_liabilities),
-				"quick_ratio": safe_divide((current_assets - inventory) if current_assets and inventory is not None else current_assets, current_liabilities),
-				"working_capital": (current_assets - current_liabilities) if (current_assets is not None and current_liabilities is not None) else None,
-				"working_capital_ratio": safe_divide((current_assets - current_liabilities) if (current_assets is not None and current_liabilities is not None) else None, revenue)
-			}
-			
-			# B. PROFITABILITY RATIOS
-			profitability = {
-				"net_profit_margin": safe_divide(net_income, revenue),
-				"gross_profit_margin": safe_divide(gross_profit, revenue),
-				"operating_margin": safe_divide(operating_income, revenue),
-				"roa": safe_divide(net_income, total_assets),
-				"roe": safe_divide(net_income, shareholders_equity),
-				"roic": None  # Requires NOPAT and invested capital calculation
-			}
-			
-			# C. EFFICIENCY RATIOS
-			efficiency = {
-				"asset_turnover": safe_divide(revenue, total_assets),
-				"receivables_days": safe_divide(accounts_receivable, revenue) * 365 if (accounts_receivable is not None and revenue) else None
-			}
-			
-			# D. GROWTH METRICS (Year-over-year changes)
-			growth = {
-				"revenue_growth_5y": [],
-				"earnings_growth_5y": [],
-				"eps_growth_5y": []
-			}
-			
-			# Calculate YoY growth for available years
-			revenue_list = annual_data.get('revenue', [])
-			net_income_list = annual_data.get('net_income', [])
-			
-			for i in range(min(5, len(revenue_list) - 1)):
-				current_rev = safe_get(annual_data, 'revenue', i)
-				prior_rev = safe_get(annual_data, 'revenue', i + 1)
-				if current_rev is not None and prior_rev is not None and prior_rev != 0:
-					growth["revenue_growth_5y"].append(((current_rev - prior_rev) / prior_rev) * 100)
-				else:
-					growth["revenue_growth_5y"].append(None)
-			
-			for i in range(min(5, len(net_income_list) - 1)):
-				current_ni = safe_get(annual_data, 'net_income', i)
-				prior_ni = safe_get(annual_data, 'net_income', i + 1)
-				if current_ni is not None and prior_ni is not None and prior_ni != 0:
-					growth["earnings_growth_5y"].append(((current_ni - prior_ni) / prior_ni) * 100)
-				else:
-					growth["earnings_growth_5y"].append(None)
-			
-			# EPS growth (if shares outstanding available)
-			shares_outstanding = safe_get(annual_data, 'shares_outstanding', 0)
-			if shares_outstanding:
-				# Calculate EPS growth if data available
-				growth["eps_growth_5y"] = []  # Would need historical shares outstanding
-			
-			# E. VALUATION RATIOS
-			current_price = flt(self.current_price) if self.current_price else None
-			eps = safe_divide(net_income, shares_outstanding) if shares_outstanding else None
-			book_value_per_share = safe_divide(shareholders_equity, shares_outstanding) if shares_outstanding else None
-			
-			valuation = {
-				"pe_ratio": safe_divide(current_price, eps) if (current_price and eps) else None,
-				"pb_ratio": safe_divide(current_price, book_value_per_share) if (current_price and book_value_per_share) else None,
-				"dividend_yield": None,  # Requires dividend data
-				"payout_ratio": None  # Requires dividend data
-			}
-			
-			# Add dividend metrics if available
-			try:
-				dividends_data = frappe.parse_json(self.dividends) if self.dividends else {}
-				if dividends_data and current_price:
-					# Calculate annual dividend (sum of recent year)
-					annual_dividend = sum([float(d) for d in list(dividends_data.values())[-12:] if d]) if dividends_data else 0
-					if annual_dividend > 0:
-						valuation["dividend_yield"] = (annual_dividend / current_price) * 100
-						valuation["payout_ratio"] = safe_divide(annual_dividend * shares_outstanding if shares_outstanding else None, net_income) * 100 if net_income else None
-			except:
-				pass
-			
-			# F. DEBT & FINANCIAL HEALTH
-			debt_health = {
-				"debt_to_equity": safe_divide(total_debt, shareholders_equity),
-				"debt_to_assets": safe_divide(total_debt, total_assets),
-				"interest_coverage": safe_divide(ebit, interest_expense) if interest_expense else None,
-				"free_cash_flow": (operating_cash_flow - capital_expenditures) if (operating_cash_flow is not None and capital_expenditures is not None) else None
-			}
-			
-			# G. QUALITY & STABILITY INDICATORS
-			quality = {
-				"earnings_stability": None,  # Requires 5-year standard deviation calculation
-				"fcf_conversion": safe_divide(debt_health["free_cash_flow"], net_income),
-				"revenue_consistency": None  # Requires variance calculation
-			}
-			
-			# Calculate earnings stability (5-year coefficient of variation)
-			if len(net_income_list) >= 5:
-				recent_earnings = [safe_get(annual_data, 'net_income', i) for i in range(5)]
-				recent_earnings = [e for e in recent_earnings if e is not None]
-				if len(recent_earnings) >= 3:
-					import statistics
-					avg_earnings = statistics.mean(recent_earnings)
-					if avg_earnings != 0:
-						std_dev = statistics.stdev(recent_earnings) if len(recent_earnings) > 1 else 0
-						quality["earnings_stability"] = std_dev / abs(avg_earnings)  # Coefficient of variation
-			
-			# Calculate revenue consistency (variance of YoY growth rates)
-			if growth["revenue_growth_5y"]:
-				valid_growth = [g for g in growth["revenue_growth_5y"] if g is not None]
-				if len(valid_growth) >= 2:
-					import statistics
-					quality["revenue_consistency"] = statistics.stdev(valid_growth) if len(valid_growth) > 1 else 0
-			
-			# Return structured ratios
-			return {
-				"liquidity": liquidity,
-				"profitability": profitability,
-				"efficiency": efficiency,
-				"growth": growth,
-				"valuation": valuation,
-				"debt_health": debt_health,
-				"quality": quality,
-				"data_quality": {
-					"annual_periods": annual_periods,
-					"quarterly_periods": quarterly_periods,
-					"coverage": coverage
-				}
-			}
-			
-		except Exception as e:
-			frappe.log_error(f"Error calculating ratios for {self.symbol}: {str(e)}", "Financial Ratios Calculation Error")
-			return {
-				"error": str(e),
-				"data_quality": {
-					"annual_periods": 0,
-					"quarterly_periods": 0,
-					"coverage": "None"
-				}
-			}
-
 @frappe.whitelist()
 def search_stock_symbols(search_term):
 	"""Search for stock symbols based on company name or symbol"""
@@ -848,8 +602,8 @@ def process_security_ai_suggestion(security_name, user):
 			settings = frappe.get_single("CF Settings")
 			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 			
-			# Use deepseek-chat model for consistency with financial data extraction
-			model = "deepseek-chat"
+			# Use default AI model from settings instead of hardcoded value
+			model = settings.default_ai_model or "deepseek-chat"
 
 			prompt = security.ai_prompt or ""
 
@@ -864,12 +618,7 @@ def process_security_ai_suggestion(security_name, user):
 				model=model,
 				messages=messages,
 				stream=False,
-				temperature=0.0,  # Low variance for deterministic output (spec: 95-99% consistency)
-				top_p=0.1,  # Nucleus sampling - focus on high-probability tokens
-				seed=42,  # Fixed seed for reproducibility
-				frequency_penalty=0,  # Allow repetition if necessary for clarity
-				presence_penalty=0,  # Natural language, not restricted
-				n=1  # Single completion
+				temperature=1.0
 			)
 			
 			# Check if response has choices and content
@@ -889,7 +638,6 @@ def process_security_ai_suggestion(security_name, user):
 			# Update security with error status
 			security.reload()
 			security.ai_suggestion = f"❌ **Error generating AI analysis**: {str(api_error)}\n\nPlease try again later or check the AI service configuration."
-			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.flags.ignore_version = True
 			security.flags.ignore_mandatory = True
 			security.save()
@@ -947,7 +695,6 @@ def process_security_ai_suggestion(security_name, user):
 				# Fallback: save the raw response as markdown
 				security.reload()
 				security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
-				security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 				security.flags.ignore_version = True
 				security.flags.ignore_mandatory = True
 				security.save()
@@ -973,7 +720,6 @@ def process_security_ai_suggestion(security_name, user):
 			# Update security with error status
 			security.reload()
 			security.ai_suggestion = f"❌ **Error processing AI response**: {str(parse_error)}\n\nRaw response saved for debugging."
-			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.flags.ignore_version = True
 			security.flags.ignore_mandatory = True
 			security.save()
@@ -1042,7 +788,6 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_sell_price = investment.get("SellAbovePrice") or evaluation.get("Price Target Sell Above", 0)
 		security.evaluation_stop_loss = investment.get("StopLoss") or evaluation.get("Price Stop Loss", 0)
 		security.ai_suggestion = markdown_content
-		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		security.news_reasoning = None
 		security.need_evaluation = False
 		security.ai_modified = frappe.utils.now_datetime().strftime('%Y-%m-%d %H:%M:%S')
@@ -1131,319 +876,6 @@ def process_security_ai_suggestion(security_name, user):
 		
 		return False
 
-def process_financial_data_extraction(security_name, user):
-	"""Process financial data extraction for the security (meant to be run as a background job)"""
-	try:
-		# Get the security document
-		security = frappe.get_doc("CF Security", security_name)
-		
-		if security.security_type == "Cash":
-			return False
-		
-		try:
-			from openai import OpenAI
-		except ImportError:
-			frappe.log_error("OpenAI package is not installed. Please run 'bench pip install openai'", "Financial Data Extraction Error")
-			# Notify user of failure
-			frappe.publish_realtime(
-				event='cf_job_completed',
-				message={
-					'security_id': security_name,
-					'status': 'error',
-					'error': 'OpenAI package is not installed',
-					'message': 'Please run "bench pip install openai" to install the required package.'
-				},
-				user=user
-			)
-			return False
-		
-		try:
-			# Get OpenWebUI settings
-			settings = frappe.get_single("CF Settings")
-			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-			
-			# Read the prompt template from file
-			app_path = frappe.get_app_path('cognitive_folio')
-			prompt_file_path = os.path.join(app_path, 'prompts', 'extract_data.md')
-			
-			if not os.path.exists(prompt_file_path):
-				raise FileNotFoundError(f"Prompt template not found at {prompt_file_path}")
-			
-			with open(prompt_file_path, 'r', encoding='utf-8') as f:
-				prompt = f.read()
-			
-			# Expand only the approved variables for consistency
-			# Variables: security_name, symbol, sector, industry, currency, financials:y10:q16
-			# Note: current_price is excluded for consistency (replace with null)
-			prompt = prompt.replace("{{current_price}}", "null")
-			prompt = re.sub(r'\{\{([\w\.\:]+)\}\}', lambda match: replace_variables(match, security), prompt)
-			
-			# Call DeepSeek with specific parameters for consistency
-			messages = [
-				{"role": "system", "content": settings.system_content},
-				{"role": "user", "content": prompt},
-			]
-			response = client.chat.completions.create(
-				model="deepseek-chat",  # Hardcoded for consistency
-				messages=messages,
-				stream=False,
-				temperature=0,  # Deterministic output
-				top_p=0.1,  # Minimal randomness
-				seed=42,  # Fixed seed for reproducibility
-				frequency_penalty=0,  # No frequency penalty
-				presence_penalty=0,  # No presence penalty
-				n=1  # Single completion for deterministic behavior
-			)
-			
-			# Check if response has choices and content
-			if not response.choices or not response.choices[0].message.content:
-				raise ValueError("Empty response received from AI model")
-			
-			content_string = response.choices[0].message.content.strip()
-			
-			# Validate that we got actual content
-			if not content_string:
-				raise ValueError("No content in AI response")
-			
-		except Exception as api_error:
-			error_message = f"AI API error: {str(api_error)}"
-			frappe.log_error(error_message, "OpenAI API Error")
-			
-			# Update security with error status
-			security.reload()
-			security.fetched_data = frappe.as_json({
-				"status": "error",
-				"error": str(api_error),
-				"message": f"Error generating financial data extraction: {str(api_error)}"
-			})
-			security.flags.ignore_version = True
-			security.flags.ignore_mandatory = True
-			security.save()
-			
-			# Notify user of failure
-			frappe.publish_realtime(
-				event='cf_job_completed',
-				message={
-					'security_id': security_name,
-					'status': 'error',
-					'error': error_message,
-					'message': error_message
-				},
-				user=user
-			)
-			
-			return False
-		
-		try:
-			# deepseek-chat wraps JSON in markdown code blocks, so strip them explicitly
-			if content_string.startswith('```'):
-				# Remove opening code fence
-				content_string = content_string.split('```', 1)[1]
-				# Remove language identifier (e.g., 'json')
-				if content_string.startswith('json'):
-					content_string = content_string[4:].lstrip()
-				# Remove closing code fence
-				if '```' in content_string:
-					content_string = content_string.rsplit('```', 1)[0]
-			
-			# Use clear_string helper for additional cleanup
-			content_string = clear_string(content_string)
-			extracted_data = json.loads(content_string)
-			
-			# Validate the JSON structure
-			if not isinstance(extracted_data, dict):
-				raise ValueError("AI response is not a valid JSON object")
-			
-			# Validate expected structure
-			required_sections = ["company_info", "data_quality", "annual_data", "quarterly_data"]
-			missing_sections = [section for section in required_sections if section not in extracted_data]
-			
-			if missing_sections:
-				frappe.log_error(f"AI response missing required sections: {missing_sections}", "Financial Data Extraction Validation Warning")
-				# Continue processing with available data
-			
-		except json.JSONDecodeError as json_error:
-			# If JSON parsing still fails, try a more robust cleanup approach
-			try:
-				# Remove markdown formatting and fix common JSON issues
-				cleaned = content_string.strip()
-				
-				# Find all string values in the JSON and clean them
-				def clean_json_string(match):
-					string_content = match.group(1)
-					# Replace literal newlines with \n
-					string_content = string_content.replace('\n', '\\n')
-					# Replace other problematic characters
-					string_content = string_content.replace('\r', '\\r')
-					string_content = string_content.replace('\t', '\\t')
-					string_content = string_content.replace('&nbsp;', ' ')
-					# Handle unescaped quotes within strings
-					string_content = re.sub(r'(?<!\\)"', '\\"', string_content)
-					return f'"{string_content}"'
-				
-				# Apply cleaning to all JSON string values
-				cleaned = re.sub(r'"([^"]*(?:\\.[^"]*)*)"', clean_json_string, cleaned, flags=re.DOTALL)
-				
-				extracted_data = json.loads(cleaned)
-				
-			except (json.JSONDecodeError, Exception) as secondary_error:
-				error_message = f"Invalid JSON in AI response: {str(json_error)}"
-				frappe.log_error(f"{error_message}\nRaw response: {content_string}", "Financial Data Extraction JSON Parse Error")
-				
-				# Fallback: save the raw response
-				security.reload()
-				security.fetched_data = frappe.as_json({
-					"status": "error",
-					"error": "JSON parsing failed",
-					"raw_response": content_string[:1000]  # Truncate to avoid huge data
-				})
-				security.flags.ignore_version = True
-				security.flags.ignore_mandatory = True
-				security.save()
-				
-				# Notify user of partial success
-				frappe.publish_realtime(
-					event='cf_job_completed',
-					message={
-						'security_id': security_name,
-						'status': 'error',
-						'error': 'AI response format issue - raw response saved',
-						'message': 'AI response had formatting issues'
-					},
-					user=user
-				)
-				
-				return False
-		
-		except Exception as parse_error:
-			error_message = f"Error parsing AI response: {str(parse_error)}"
-			frappe.log_error("Financial Data Extraction Response Parse Error", error_message)
-			
-			# Update security with error status
-			security.reload()
-			security.fetched_data = frappe.as_json({
-				"status": "error",
-				"error": str(parse_error),
-				"message": f"Error processing AI response: {str(parse_error)}"
-			})
-			security.flags.ignore_version = True
-			security.flags.ignore_mandatory = True
-			security.save()
-			
-			# Notify user of failure
-			frappe.publish_realtime(
-				event='cf_job_completed',
-				message={
-					'security_id': security_name,
-					'status': 'error',
-					'error': error_message,
-					'message': error_message
-				},
-				user=user
-			)
-			
-			return False
-		
-		# Reload the document to get the latest version and avoid modification conflicts
-		security.reload()
-		
-		# Store the extracted data
-		security.fetched_data = frappe.as_json(extracted_data)
-		
-		# Calculate financial ratios from extracted data
-		try:
-			financial_ratios = security.calculate_financial_ratios()
-			# Merge ratios into extracted_data
-			extracted_data_with_ratios = extracted_data.copy()
-			extracted_data_with_ratios['financial_ratios'] = financial_ratios
-			security.fetched_data = frappe.as_json(extracted_data_with_ratios)
-		except Exception as ratio_error:
-			frappe.log_error(f"Error calculating ratios for {security_name}: {str(ratio_error)}", "Financial Ratios Integration Error")
-			# Continue without ratios - don't fail the entire extraction
-		
-		# Use flags to ignore timestamp validation and force save
-		security.flags.ignore_version = True
-		security.flags.ignore_mandatory = True
-		security.save()
-		
-		# Create CF Chat and CF Chat Message
-		chat_doc = frappe.new_doc("CF Chat")
-		chat_doc.security = security_name
-		chat_doc.title = f"Financial Data Extraction for {security.security_name or security.symbol} @ {frappe.utils.today()}"
-		chat_doc.system_prompt = settings.system_content
-		chat_doc.save()
-		
-		# Create the chat message
-		message_doc = frappe.new_doc("CF Chat Message")
-		message_doc.chat = chat_doc.name
-		message_doc.prompt = prompt
-		message_doc.response = json.dumps(extracted_data, indent=2)
-		message_doc.response_html = f"<pre>{json.dumps(extracted_data, indent=2)}</pre>"
-		message_doc.model = "deepseek-chat"
-		message_doc.status = "Success"
-		message_doc.system_prompt = settings.system_content
-		message_doc.tokens = response.usage.to_json() if hasattr(response, 'usage') else None
-		message_doc.flags.ignore_before_save = True
-		message_doc.save()
-		
-		frappe.db.commit()  # Single commit for all changes
-		
-		# Notify the user that the extraction is complete
-		frappe.publish_realtime(
-			event='cf_job_completed',
-			message={
-				'security_id': security_name,
-				'status': 'success',
-				'chat_id': chat_doc.name,
-				'message': f"Financial data extraction completed for {security.security_name or security.symbol}.",
-			},
-			user=user
-		)
-		
-		return True
-			
-	except requests.exceptions.RequestException as e:
-		error_message = f"Request error: {str(e)}"
-		frappe.log_error("OpenWebUI API Error", error_message)
-		
-		# Notify user of failure
-		frappe.publish_realtime(
-			event='cf_job_completed',
-			message={
-				'security_id': security_name,
-				'status': 'error',
-				'error': error_message,
-				'message': error_message
-			},
-			user=user
-		)
-		
-		return False
-		
-	except Exception as e:
-		error_message = f"Error extracting financial data: {str(e)}"
-		
-		# Create a short, descriptive title for the error log
-		short_title = f"Financial Data Extraction Error - {security_name}"
-		if len(short_title) > 140:
-			short_title = f"Financial Data Extraction Error"[:140]
-		
-		frappe.log_error(short_title, error_message)
-		
-		# Notify user of failure
-		frappe.publish_realtime(
-			event='cf_job_completed',
-			message={
-				'security_id': security_name,
-				'status': 'error',
-				'error': error_message[:200],  # Truncate for realtime message too
-				'message': error_message[:200]
-			},
-			user=user
-		)
-		
-		return False
-	
 @frappe.whitelist()
 def fetch_data_selected(docnames, with_fundamentals=False):
 	"""Fetch latest data for selected securities"""

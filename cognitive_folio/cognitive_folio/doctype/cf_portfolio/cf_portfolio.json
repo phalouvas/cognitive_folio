@@ -36,7 +36,6 @@
   "annualized_percentage_total",
   "ai_tab",
   "section_break_8",
-  "ai_suggestion_html",
   "ai_suggestion",
   "section_break_kotg",
   "template_prompt",
@@ -122,14 +121,7 @@
   {
    "fieldname": "ai_suggestion",
    "fieldtype": "Markdown Editor",
-   "hidden": 1,
-   "label": "AI Suggestion",
-   "read_only": 1
-  },
-  {
-   "fieldname": "ai_suggestion_html",
-   "fieldtype": "HTML",
-   "label": "AI Suggestion HTML"
+   "label": "AI Suggestion"
   },
   {
    "fieldname": "performance_section",
@@ -337,7 +329,7 @@
    "link_fieldname": "portfolio"
   }
  ],
- "modified": "2025-12-11 09:12:38.415970",
+ "modified": "2025-12-18 07:03:05.068117",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Portfolio",

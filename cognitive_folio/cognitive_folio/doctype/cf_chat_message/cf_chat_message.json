@@ -8,8 +8,6 @@
   "chat",
   "status",
   "model",
-  "temperature",
-  "top_p",
   "web_search",
   "fetch_urls",
   "column_break_cbjh",
@@ -63,20 +61,6 @@
    "fieldtype": "Select",
    "label": "Model",
    "options": "\ndeepseek-chat\ndeepseek-reasoner"
-  },
-  {
-   "description": "Controls randomness (0.0-2.0)",
-   "fieldname": "temperature",
-   "fieldtype": "Float",
-   "label": "Temperature",
-   "options": "0.0-2.0"
-  },
-  {
-   "description": "Controls diversity (0.0-1.0)",
-   "fieldname": "top_p",
-   "fieldtype": "Float",
-   "label": "Top P",
-   "options": "0.0-1.0"
   },
   {
    "fieldname": "column_break_cbjh",
@@ -135,7 +119,7 @@
    "label": "Web Search"
   },
   {
-    "default": "0",
+   "default": "0",
    "fieldname": "fetch_urls",
    "fieldtype": "Check",
    "label": "Fetch URLs"
@@ -144,7 +128,7 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-06-09 18:41:24.258590",
+ "modified": "2025-12-18 06:44:03.919589",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
