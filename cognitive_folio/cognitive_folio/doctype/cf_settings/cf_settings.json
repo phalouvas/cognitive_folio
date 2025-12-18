@@ -10,10 +10,7 @@
   "system_content",
   "section_break_models",
   "default_ai_model",
-  "ai_models",
-  "section_break_ai_parameters",
-  "default_temperature",
-  "default_top_p"
+  "ai_models"
  ],
  "fields": [
   {
@@ -49,34 +46,13 @@
    "fieldname": "system_content",
    "fieldtype": "Markdown Editor",
    "label": "System Content"
-  },
-  {
-   "fieldname": "section_break_ai_parameters",
-   "fieldtype": "Section Break",
-   "label": "AI Parameters"
-  },
-  {
-   "default": "1",
-   "description": "Controls randomness in AI responses (0.0-2.0). Higher values make output more random.",
-   "fieldname": "default_temperature",
-   "fieldtype": "Float",
-   "label": "Default Temperature",
-   "options": "0.0-2.0"
-  },
-  {
-   "default": "0.9",
-   "description": "Controls diversity via nucleus sampling (0.0-1.0). Lower values make responses more focused.",
-   "fieldname": "default_top_p",
-   "fieldtype": "Float",
-   "label": "Default Top P",
-   "options": "0.0-1.0"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-06-03 10:12:28.786535",
+ "modified": "2025-12-18 06:41:21.959027",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",

@@ -619,12 +619,7 @@ def process_security_ai_suggestion(security_name, user):
 				model=model,
 				messages=messages,
 				stream=False,
-				temperature=0.0,  # Low variance for deterministic output (spec: 95-99% consistency)
-				top_p=0.1,  # Nucleus sampling - focus on high-probability tokens
-				seed=42,  # Fixed seed for reproducibility
-				frequency_penalty=0,  # Allow repetition if necessary for clarity
-				presence_penalty=0,  # Natural language, not restricted
-				n=1  # Single completion
+				temperature=1.0
 			)
 			
 			# Check if response has choices and content
