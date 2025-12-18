@@ -28,9 +28,6 @@ The prompt should include access to the following variables (via template replac
   - **Quality**: earnings_stability, fcf_conversion, revenue_consistency
   - **Data Quality**: annual_periods, quarterly_periods, coverage (High/Medium/Low)
 
-### Raw Financial Data
-- `{{fetched_data}}` - Complete extracted financial statements (annual/quarterly)
-
 ---
 
 ## Expected Output Format
