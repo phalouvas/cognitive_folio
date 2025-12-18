@@ -603,8 +603,8 @@ def process_security_ai_suggestion(security_name, user):
 			settings = frappe.get_single("CF Settings")
 			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 			
-			# Use deepseek-chat model for consistency with financial data extraction
-			model = "deepseek-chat"
+			# Use default AI model from settings instead of hardcoded value
+			model = settings.default_ai_model or "deepseek-chat"
 
 			prompt = security.ai_prompt or ""
 
