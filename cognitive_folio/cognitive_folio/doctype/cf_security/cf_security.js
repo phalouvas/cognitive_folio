@@ -29,15 +29,6 @@ frappe.ui.form.on('CF Security', {
                     '<div class="text-muted">No news available for this security.</div>');
             }
 
-            if(frm.doc.ai_suggestion) {
-                let md_html = frappe.markdown(frm.doc.ai_suggestion);
-                frm.set_df_property('ai_suggestion_html', 'options', 
-                    `<div class="markdown-preview">${md_html}</div>`);
-            } else {
-                frm.set_df_property('ai_suggestion_html', 'options',
-                    `<div class="markdown-preview">No AI suggestion available.</div>`);
-            }
-
             // Format and display ticker info if available
             if(frm.doc.ticker_info) {
                 try {

@@ -41,7 +41,6 @@
   "rating_industry",
   "evaluation_stop_loss",
   "analysis_section",
-  "ai_suggestion_html",
   "ai_suggestion",
   "section_break_8",
   "country",
@@ -223,7 +222,6 @@
   {
    "fieldname": "ai_suggestion",
    "fieldtype": "Markdown Editor",
-   "hidden": 1,
    "label": "AI Suggestion"
   },
   {
@@ -231,11 +229,6 @@
    "fieldtype": "Currency",
    "label": "Current Price",
    "options": "currency"
-  },
-  {
-   "fieldname": "ai_suggestion_html",
-   "fieldtype": "HTML",
-   "label": "AI Suggestion HTML"
   },
   {
    "fieldname": "suggestion_section",
@@ -583,7 +576,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-18 06:19:29.437739",
+ "modified": "2025-12-18 06:59:45.980945",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

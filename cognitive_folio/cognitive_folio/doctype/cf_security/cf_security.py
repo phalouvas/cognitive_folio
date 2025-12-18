@@ -197,7 +197,6 @@ class CFSecurity(Document):
 			return {'success': False, 'error': _('AI suggestion is only for non-stock securities')}
 		
 		self.ai_suggestion = "Processing your request..."
-		self.ai_suggestion_html = safe_markdown_to_html(self.ai_suggestion)
 		self.save()
 		
 		try:
@@ -639,7 +638,6 @@ def process_security_ai_suggestion(security_name, user):
 			# Update security with error status
 			security.reload()
 			security.ai_suggestion = f"❌ **Error generating AI analysis**: {str(api_error)}\n\nPlease try again later or check the AI service configuration."
-			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.flags.ignore_version = True
 			security.flags.ignore_mandatory = True
 			security.save()
@@ -697,7 +695,6 @@ def process_security_ai_suggestion(security_name, user):
 				# Fallback: save the raw response as markdown
 				security.reload()
 				security.ai_suggestion = f"⚠️ **AI Analysis** (Raw Response)\n\n{content_string}"
-				security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 				security.flags.ignore_version = True
 				security.flags.ignore_mandatory = True
 				security.save()
@@ -723,7 +720,6 @@ def process_security_ai_suggestion(security_name, user):
 			# Update security with error status
 			security.reload()
 			security.ai_suggestion = f"❌ **Error processing AI response**: {str(parse_error)}\n\nRaw response saved for debugging."
-			security.ai_suggestion_html = safe_markdown_to_html(security.ai_suggestion)
 			security.flags.ignore_version = True
 			security.flags.ignore_mandatory = True
 			security.save()
@@ -792,7 +788,6 @@ def process_security_ai_suggestion(security_name, user):
 		security.suggestion_sell_price = investment.get("SellAbovePrice") or evaluation.get("Price Target Sell Above", 0)
 		security.evaluation_stop_loss = investment.get("StopLoss") or evaluation.get("Price Stop Loss", 0)
 		security.ai_suggestion = markdown_content
-		security.ai_suggestion_html = safe_markdown_to_html(markdown_content)
 		security.news_reasoning = None
 		security.need_evaluation = False
 		security.ai_modified = frappe.utils.now_datetime().strftime('%Y-%m-%d %H:%M:%S')
