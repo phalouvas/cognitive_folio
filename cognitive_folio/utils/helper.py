@@ -336,9 +336,12 @@ def get_edgar_data(
         in the specified format (json, csv, or markdown), with data from
         multiple periods stitched together.
     """
-    from edgar import set_identity, Company
+    from edgar import set_identity, Company, use_local_storage
     from edgar.xbrl import XBRLS
     import json as json_module
+
+    # Enable edgartools disk caching (defaults to ~/.edgar)
+    use_local_storage(True)
 
     if statement_types is None:
         statement_types = ['income', 'balance', 'cashflow', 'equity']
@@ -527,3 +530,273 @@ def get_edgar_data(
         ])
 
     return result
+
+
+def get_edgar_section(
+    cik: str,
+    form_type: str = "10-K",
+    year_or_index: int = -1,
+    quarter: str = None,
+    section: str = None,
+    aggregate_all: bool = False,
+    max_chars: int = 200000
+) -> str:
+    """
+    Fetch specific narrative sections from SEC Edgar filings for qualitative AI analysis.
+    
+    This extracts qualitative text (Risk Factors, MD&A, Business Description) rather than
+    structured financial data. Each filing includes metadata headers for context.
+    
+    Args:
+        cik: Company CIK identifier
+        form_type: Filing type - '10-K' (annual), '10-Q' (quarterly), or '8-K' (current reports)
+        year_or_index: Negative for relative (-1 = latest, -2 = previous), 
+                      Positive 4-digit for absolute year (2024, 2023, etc.)
+        quarter: Quarter specification for 10-Q ('Q1', 'Q2', 'Q3') - optional
+        section: Section to extract - 'risk', 'mda', 'business', 'legal', 'all', or None
+                None = default selection (risk+mda+business for 10-K/10-Q)
+        aggregate_all: For 8-K with absolute year, aggregate ALL 8-Ks from that year
+                      For relative index, aggregates latest 3
+        max_chars: Maximum characters to return (default 200K, truncates with notice)
+    
+    Returns:
+        Plain text content with metadata headers, or error message
+        
+    Examples:
+        get_edgar_section('0000320193', '10-K', -1, section='risk')  # Latest 10-K risks
+        get_edgar_section('0000320193', '10-Q', 2024, quarter='Q2', section='mda')
+        get_edgar_section('0000320193', '8-K', 2024, aggregate_all=True)  # All 2024 8-Ks
+        get_edgar_section('0000320193', '10-K', -1)  # Latest 10-K default sections
+    """
+    from edgar import set_identity, Company, use_local_storage
+    import frappe
+    
+    # Enable edgartools disk caching
+    use_local_storage(True)
+    set_identity("phalouvas@gmail.com")
+    
+    # Section keyword mapping to TenK/TenQ object properties
+    section_map = {
+        'risk': 'risk_factors',
+        'mda': 'management_discussion',
+        'business': 'business',
+        'legal': 'legal_proceedings',
+        'all': None  # Special case - return full text
+    }
+    
+    try:
+        company = Company(cik)
+        content_parts = []
+        
+        # Determine if we're dealing with relative index or absolute year
+        is_relative = year_or_index < 0 or year_or_index < 1000
+        
+        if form_type == '8-K':
+            # 8-K aggregation logic
+            if is_relative:
+                # Relative: get latest N filings
+                count = abs(year_or_index) if year_or_index < 0 else 3
+                filings = company.get_filings(form="8-K").head(count)
+            else:
+                # Absolute year: get all 8-Ks from that year
+                all_8k_filings = company.get_filings(form="8-K")
+                filings = [f for f in all_8k_filings if f.filing_date.year == year_or_index]
+                
+                if not filings:
+                    return f"[No 8-K filings found for year {year_or_index}]"
+            
+            # Process each 8-K filing
+            for filing in filings:
+                try:
+                    eightk = filing.obj()
+                    
+                    # Add metadata header
+                    metadata = f"**8-K Filing**\n"
+                    metadata += f"Filed: {filing.filing_date}\n"
+                    if hasattr(filing, 'accession_no'):
+                        metadata += f"Accession: {filing.accession_no}\n"
+                    metadata += f"\n"
+                    
+                    # Extract all reported items
+                    items_content = []
+                    if hasattr(eightk, 'items') and eightk.items:
+                        for item in eightk.items:
+                            try:
+                                item_text = eightk[item]
+                                if item_text:
+                                    items_content.append(f"**{item}**\n{item_text}")
+                            except Exception:
+                                continue
+                    
+                    if items_content:
+                        content_parts.append(metadata + "\n\n".join(items_content))
+                    
+                except Exception as e:
+                    # Log but continue with other filings
+                    frappe.log_error(f"Error processing 8-K {filing.accession_no}: {str(e)}", "Edgar 8-K Processing")
+                    continue
+            
+        else:
+            # 10-K or 10-Q logic
+            if is_relative:
+                # Relative index: get the Nth most recent filing
+                index = abs(year_or_index) - 1 if year_or_index < 0 else 0
+                filings = company.get_filings(form=form_type)
+                
+                # For 10-Q with quarter, filter by quarter if possible
+                if form_type == "10-Q" and quarter:
+                    # This is a simplification - proper quarter matching would require
+                    # checking filing dates or period end dates
+                    pass  # Use all 10-Q filings for now
+                
+                if len(filings) <= index:
+                    return f"[Insufficient filings: requested index {index} but only {len(filings)} available]"
+                
+                filing = filings[index]
+                
+            else:
+                # Absolute year: get filing from specific year
+                all_filings = company.get_filings(form=form_type)
+                
+                # Filter by year
+                year_filings = [f for f in all_filings if f.filing_date.year == year_or_index]
+                
+                if not year_filings:
+                    return f"[No {form_type} filing found for year {year_or_index}]"
+                
+                # For 10-Q with quarter, try to match quarter
+                if form_type == "10-Q" and quarter:
+                    # Simple quarter matching by filing date month ranges
+                    quarter_months = {
+                        'Q1': (4, 5, 6),      # Filed Apr-Jun
+                        'Q2': (7, 8, 9),      # Filed Jul-Sep
+                        'Q3': (10, 11, 12),   # Filed Oct-Dec
+                    }
+                    
+                    if quarter in quarter_months:
+                        months = quarter_months[quarter]
+                        quarter_filings = [f for f in year_filings if f.filing_date.month in months]
+                        if quarter_filings:
+                            filing = quarter_filings[0]  # Most recent in that quarter range
+                        else:
+                            return f"[No 10-Q filing found for {year_or_index} {quarter}]"
+                    else:
+                        filing = year_filings[0]  # Latest from that year
+                else:
+                    filing = year_filings[0]  # Latest from that year
+            
+            # Get the data object (TenK or TenQ)
+            data_obj = filing.obj()
+            
+            # Add metadata header
+            metadata = f"**{form_type} Filing**\n"
+            metadata += f"Filed: {filing.filing_date}\n"
+            if hasattr(filing, 'period_end_date'):
+                metadata += f"Period: {filing.period_end_date}\n"
+            if hasattr(filing, 'accession_no'):
+                metadata += f"Accession: {filing.accession_no}\n"
+            metadata += f"\n"
+            
+            content_parts.append(metadata)
+            
+            # Extract sections based on parameter
+            if section == 'all':
+                # Return full filing text
+                full_text = filing.text()
+                content_parts.append(full_text)
+                
+            elif section in section_map and section_map[section] is not None:
+                # Extract specific section
+                prop_name = section_map[section]
+                if hasattr(data_obj, prop_name):
+                    section_content = getattr(data_obj, prop_name)
+                    if section_content:
+                        section_title = prop_name.replace('_', ' ').title()
+                        content_parts.append(f"# {section_title}\n\n{section_content}")
+                    else:
+                        content_parts.append(f"[{prop_name} section not available in this filing]")
+                else:
+                    content_parts.append(f"[{prop_name} section not available in this filing]")
+                    
+            else:
+                # Default: combine risk + mda + business for comprehensive overview
+                default_sections = [
+                    ('risk_factors', 'Risk Factors'),
+                    ('management_discussion', 'Management Discussion & Analysis'),
+                    ('business', 'Business Description')
+                ]
+                
+                for prop_name, title in default_sections:
+                    if hasattr(data_obj, prop_name):
+                        section_content = getattr(data_obj, prop_name)
+                        if section_content:
+                            content_parts.append(f"# {title}\n\n{section_content}")
+        
+        # Combine all content
+        full_content = "\n\n---\n\n".join(content_parts)
+        
+        # Apply character limit with truncation notice
+        if len(full_content) > max_chars:
+            full_content = full_content[:max_chars] + f"\n\n[Content truncated at {max_chars:,} characters. Original length: {len(full_content):,} characters]"
+        
+        # Log token estimate
+        estimated_tokens = len(full_content) // 4
+        if frappe:
+            frappe.logger().info(f"Edgar section extraction: {form_type} for CIK {cik}, ~{estimated_tokens:,} tokens")
+        
+        return full_content if full_content.strip() else f"[No content extracted from {form_type} filing]"
+        
+    except Exception as e:
+        error_msg = f"[Error fetching {form_type}: {str(e)}]"
+        if frappe:
+            frappe.log_error(f"Edgar section extraction failed for CIK {cik}, form {form_type}: {str(e)}", "Edgar Section Extraction Error")
+        return error_msg
+
+
+def expand_edgar_section_variable(security, form_type: str, year_or_index: str, section: str = None, quarter: str = None):
+    """
+    Wrapper to expand {{edgar:...}} variables in chat prompts.
+    
+    Extracts CIK from security, parses parameters, and calls get_edgar_section.
+    
+    Args:
+        security: CF Security document
+        form_type: Filing type (10-K, 10-Q, 8-K)
+        year_or_index: String representation of year (2024) or relative index (-1, -2)
+        section: Optional section keyword (risk, mda, business, legal, all)
+        quarter: Optional quarter for 10-Q (Q1, Q2, Q3)
+    
+    Returns:
+        Extracted text content or error placeholder
+    """
+    import frappe
+    
+    # Check for CIK
+    cik = getattr(security, "cik", None)
+    if not cik:
+        return "[CIK required for edgar variable - fetch CIK using Actions → Fetch CIK]"
+    
+    try:
+        # Parse year_or_index
+        year_or_index_int = int(year_or_index)
+        
+        # For 8-K with 4-digit year, aggregate all filings from that year
+        aggregate_all = (form_type == "8-K" and year_or_index_int >= 1000)
+        
+        # Call the main function
+        result = get_edgar_section(
+            cik=cik,
+            form_type=form_type,
+            year_or_index=year_or_index_int,
+            quarter=quarter,
+            section=section,
+            aggregate_all=aggregate_all
+        )
+        
+        return result
+        
+    except ValueError:
+        return f"[Invalid year/index format: {year_or_index}]"
+    except Exception as e:
+        frappe.log_error(f"Edgar variable expansion failed for {security.name}: {str(e)}", "Edgar Variable Expansion Error")
+        return f"[SEC filing not found: {form_type} {year_or_index}]"
