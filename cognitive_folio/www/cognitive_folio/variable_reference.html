@@ -340,72 +340,100 @@ Exposure Breakdown:
 
         <hr>
 
-        <h2>4. Structured Financial Periods</h2>
-        <p>Insert clean, formatted historical financial data using the periods syntax.</p>
+        <h2>4. Financial Data Syntax</h2>
+        <p>Insert structured financial statements from SEC Edgar filings (with yfinance fallback).</p>
         
         <h3>Pattern:</h3>
-        <pre><code>{{periods:&lt;type&gt;:&lt;count&gt;[:format]}}</code></pre>
+        <pre><code>{{financials:y&lt;years&gt;:q&lt;quarters&gt;}}</code></pre>
         
         <ul>
-            <li><code>&lt;type&gt;</code>: <code>annual</code>, <code>quarterly</code>, <code>ttm</code></li>
-            <li><code>&lt;count&gt;</code>: number of periods (e.g. 3, 4, 5)</li>
-            <li><code>format</code> (optional): <code>markdown</code> (default), <code>text</code>, <code>json</code>, <code>table</code></li>
+            <li><code>y&lt;years&gt;</code>: Number of annual periods (e.g., y3, y5, y10)</li>
+            <li><code>q&lt;quarters&gt;</code>: Number of quarterly periods (e.g., q4, q8, q16)</li>
         </ul>
 
         <h3>Examples:</h3>
         <div class="example-box">
             <ul>
-                <li><code>{{periods:annual:3}}</code> → last 3 annual periods (markdown summary)</li>
-                <li><code>{{periods:quarterly:4:table}}</code> → last 4 quarters as a table</li>
-                <li><code>{{periods:annual:5:text}}</code> → plain text periods</li>
-                <li><code>{{periods:quarterly:8:json}}</code> → raw JSON (be mindful of token size)</li>
+                <li><code>{{financials:y3:q0}}</code> → Last 3 annual periods only</li>
+                <li><code>{{financials:y0:q8}}</code> → Last 8 quarters only</li>
+                <li><code>{{financials:y5:q4}}</code> → 5 years + 4 most recent quarters</li>
+                <li><code>{{financials:y10:q16}}</code> → Full 10 years + 16 quarters (comprehensive)</li>
             </ul>
         </div>
 
         <div class="warning-box">
             <strong>Token Guidance:</strong>
             <ul>
-                <li>Annual 3 (markdown): ~200–400 tokens</li>
-                <li>Quarterly 4 (table): ~250–500 tokens</li>
-                <li>Annual 5 JSON: can exceed 800 tokens</li>
+                <li>3 annual periods ≈ 3,000-5,000 tokens</li>
+                <li>8 quarterly periods ≈ 5,000-8,000 tokens</li>
+                <li>Full <code>y10:q16</code> ≈ 15,000-20,000 tokens</li>
             </ul>
             Keep within model limits; prefer smaller counts for exploratory analysis.
         </div>
 
-        <hr>
-
-        <h2>5. Comparison Syntax</h2>
-        <p>Compare financial periods side-by-side with percentage changes.</p>
-
-        <h3>Pattern:</h3>
-        <pre><code>{{periods:compare:&lt;period1&gt;:&lt;period2&gt;}}</code></pre>
-
-        <h3>Examples:</h3>
-        <div class="example-box">
-            <ul>
-                <li><code>{{periods:compare:2024:2023}}</code> → Annual comparison</li>
-                <li><code>{{periods:compare:2024Q3:2024Q2}}</code> → Quarterly comparison</li>
-            </ul>
-        </div>
-
         <div class="tip-box">
-            <strong>Natural Language Support:</strong><br>
-            You can also use natural language in chat messages:
-            <ul>
-                <li>"compare Q3 2024 vs Q2 2024"</li>
-                <li>"compare 2024 to 2023"</li>
-                <li>"compare Q3 vs previous quarter"</li>
-            </ul>
-            These will be automatically transformed to comparison syntax.
+            <strong>Data Source Priority:</strong>
+            <ol>
+                <li><strong>SEC Edgar</strong> (primary) - Uses edgartools to fetch structured XBRL financials with statement stitching across multiple filings</li>
+                <li><strong>yfinance</strong> (fallback) - If Edgar data unavailable, uses cached yfinance JSON from security record</li>
+            </ol>
+            Requires security to have CIK set for Edgar access (use <strong>Actions → Fetch CIK</strong> in CF Security).
         </div>
 
         <hr>
 
-        <h2>5a. Relative Period Comparisons</h2>
-        <p>Use dynamic relative references that automatically resolve to actual periods based on available data.</p>
+        <h2>5. Variable Context & Scope</h2>
+        <p>Variables work differently depending on whether you're in Portfolio or Security context. Contexts are mutually exclusive.</p>
+        
+        <table>
+            <thead>
+                <tr>
+                    <th>Context</th>
+                    <th>Variable Syntax</th>
+                    <th>Example</th>
+                    <th>Usage</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><strong>Portfolio</strong></td>
+                    <td><code>((field))</code></td>
+                    <td><code>((portfolio_name))</code><br><code>((current_value))</code></td>
+                    <td>Portfolio-level fields and metrics</td>
+                </tr>
+                <tr>
+                    <td><strong>Security</strong></td>
+                    <td><code>{{field}}</code></td>
+                    <td><code>{{symbol}}</code><br><code>{{sector}}</code></td>
+                    <td>Security fields, financials, Edgar data</td>
+                </tr>
+                <tr>
+                    <td><strong>Holdings Block</strong></td>
+                    <td><code>{{security_field}}</code><br><code>[[holding_field]]</code></td>
+                    <td><code>{{symbol}}</code><br><code>[[quantity]]</code></td>
+                    <td>Within <code>***HOLDINGS***</code> blocks only</td>
+                </tr>
+            </tbody>
+        </table>
 
+        <div class="warning-box">
+            <strong>Context Rules:</strong>
+            <ul>
+                <li>Portfolio context activates when chat has <code>portfolio</code> set</li>
+                <li>Security context activates when chat has <code>security</code> set (no portfolio)</li>
+                <li>Cannot use both contexts in same prompt - system uses <code>if portfolio: ... elif security:</code> logic</li>
+            </ul>
+        </div>
+
+        <hr>
+
+        <h2>5a. Holdings Block Structure</h2>
+        <p>In Portfolio context, use holdings blocks to repeat content for each holding.</p>
+        
         <h3>Pattern:</h3>
-        <pre><code>{{periods:compare:&lt;relative_spec1&gt;:&lt;relative_spec2&gt;}}</code></pre>
+        <pre><code>***HOLDINGS***
+Content with {{security_field}} and [[holding_field]]
+***HOLDINGS***</code></pre>
 
         <h3>Available Relative Specifications:</h3>
         
@@ -578,11 +606,12 @@ YoY Growth (removes seasonality): {{periods:compare:latest_quarterly:yoy_quarter
         <pre><code>Company Overview: {{security_name}} ({{symbol}})
 Sector: {{sector}} Industry: {{industry}}
 
-Latest Annual Performance:
-{{periods:annual:3}}
+Historical Financials:
+{{financials:y5:q8}}
 
-Quarterly Trend:
-{{periods:quarterly:4:table}}
+Recent SEC Filing Highlights:
+{{edgar:10-K:-1:risk}}
+{{edgar:10-Q:-1:mda}}
 
 Key News: {{news.ARRAY.content.title}}</code></pre>
 
@@ -609,7 +638,12 @@ Top 5 Holdings: ((top_5_concentration))%
 ((target_vs_actual_allocations))
 
 ## Holdings Performance
-[Holdings data expands here via ***HOLDINGS*** blocks]</code></pre>
+***HOLDINGS***
+### {{symbol}} - [[security_name]]
+- Position: [[quantity]] shares @ [[current_value]]
+- Sector: {{sector}}
+- P/E: {{pe_ratio}}
+***HOLDINGS***</code></pre>
 
         <hr>
 
@@ -649,8 +683,26 @@ Top 5 Holdings: ((top_5_concentration))%
 
         <hr>
 
-        <h2>11. Diff from Legacy</h2>
-        <p>Legacy relied on raw blob fields (<code>profit_loss</code>, <code>balance_sheet</code>, <code>cash_flow</code>). New system uses normalized CF Financial Period records + computed metrics (margins, ROE, growth). Prefer <code>{{periods:...}}</code> going forward.</p>
+        <h2>11. Implementation Status</h2>
+        <p>This system uses normalized CF Financial Period records and SEC Edgar XBRL data for structured financials.</p>
+        
+        <h3>Currently Implemented:</h3>
+        <ul>
+            <li><code>{{financials:y&lt;n&gt;:q&lt;n&gt;}}</code> - Structured financial statements (Edgar + yfinance fallback)</li>
+            <li><code>{{edgar:form:year[:section][:quarter]}}</code> - Qualitative SEC filing text sections</li>
+            <li><code>{{field}}</code>, <code>((field))</code>, <code>[[field]]</code> - Basic field replacement</li>
+            <li><code>{{field.json.path}}</code>, <code>{{field.ARRAY.key}}</code> - JSON path extraction with wildcards</li>
+            <li><code>***HOLDINGS***...***HOLDINGS***</code> - Portfolio holdings blocks</li>
+            <li><code>&lt;&lt;file.pdf&gt;&gt;</code> - PDF text and table extraction</li>
+            <li>Portfolio analytics: concentration, sector/region/country allocations, currency exposure, target vs actual</li>
+        </ul>
+
+        <div class="warning-box">
+            <strong>Legacy/Deprecated:</strong>
+            <ul>
+                <li>Raw blob fields (<code>profit_loss</code>, <code>balance_sheet</code>, <code>cash_flow</code>) - prefer <code>{{financials:...}}</code></li>
+            </ul>
+        </div>
 
         <hr>
 
@@ -915,19 +967,9 @@ Accession: 0000320193-24-000010
                     <td>Formatted comparison blocks</td>
                 </tr>
                 <tr>
-                    <td>Financial Periods</td>
-                    <td><code>{{periods:type:count[:format]}}</code></td>
-                    <td><code>{{periods:annual:3}}</code></td>
-                </tr>
-                <tr>
-                    <td>Period Comparison</td>
-                    <td><code>{{periods:compare:A:B}}</code></td>
-                    <td><code>{{periods:compare:2024:2023}}</code></td>
-                </tr>
-                <tr>
-                    <td>Relative Comparison</td>
-                    <td><code>{{periods:compare:latest_annual:previous_annual}}</code></td>
-                    <td><code>{{periods:compare:latest_quarterly:yoy_quarterly}}</code></td>
+                    <td>Financial Data</td>
+                    <td><code>{{financials:y&lt;n&gt;:q&lt;n&gt;}}</code></td>
+                    <td><code>{{financials:y5:q8}}</code> - 5 years + 8 quarters</td>
                 </tr>
                 <tr>
                     <td>JSON Index</td>
