@@ -622,10 +622,9 @@ def get_edgar_section(
                     if hasattr(eightk, 'items') and eightk.items:
                         for item in eightk.items:
                             try:
-                                if item in eightk:
-                                    item_text = eightk[item]
-                                    if item_text:
-                                        items_content.append(f"**{item}**\n{item_text}")
+                                item_text = eightk[item]
+                                if item_text:
+                                    items_content.append(f"**{item}**\n{item_text}")
                             except Exception:
                                 continue
                     
