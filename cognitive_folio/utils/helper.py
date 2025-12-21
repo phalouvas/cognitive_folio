@@ -539,7 +539,7 @@ def get_edgar_section(
     quarter: str = None,
     section: str = None,
     aggregate_all: bool = False,
-    max_chars: int = 100000
+    max_chars: int = 200000
 ) -> str:
     """
     Fetch specific narrative sections from SEC Edgar filings for qualitative AI analysis.
@@ -557,7 +557,7 @@ def get_edgar_section(
                 None = default selection (risk+mda+business for 10-K/10-Q)
         aggregate_all: For 8-K with absolute year, aggregate ALL 8-Ks from that year
                       For relative index, aggregates latest 3
-        max_chars: Maximum characters to return (default 100K, truncates with notice)
+        max_chars: Maximum characters to return (default 200K, truncates with notice)
     
     Returns:
         Plain text content with metadata headers, or error message

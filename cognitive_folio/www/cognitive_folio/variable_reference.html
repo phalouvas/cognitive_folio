@@ -869,12 +869,12 @@ Accession: 0000320193-24-000010
                     <tr>
                         <td>Full document (all)</td>
                         <td>100K-200K</td>
-                        <td>❌ Avoid unless necessary</td>
+                        <td>✅ Supported, but large</td>
                     </tr>
                     <tr>
                         <td>Year of 8-Ks (e.g., 2024)</td>
                         <td>10K-100K</td>
-                        <td>⚠️ Varies by company activity</td>
+                        <td>✅ Good for annual retrospective</td>
                     </tr>
                     <tr>
                         <td>Latest 3 8-Ks</td>
@@ -883,13 +883,14 @@ Accession: 0000320193-24-000010
                     </tr>
                 </tbody>
             </table>
-            <p style="margin-top: 10px;"><strong>Automatic Truncation:</strong> Content is automatically truncated at 100,000 characters (~25K tokens) with a notice. Original length is logged for reference.</p>
+            <p style="margin-top: 10px;"><strong>Automatic Truncation:</strong> Content is automatically truncated at 200,000 characters (~50K tokens) with a notice. Original length is logged for reference.</p>
         </div>
 
         <h3>Best Practices:</h3>
         <div class="tip-box">
             <ul>
                 <li><strong>Start specific:</strong> Use single sections (risk, mda) rather than defaults for token efficiency</li>
+                <li><strong>Full documents supported:</strong> With 200K character limit, you can use <code>:all</code> for complete filings when comprehensive analysis is needed</li>
                 <li><strong>Combine with financials:</strong> Use <code>{{financials:y3:q4}}</code> for quantitative data alongside <code>{{edgar:10-K:-1:risk}}</code> for qualitative insights</li>
                 <li><strong>Year-over-year analysis:</strong> Compare <code>{{edgar:10-K:-1:risk}}</code> vs <code>{{edgar:10-K:-2:risk}}</code> to track risk evolution</li>
                 <li><strong>Recent events:</strong> Use <code>{{edgar:8-K:-1}}</code> for latest material developments</li>
