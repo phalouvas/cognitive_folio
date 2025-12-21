@@ -336,9 +336,12 @@ def get_edgar_data(
         in the specified format (json, csv, or markdown), with data from
         multiple periods stitched together.
     """
-    from edgar import set_identity, Company
+    from edgar import set_identity, Company, use_local_storage
     from edgar.xbrl import XBRLS
     import json as json_module
+
+    # Enable edgartools disk caching (defaults to ~/.edgar)
+    use_local_storage(True)
 
     if statement_types is None:
         statement_types = ['income', 'balance', 'cashflow', 'equity']
