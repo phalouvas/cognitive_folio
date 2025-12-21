@@ -2,7 +2,7 @@ import frappe
 from frappe.model.document import Document
 import re
 from cognitive_folio.utils.markdown import safe_markdown_to_html
-from cognitive_folio.utils.helper import replace_variables, expand_financials_variable
+from cognitive_folio.utils.helper import replace_variables, expand_financials_variable, expand_edgar_section_variable
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
 
 class CFChatMessage(Document):
@@ -357,6 +357,60 @@ class CFChatMessage(Document):
 					return "[financial data unavailable]"
 
 			prompt = re.sub(financials_pattern, _replace_financials, prompt)
+			
+			# Expand edgar text sections placeholder
+			# Pattern: {{edgar:form:year_or_index[:param1][:param2]}}
+			# param1 and param2 can be section keywords (risk/mda/business/legal/all) or quarters (Q1/Q2/Q3)
+			# Examples: {{edgar:10-K:-1}}, {{edgar:10-K:-1:risk}}, {{edgar:10-Q:2024:Q2}}, {{edgar:10-Q:2024:Q2:mda}}, {{edgar:8-K:2024}}
+			edgar_pattern = r'\{\{edgar:([^:]+):([^:]+)(?::([^:}]+))?(?::([^}]+))?\}\}'
+			
+			def _replace_edgar(match):
+				form_type = match.group(1).strip()
+				year_or_index = match.group(2).strip()
+				param1 = match.group(3).strip() if match.group(3) else None
+				param2 = match.group(4).strip() if match.group(4) else None
+				
+				# Intelligently determine which params are section vs quarter
+				section = None
+				quarter = None
+				
+				# Check if params are quarters (Q1, Q2, Q3) or sections (risk, mda, business, legal, all)
+				section_keywords = ['risk', 'mda', 'business', 'legal', 'all']
+				quarter_keywords = ['Q1', 'Q2', 'Q3']
+				
+				if param1:
+					if param1 in quarter_keywords:
+						quarter = param1
+					elif param1 in section_keywords:
+						section = param1
+					else:
+						# Default: treat as section for 10-K/8-K, quarter for 10-Q
+						if form_type == '10-Q' and param1.upper() in quarter_keywords:
+							quarter = param1.upper()
+						else:
+							section = param1
+				
+				if param2:
+					if param2 in quarter_keywords:
+						quarter = param2
+					elif param2 in section_keywords:
+						section = param2
+					else:
+						# If param1 was quarter, param2 is section; otherwise param2 is quarter
+						if quarter:
+							section = param2
+						else:
+							quarter = param2.upper() if param2.upper() in quarter_keywords else param2
+				
+				try:
+					return expand_edgar_section_variable(security, form_type, year_or_index, section, quarter)
+				except Exception as e:
+					frappe.log_error(f"Edgar variable expansion failed for {security.name if hasattr(security, 'name') else 'unknown'}: {str(e)}")
+					return f"[SEC filing not available: {form_type} {year_or_index}]"
+			
+			prompt = re.sub(edgar_pattern, _replace_edgar, prompt)
+			
+			# Expand regular security field variables
 			prompt = re.sub(r'\{\{([\w\.]+)\}\}', lambda match: replace_variables(match, security), prompt)
 		
 		return prompt

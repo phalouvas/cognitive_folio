@@ -654,7 +654,211 @@ Top 5 Holdings: ((top_5_concentration))%
 
         <hr>
 
-        <h2>12. Quick Reference Cheat Sheet</h2>
+        <h2>12. SEC Edgar Qualitative Text</h2>
+        <p>Extract narrative sections from SEC Edgar filings for qualitative AI analysis. These variables fetch textual content (Risk Factors, MD&A, Business Descriptions) rather than structured financial data.</p>
+
+        <div class="warning-box">
+            <strong>⚠️ CIK Required:</strong> Security must have a CIK (Central Index Key) set. Use <strong>Actions → Fetch CIK</strong> in CF Security to obtain it automatically for US-listed companies.
+        </div>
+
+        <h3>Syntax:</h3>
+        <pre><code>{{edgar:form_type:year_or_index[:section][:quarter]}}</code></pre>
+
+        <h3>Parameters:</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Parameter</th>
+                    <th>Description</th>
+                    <th>Examples</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>form_type</code></td>
+                    <td>SEC filing form type</td>
+                    <td><code>10-K</code>, <code>10-Q</code>, <code>8-K</code></td>
+                </tr>
+                <tr>
+                    <td><code>year_or_index</code></td>
+                    <td>Negative for relative (-1=latest, -2=previous)<br>Positive 4-digit for absolute year</td>
+                    <td><code>-1</code>, <code>-2</code>, <code>2024</code>, <code>2023</code></td>
+                </tr>
+                <tr>
+                    <td><code>section</code><br>(optional)</td>
+                    <td>Section keyword to extract<br>Omit for default selection</td>
+                    <td><code>risk</code>, <code>mda</code>, <code>business</code>, <code>legal</code>, <code>all</code></td>
+                </tr>
+                <tr>
+                    <td><code>quarter</code><br>(10-Q only)</td>
+                    <td>Quarter specification for 10-Q filings</td>
+                    <td><code>Q1</code>, <code>Q2</code>, <code>Q3</code></td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Section Keywords:</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Keyword</th>
+                    <th>Description</th>
+                    <th>Typical Tokens</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><code>risk</code></td>
+                    <td>Item 1A: Risk Factors - forward-looking risks and uncertainties</td>
+                    <td>10K-30K</td>
+                </tr>
+                <tr>
+                    <td><code>mda</code></td>
+                    <td>Item 7: Management Discussion & Analysis - management's perspective on performance</td>
+                    <td>15K-40K</td>
+                </tr>
+                <tr>
+                    <td><code>business</code></td>
+                    <td>Item 1: Business Description - company operations, products, markets</td>
+                    <td>5K-15K</td>
+                </tr>
+                <tr>
+                    <td><code>legal</code></td>
+                    <td>Item 3: Legal Proceedings - significant litigation and legal matters</td>
+                    <td>2K-10K</td>
+                </tr>
+                <tr>
+                    <td><code>all</code></td>
+                    <td>Complete filing text - entire document</td>
+                    <td>100K-200K</td>
+                </tr>
+                <tr>
+                    <td><em>(omit)</em></td>
+                    <td><strong>Default:</strong> Combines risk + mda + business for comprehensive overview</td>
+                    <td>30K-80K</td>
+                </tr>
+            </tbody>
+        </table>
+
+        <h3>Examples:</h3>
+
+        <h4>10-K Annual Reports:</h4>
+        <div class="example-box">
+            <ul>
+                <li><code>{{edgar:10-K:-1}}</code> → Latest 10-K with default sections (risk + mda + business)</li>
+                <li><code>{{edgar:10-K:-1:risk}}</code> → Latest 10-K risk factors only</li>
+                <li><code>{{edgar:10-K:-2:mda}}</code> → Previous year's MD&A section</li>
+                <li><code>{{edgar:10-K:2023}}</code> → 2023 10-K with default sections</li>
+                <li><code>{{edgar:10-K:2023:all}}</code> → Complete 2023 10-K text (⚠️ very large)</li>
+            </ul>
+        </div>
+
+        <h4>10-Q Quarterly Reports:</h4>
+        <div class="example-box">
+            <ul>
+                <li><code>{{edgar:10-Q:-1}}</code> → Latest 10-Q with default sections</li>
+                <li><code>{{edgar:10-Q:-1:mda}}</code> → Latest quarterly MD&A</li>
+                <li><code>{{edgar:10-Q:2024:Q2}}</code> → Q2 2024 10-Q with default sections</li>
+                <li><code>{{edgar:10-Q:2024:Q2:risk}}</code> → Q2 2024 risk factors (if updated)</li>
+            </ul>
+        </div>
+
+        <h4>8-K Current Reports (Material Events):</h4>
+        <div class="example-box">
+            <ul>
+                <li><code>{{edgar:8-K:-1}}</code> → Latest 3 8-K filings aggregated</li>
+                <li><code>{{edgar:8-K:2024}}</code> → <strong>All 8-K filings from 2024 aggregated</strong></li>
+                <li><code>{{edgar:8-K:2023}}</code> → All 8-K filings from 2023</li>
+            </ul>
+        </div>
+
+        <div class="tip-box">
+            <strong>8-K Special Behavior:</strong>
+            <ul>
+                <li><strong>Relative index</strong> (-1, -2, etc.): Aggregates latest N filings (default 3)</li>
+                <li><strong>Absolute year</strong> (2024, 2023, etc.): Aggregates ALL 8-K filings from that entire year</li>
+                <li>Each 8-K includes metadata (filing date, accession number) and all reported items</li>
+                <li>Useful for tracking significant events like acquisitions, executive changes, material agreements</li>
+            </ul>
+        </div>
+
+        <h3>Metadata Headers:</h3>
+        <p>Each extracted filing includes a metadata header for context:</p>
+        <pre><code>**10-K Filing**
+Filed: 2024-02-01
+Period: 2023-12-31
+Accession: 0000320193-24-000010
+
+[Section content follows...]</code></pre>
+        <p><small>Metadata adds approximately 15-25 tokens per filing but provides essential context for AI analysis.</small></p>
+
+        <h3>Token Budget Planning:</h3>
+        <div class="warning-box">
+            <strong>⚠️ Token Size Warnings:</strong>
+            <table style="width: 100%; margin-top: 10px;">
+                <thead>
+                    <tr>
+                        <th>Content Type</th>
+                        <th>Estimated Tokens</th>
+                        <th>Recommendation</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Single section (risk/mda/business)</td>
+                        <td>5K-40K</td>
+                        <td>✅ Safe for most prompts</td>
+                    </tr>
+                    <tr>
+                        <td>Default 10-K (risk+mda+business)</td>
+                        <td>30K-80K</td>
+                        <td>⚠️ Use for focused analysis</td>
+                    </tr>
+                    <tr>
+                        <td>Full document (all)</td>
+                        <td>100K-200K</td>
+                        <td>❌ Avoid unless necessary</td>
+                    </tr>
+                    <tr>
+                        <td>Year of 8-Ks (e.g., 2024)</td>
+                        <td>10K-100K</td>
+                        <td>⚠️ Varies by company activity</td>
+                    </tr>
+                    <tr>
+                        <td>Latest 3 8-Ks</td>
+                        <td>3K-15K</td>
+                        <td>✅ Good for recent events</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p style="margin-top: 10px;"><strong>Automatic Truncation:</strong> Content is automatically truncated at 100,000 characters (~25K tokens) with a notice. Original length is logged for reference.</p>
+        </div>
+
+        <h3>Best Practices:</h3>
+        <div class="tip-box">
+            <ul>
+                <li><strong>Start specific:</strong> Use single sections (risk, mda) rather than defaults for token efficiency</li>
+                <li><strong>Combine with financials:</strong> Use <code>{{financials:y3:q4}}</code> for quantitative data alongside <code>{{edgar:10-K:-1:risk}}</code> for qualitative insights</li>
+                <li><strong>Year-over-year analysis:</strong> Compare <code>{{edgar:10-K:-1:risk}}</code> vs <code>{{edgar:10-K:-2:risk}}</code> to track risk evolution</li>
+                <li><strong>Recent events:</strong> Use <code>{{edgar:8-K:-1}}</code> for latest material developments</li>
+                <li><strong>Annual retrospective:</strong> Use <code>{{edgar:8-K:2024}}</code> to review all significant events from a year</li>
+                <li><strong>Check CIK first:</strong> Verify security has CIK before using edgar variables in prompts</li>
+            </ul>
+        </div>
+
+        <h3>Error Handling:</h3>
+        <p>Variables gracefully handle errors and return informative placeholders:</p>
+        <ul>
+            <li><code>[CIK required for edgar variable - fetch CIK using Actions → Fetch CIK]</code> - Security missing CIK</li>
+            <li><code>[No 10-K filing found for year 2024]</code> - Requested filing not available</li>
+            <li><code>[Insufficient filings: requested index 5 but only 3 available]</code> - Relative index out of range</li>
+            <li><code>[No 10-Q filing found for 2024 Q2]</code> - Specific quarter not found</li>
+            <li><code>[risk_factors section not available in this filing]</code> - Section doesn't exist (common for 10-Q risk factors)</li>
+        </ul>
+
+        <hr>
+
+        <h2>13. Quick Reference Cheat Sheet</h2>
         
         <table>
             <thead>
@@ -739,6 +943,21 @@ Top 5 Holdings: ((top_5_concentration))%
                     <td>Attachment</td>
                     <td><code>&lt;&lt;file.pdf&gt;&gt;</code></td>
                     <td><code>&lt;&lt;q3_report.pdf&gt;&gt;</code></td>
+                </tr>
+                <tr>
+                    <td><strong>Edgar 10-K</strong></td>
+                    <td><code>{{edgar:10-K:year[:section]}}</code></td>
+                    <td><code>{{edgar:10-K:-1:risk}}</code> - Latest 10-K risk factors</td>
+                </tr>
+                <tr>
+                    <td><strong>Edgar 10-Q</strong></td>
+                    <td><code>{{edgar:10-Q:year[:section][:quarter]}}</code></td>
+                    <td><code>{{edgar:10-Q:2024:Q2:mda}}</code> - Q2 2024 MD&A</td>
+                </tr>
+                <tr>
+                    <td><strong>Edgar 8-K</strong></td>
+                    <td><code>{{edgar:8-K:year}}</code></td>
+                    <td><code>{{edgar:8-K:2024}}</code> - All 2024 8-K filings</td>
                 </tr>
             </tbody>
         </table>
