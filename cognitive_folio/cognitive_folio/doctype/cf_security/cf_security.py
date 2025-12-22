@@ -30,6 +30,28 @@ class CFSecurity(Document):
 		if self.security_type == "Stock":
 			self.validate_isin()
 			self.set_news_urls()
+		
+		self.update_price_alert_status()
+
+	def update_price_alert_status(self):
+		"""Update price alert status based on current price vs thresholds"""
+		buy_triggered = (
+			self.current_price 
+			and self.suggestion_buy_price 
+			and self.current_price <= self.suggestion_buy_price
+		)
+		sell_triggered = (
+			self.current_price 
+			and self.suggestion_sell_price 
+			and self.current_price >= self.suggestion_sell_price
+		)
+		
+		if buy_triggered:
+			self.price_alert_status = "Buy Signal"
+		elif sell_triggered:
+			self.price_alert_status = "Sell Signal"
+		else:
+			self.price_alert_status = ""
 
 	def on_change(self):
 		"""Save all holdings"""
