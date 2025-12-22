@@ -28,6 +28,7 @@
   "column_break_jylf",
   "rating_moat",
   "current_price",
+  "price_alert_status",
   "column_break_jlfk",
   "rating_management",
   "suggestion_fair_value",
@@ -396,6 +397,13 @@
    "label": "Need Evaluation"
   },
   {
+   "fieldname": "price_alert_status",
+   "fieldtype": "Select",
+   "label": "Price Alert Status",
+   "options": "\nBuy Signal\nSell Signal",
+   "read_only": 1
+  },
+  {
    "fieldname": "news_reasoning",
    "fieldtype": "Small Text",
    "label": "News Reasoning",
@@ -576,7 +584,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-18 06:59:45.980945",
+ "modified": "2025-12-22 08:10:25.592813",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
