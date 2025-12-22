@@ -641,7 +641,9 @@ def get_edgar_section(
             if is_relative:
                 # Relative index: get the Nth most recent filing
                 index = abs(year_or_index) - 1 if year_or_index < 0 else 0
-                filings = company.get_filings(form=form_type)
+                all_filings = company.get_filings(form=form_type)
+                # Filter out amendments (10-K/A, 10-Q/A) to get full documents
+                filings = [f for f in all_filings if f.form == form_type]
                 
                 # For 10-Q with quarter, filter by quarter if possible
                 if form_type == "10-Q" and quarter:
@@ -657,6 +659,8 @@ def get_edgar_section(
             else:
                 # Absolute year: get filing from specific year
                 all_filings = company.get_filings(form=form_type)
+                # Filter out amendments (10-K/A, 10-Q/A) to get full documents
+                all_filings = [f for f in all_filings if f.form == form_type]
                 
                 # Filter by year
                 year_filings = [f for f in all_filings if f.filing_date.year == year_or_index]
