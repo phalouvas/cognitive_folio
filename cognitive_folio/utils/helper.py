@@ -598,12 +598,14 @@ def get_edgar_section(
     use_local_storage(cache_dir, True)
     set_identity("phalouvas@gmail.com")
     
-    # Section keyword mapping to TenK/TenQ object properties
+    # Section keyword mapping to TenK/TenQ object properties/items
+    # For 10-K: use property names (risk_factors, management_discussion, etc.)
+    # For 10-Q: use Item numbers (Item 1A, Item 2, etc.)
     section_map = {
-        'risk': 'risk_factors',
-        'mda': 'management_discussion',
-        'business': 'business',
-        'legal': 'legal_proceedings',
+        'risk': {'10-K': 'risk_factors', '10-Q': 'Item 1A'},
+        'mda': {'10-K': 'management_discussion', '10-Q': 'Item 2'},
+        'business': {'10-K': 'business', '10-Q': 'Item 1'},
+        'legal': {'10-K': 'legal_proceedings', '10-Q': 'Item 1'},
         'all': None  # Special case - return full text
     }
     
@@ -734,30 +736,76 @@ def get_edgar_section(
                 
             elif section in section_map and section_map[section] is not None:
                 # Extract specific section
-                prop_name = section_map[section]
-                if hasattr(data_obj, prop_name):
-                    section_content = getattr(data_obj, prop_name)
-                    if section_content:
-                        section_title = prop_name.replace('_', ' ').title()
-                        content_parts.append(f"# {section_title}\n\n{section_content}")
+                # Get the appropriate accessor for this form type
+                section_accessor = section_map[section]
+                
+                # Determine if we're dealing with 10-K (property) or 10-Q (item)
+                if isinstance(section_accessor, dict):
+                    # Use form-specific accessor
+                    accessor = section_accessor.get(form_type)
+                    if not accessor:
+                        content_parts.append(f"[{section} section not defined for {form_type}]")
                     else:
-                        content_parts.append(f"[{prop_name} section not available in this filing]")
+                        # Try different access methods
+                        section_content = None
+                        
+                        # Method 1: Try as property (10-K style)
+                        if hasattr(data_obj, accessor):
+                            section_content = getattr(data_obj, accessor)
+                        # Method 2: Try as item with bracket notation (10-Q style)
+                        elif hasattr(data_obj, 'items') and accessor in data_obj.items:
+                            try:
+                                section_content = data_obj[accessor]
+                            except Exception:
+                                pass
+                        
+                        if section_content:
+                            section_title = section.upper() if len(section) <= 3 else section.replace('_', ' ').title()
+                            content_parts.append(f"# {section_title}\n\n{section_content}")
+                        else:
+                            content_parts.append(f"[{section} section not available in this filing]")
                 else:
-                    content_parts.append(f"[{prop_name} section not available in this filing]")
+                    # Legacy single accessor (shouldn't happen with new map)
+                    if hasattr(data_obj, section_accessor):
+                        section_content = getattr(data_obj, section_accessor)
+                        if section_content:
+                            section_title = section_accessor.replace('_', ' ').title()
+                            content_parts.append(f"# {section_title}\n\n{section_content}")
+                        else:
+                            content_parts.append(f"[{section_accessor} section not available in this filing]")
+                    else:
+                        content_parts.append(f"[{section_accessor} section not available in this filing]")
                     
             else:
                 # Default: combine risk + mda + business for comprehensive overview
-                default_sections = [
-                    ('risk_factors', 'Risk Factors'),
-                    ('management_discussion', 'Management Discussion & Analysis'),
-                    ('business', 'Business Description')
-                ]
-                
-                for prop_name, title in default_sections:
-                    if hasattr(data_obj, prop_name):
-                        section_content = getattr(data_obj, prop_name)
-                        if section_content:
-                            content_parts.append(f"# {title}\n\n{section_content}")
+                if form_type == "10-K":
+                    default_sections = [
+                        ('risk_factors', 'Risk Factors'),
+                        ('management_discussion', 'Management Discussion & Analysis'),
+                        ('business', 'Business Description')
+                    ]
+                    
+                    for prop_name, title in default_sections:
+                        if hasattr(data_obj, prop_name):
+                            section_content = getattr(data_obj, prop_name)
+                            if section_content:
+                                content_parts.append(f"# {title}\n\n{section_content}")
+                else:  # 10-Q
+                    # For 10-Q, extract key items
+                    default_items = [
+                        ('Item 1A', 'Risk Factors'),
+                        ('Item 2', 'Management Discussion & Analysis'),
+                        ('Item 1', 'Financial Statements')
+                    ]
+                    
+                    for item_name, title in default_items:
+                        if hasattr(data_obj, 'items') and item_name in data_obj.items:
+                            try:
+                                section_content = data_obj[item_name]
+                                if section_content:
+                                    content_parts.append(f"# {title}\n\n{section_content}")
+                            except Exception:
+                                pass
         
         # Combine all content
         full_content = "\n\n---\n\n".join(content_parts)
