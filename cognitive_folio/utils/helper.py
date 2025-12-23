@@ -2,6 +2,7 @@ import json
 import re
 import os
 from datetime import datetime
+import frappe
 
 def _handle_wildcard_pattern(data, path_parts):
     """
@@ -795,8 +796,6 @@ def expand_edgar_section_variable(security, form_type: str, year_or_index: str, 
     Returns:
         Extracted text content or error placeholder
     """
-    import frappe
-    
     # Check for CIK
     cik = getattr(security, "cik", None)
     if not cik:
@@ -823,6 +822,11 @@ def expand_edgar_section_variable(security, form_type: str, year_or_index: str, 
         
     except ValueError:
         return f"[Invalid year/index format: {year_or_index}]"
+    except (NameError, ImportError) as e:
+        error_msg = f"Edgar module error: {str(e)}. Ensure edgartools is installed: bench pip install edgartools"
+        frappe.log_error(f"Edgar variable expansion failed for {security.name}: {error_msg}", "Edgar Import Error")
+        return f"[{error_msg}]"
     except Exception as e:
+        error_msg = f"Edgar error for {form_type} {year_or_index}: {str(e)}"
         frappe.log_error(f"Edgar variable expansion failed for {security.name}: {str(e)}", "Edgar Variable Expansion Error")
-        return f"[SEC filing not found: {form_type} {year_or_index}]"
+        return f"[{error_msg}]"
