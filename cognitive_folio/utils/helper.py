@@ -308,6 +308,25 @@ def expand_financials_variable(security, annual_years: int, quarterly_count: int
     return '{"error": "financial data unavailable"}'
 
 
+def _init_edgar_local_storage() -> str:
+    """Ensure edgartools uses the site-scoped cache directory.
+
+    Environment variables must be set before importing edgar for them to take effect,
+    so this helper sets them up first, creates the directory, and returns the path.
+    """
+    import frappe
+
+    cache_dir = frappe.get_site_path("edgar")
+    os.makedirs(cache_dir, exist_ok=True)
+
+    os.environ["EDGAR_USE_LOCAL_DATA"] = "True"
+    os.environ["EDGAR_LOCAL_DATA_DIR"] = cache_dir
+    os.environ["SECEdgar_LOCAL_DATA_DIR"] = cache_dir
+    os.environ["SECEdgar_DATA_DIR"] = cache_dir
+
+    return cache_dir
+
+
 def get_edgar_data(
     cik: str,
     annual_years: int = 10,
@@ -336,12 +355,14 @@ def get_edgar_data(
         in the specified format (json, csv, or markdown), with data from
         multiple periods stitched together.
     """
-    from edgar import set_identity, Company, use_local_storage
+    cache_dir = _init_edgar_local_storage()
+
+    from edgar import set_identity, Company, use_local_storage, set_local_storage_path
     from edgar.xbrl import XBRLS
     import json as json_module
 
-    # Enable edgartools disk caching (defaults to ~/.edgar)
-    use_local_storage(True)
+    set_local_storage_path(cache_dir)
+    use_local_storage(cache_dir, True)
 
     if statement_types is None:
         statement_types = ['income', 'balance', 'cashflow', 'equity']
@@ -568,11 +589,12 @@ def get_edgar_section(
         get_edgar_section('0000320193', '8-K', 2024, aggregate_all=True)  # All 2024 8-Ks
         get_edgar_section('0000320193', '10-K', -1)  # Latest 10-K default sections
     """
-    from edgar import set_identity, Company, use_local_storage
-    import frappe
-    
-    # Enable edgartools disk caching
-    use_local_storage(True)
+    cache_dir = _init_edgar_local_storage()
+
+    from edgar import set_identity, Company, use_local_storage, set_local_storage_path
+
+    set_local_storage_path(cache_dir)
+    use_local_storage(cache_dir, True)
     set_identity("phalouvas@gmail.com")
     
     # Section keyword mapping to TenK/TenQ object properties
