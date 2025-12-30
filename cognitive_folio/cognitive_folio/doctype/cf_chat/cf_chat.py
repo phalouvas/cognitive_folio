@@ -40,3 +40,29 @@ def amend_cf_chat(name):
     new_doc.title = f"{doc.title} (Amended)"
     new_doc.insert()
     return new_doc.name
+
+@frappe.whitelist()
+def export_chat_to_json(chat_name):
+    """Export CF Chat messages as JSON file with timestamp, prompt, and response."""
+    # Fetch all messages for this chat, ordered from oldest to newest
+    messages = frappe.get_all(
+        "CF Chat Message",
+        filters={"chat": chat_name},
+        fields=["creation", "prompt", "response"],
+        order_by="creation asc"
+    )
+    
+    # Convert to export format with ISO 8601 timestamps
+    export_data = []
+    for msg in messages:
+        export_data.append({
+            "timestamp": msg.creation.isoformat() if hasattr(msg.creation, 'isoformat') else str(msg.creation),
+            "prompt": msg.prompt or "",
+            "response": msg.response or ""
+        })
+    
+    # Return data directly for client-side download
+    return {
+        "data": export_data,
+        "filename": f"{chat_name}_export.json"
+    }
