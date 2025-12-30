@@ -27,6 +27,36 @@ frappe.ui.form.on("CF Chat", {
             });
         }
 
+        // Add Export button if not new
+        if (!frm.is_new()) {
+            frm.add_custom_button(__('Export'), function() {
+                frappe.call({
+                    method: "cognitive_folio.cognitive_folio.doctype.cf_chat.cf_chat.export_chat_to_json",
+                    args: { chat_name: frm.doc.name },
+                    callback: function(r) {
+                        if (!r.exc && r.message) {
+                            // Create blob and trigger download
+                            const json_data = JSON.stringify(r.message.data, null, 2);
+                            const blob = new Blob([json_data], { type: 'application/json' });
+                            const url = URL.createObjectURL(blob);
+                            const a = document.createElement('a');
+                            a.href = url;
+                            a.download = r.message.filename;
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            URL.revokeObjectURL(url);
+                            
+                            frappe.show_alert({
+                                message: __('Chat exported successfully'),
+                                indicator: 'green'
+                            });
+                        }
+                    }
+                });
+            });
+        }
+
         // Load and display chat messages as timeline
         if (!frm.is_new()) {
             render_chat_timeline(frm);
