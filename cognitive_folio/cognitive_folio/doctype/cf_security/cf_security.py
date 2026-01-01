@@ -32,6 +32,7 @@ class CFSecurity(Document):
 			self.set_news_urls()
 		
 		self.update_price_alert_status()
+		self.calculate_earnings_yield()
 
 	def update_price_alert_status(self):
 		"""Update price alert status based on current price vs thresholds"""
@@ -52,6 +53,13 @@ class CFSecurity(Document):
 			self.price_alert_status = "Sell Signal"
 		else:
 			self.price_alert_status = ""
+
+	def calculate_earnings_yield(self):
+		"""Calculate earnings yield based on forward EPS and current price"""
+		if self.forward_eps and self.current_price and self.current_price != 0:
+			self.earnings_yield = (self.forward_eps / self.current_price) * 100
+		else:
+			self.earnings_yield = None
 
 	def on_change(self):
 		"""Save all holdings"""

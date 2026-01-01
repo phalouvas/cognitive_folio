@@ -32,12 +32,15 @@
   "column_break_jlfk",
   "rating_management",
   "suggestion_fair_value",
+  "trailing_eps",
   "column_break_lvvf",
   "rating_financials",
   "suggestion_buy_price",
+  "forward_eps",
   "column_break_eron",
   "rating_valuation",
   "suggestion_sell_price",
+  "earnings_yield",
   "column_break_hqag",
   "rating_industry",
   "evaluation_stop_loss",
@@ -404,6 +407,25 @@
    "read_only": 1
   },
   {
+   "fieldname": "trailing_eps",
+   "fieldtype": "Currency",
+   "label": "Trailing EPS",
+   "options": "currency"
+  },
+  {
+   "fieldname": "forward_eps",
+   "fieldtype": "Currency",
+   "label": "Forward EPS",
+   "options": "currency"
+  },
+  {
+   "fieldname": "earnings_yield",
+   "fieldtype": "Percent",
+   "label": "Earnings Yield",
+   "precision": "2",
+   "read_only": 1
+  },
+  {
    "fieldname": "news_reasoning",
    "fieldtype": "Small Text",
    "label": "News Reasoning",
@@ -584,7 +606,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2025-12-22 08:10:25.592813",
+ "modified": "2026-01-01 09:21:36.772120",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",
