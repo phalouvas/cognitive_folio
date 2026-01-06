@@ -620,7 +620,7 @@ function formatTickerInfo(frm) {
             outperformance = formatPercentWithColor(outperformanceValue);
         }
         
-        // Add annual performance metrics
+        // Add annual performance metrics (52-Week Total Return moved to end with arrow indicator)
         const annualPerformanceMetrics = [
             {label: "52-Week Price Change", value: formatPercentWithColor(data["52WeekChange"])},
             {label: "52-Week High", value: data.fiftyTwoWeekHigh ? formatCurrency(data.fiftyTwoWeekHigh, data.currency) : null},
@@ -629,9 +629,12 @@ function formatTickerInfo(frm) {
             {label: "Distance from 52W Low", value: distanceFromLow},
             {label: "Annual Dividend Rate", value: data.dividendRate ? formatCurrency(data.dividendRate, data.currency) : null},
             {label: "Dividend Yield", value: data.dividendYield ? (data.dividendYield).toFixed(2) + '%' : null},
-            {label: "52-Week Total Return", value: totalReturn},
             {label: "S&P 500 52-Week Change", value: formatPercentWithColor(data.SandP52WeekChange)},
-            {label: "Outperformance vs S&P 500", value: outperformance}
+            {label: "Outperformance vs S&P 500", value: outperformance},
+            {
+                label: "52-Week Total Return",
+                value: totalReturn ? totalReturn + getPerformanceArrows(data["52WeekChange"] + (data.dividendYield ? data.dividendYield / 100 : 0)) : null
+            }
         ];
         
         annualPerformanceMetrics.forEach(item => {
@@ -895,6 +898,35 @@ function formatPercentWithColor(value) {
     } else {
         return percent;
     }
+}
+
+/**
+ * Generate performance arrows based on percentage thresholds (5%, 10%, 20%)
+ * @param {number} value - The percentage value (as decimal, e.g., 0.15 for 15%)
+ * @returns {string} - HTML with colored arrows indicating performance level
+ */
+function getPerformanceArrows(value) {
+    if (value === null || value === undefined) return '';
+    
+    const absValue = Math.abs(value);
+    const isPositive = value > 0;
+    const color = isPositive ? '#28a745' : value < 0 ? '#dc3545' : '#999';
+    let arrowCount = 0;
+    
+    if (Math.abs(value) < 0.005) { // ~0% - neutral
+        return `<span style="color: #999; margin-left: 8px;">—</span>`;
+    }
+    
+    // Thresholds: 5%, 10%, 20%
+    if (absValue >= 0.05) arrowCount = 1;
+    if (absValue >= 0.10) arrowCount = 2;
+    if (absValue >= 0.20) arrowCount = 3;
+    if (absValue >= 0.30) arrowCount = 4; // 30%+ gets 4 arrows
+    
+    const arrow = isPositive ? '↑' : '↓';
+    const arrows = arrow.repeat(arrowCount);
+    
+    return `<span style="color: ${color}; margin-left: 8px; font-weight: bold;">${arrows}</span>`;
 }
 
 // Add this helper function after the frappe.ui.form.on block
