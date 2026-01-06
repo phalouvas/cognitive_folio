@@ -592,6 +592,61 @@ function formatTickerInfo(frm) {
         
         html += `</div>`;
         
+        // Annual Performance section
+        html += `<h3>Annual Performance</h3>`;
+        html += `<div class="info-grid">`;
+        
+        // Calculate distance from 52-week high and low
+        let distanceFromHigh = null;
+        let distanceFromLow = null;
+        if (data.fiftyTwoWeekHigh && data.currentPrice) {
+            distanceFromHigh = formatPercentWithColor((data.currentPrice / data.fiftyTwoWeekHigh) - 1);
+        }
+        if (data.fiftyTwoWeekLow && data.currentPrice) {
+            distanceFromLow = formatPercentWithColor((data.currentPrice / data.fiftyTwoWeekLow) - 1);
+        }
+        
+        // Calculate 52-week total return (price change + dividend yield)
+        let totalReturn = null;
+        if (data["52WeekChange"] !== null && data.dividendYield) {
+            const totalReturnValue = data["52WeekChange"] + (data.dividendYield / 100);
+            totalReturn = formatPercentWithColor(totalReturnValue);
+        }
+        
+        // Calculate outperformance vs S&P 500
+        let outperformance = null;
+        if (data["52WeekChange"] !== null && data.SandP52WeekChange) {
+            const outperformanceValue = data["52WeekChange"] - data.SandP52WeekChange;
+            outperformance = formatPercentWithColor(outperformanceValue);
+        }
+        
+        // Add annual performance metrics
+        const annualPerformanceMetrics = [
+            {label: "52-Week Price Change", value: formatPercentWithColor(data["52WeekChange"])},
+            {label: "52-Week High", value: data.fiftyTwoWeekHigh ? formatCurrency(data.fiftyTwoWeekHigh, data.currency) : null},
+            {label: "52-Week Low", value: data.fiftyTwoWeekLow ? formatCurrency(data.fiftyTwoWeekLow, data.currency) : null},
+            {label: "Distance from 52W High", value: distanceFromHigh},
+            {label: "Distance from 52W Low", value: distanceFromLow},
+            {label: "Annual Dividend Rate", value: data.dividendRate ? formatCurrency(data.dividendRate, data.currency) : null},
+            {label: "Dividend Yield", value: data.dividendYield ? (data.dividendYield).toFixed(2) + '%' : null},
+            {label: "52-Week Total Return", value: totalReturn},
+            {label: "S&P 500 52-Week Change", value: formatPercentWithColor(data.SandP52WeekChange)},
+            {label: "Outperformance vs S&P 500", value: outperformance}
+        ];
+        
+        annualPerformanceMetrics.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
         // Financial metrics section
         html += `<h3>Financial Metrics</h3>`;
         html += `<div class="info-grid">`;
