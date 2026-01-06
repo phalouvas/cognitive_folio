@@ -607,9 +607,11 @@ function formatTickerInfo(frm) {
         }
         
         // Calculate 52-week total return (price change + dividend yield)
+        // Fallback to trailingAnnualDividendYield if dividendYield is missing
+        const dividendYield = data.dividendYield !== null && data.dividendYield !== undefined ? data.dividendYield : data.trailingAnnualDividendYield;
         let totalReturn = null;
-        if (data["52WeekChange"] !== null && data.dividendYield) {
-            const totalReturnValue = data["52WeekChange"] + (data.dividendYield / 100);
+        if (data["52WeekChange"] !== null && dividendYield !== null && dividendYield !== undefined) {
+            const totalReturnValue = data["52WeekChange"] + (dividendYield / 100);
             totalReturn = formatPercentWithColor(totalReturnValue);
         }
         
@@ -628,12 +630,12 @@ function formatTickerInfo(frm) {
             {label: "Distance from 52W High", value: distanceFromHigh},
             {label: "Distance from 52W Low", value: distanceFromLow},
             {label: "Annual Dividend Rate", value: data.dividendRate ? formatCurrency(data.dividendRate, data.currency) : null},
-            {label: "Dividend Yield", value: data.dividendYield ? (data.dividendYield).toFixed(2) + '%' : null},
+            {label: "Dividend Yield", value: dividendYield ? (dividendYield).toFixed(2) + '%' : null},
             {label: "S&P 500 52-Week Change", value: formatPercentWithColor(data.SandP52WeekChange)},
             {label: "Outperformance vs S&P 500", value: outperformance},
             {
                 label: "52-Week Total Return",
-                value: totalReturn ? totalReturn + getPerformanceArrows(data["52WeekChange"] + (data.dividendYield ? data.dividendYield / 100 : 0)) : null
+                value: totalReturn ? totalReturn + getPerformanceArrows(data["52WeekChange"] + (dividendYield ? dividendYield / 100 : 0)) : null
             }
         ];
         
@@ -659,7 +661,7 @@ function formatTickerInfo(frm) {
             {label: "P/E Ratio", value: data.trailingPE ? data.trailingPE.toFixed(2) : null},
             {label: "Forward P/E", value: data.forwardPE ? data.forwardPE.toFixed(2) : null},
             {label: "EPS (TTM)", value: data.trailingEps ? formatCurrency(data.trailingEps, data.currency) : null},
-            {label: "Dividend Yield", value: formatPercentWithColor(data.dividendYield/100)},
+            {label: "Dividend Yield", value: dividendYield ? formatPercentWithColor(dividendYield/100) : null},
             {label: "Profit Margins", value: formatPercentWithColor(data.profitMargins)},
             {label: "Operating Margins", value: formatPercentWithColor(data.operatingMargins)},
             {label: "Return on Equity", value: formatPercentWithColor(data.returnOnEquity)},
