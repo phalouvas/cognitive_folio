@@ -509,6 +509,23 @@ function formatTickerInfo(frm) {
         
         // Company overview section
         html += `<h3>Company Overview</h3>`;
+        
+        // Add Yahoo Finance link
+        html += `
+            <div style="margin-bottom: 15px;">
+                <a href="https://finance.yahoo.com/quote/${frm.doc.symbol}/" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="btn btn-sm btn-default"
+                   style="text-decoration: none;">
+                    <svg style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+                    </svg>
+                    View on Yahoo Finance
+                </a>
+            </div>
+        `;
+        
         html += `<div class="info-card">`;
         
         // Company summary if available
@@ -575,6 +592,66 @@ function formatTickerInfo(frm) {
         
         html += `</div>`;
         
+        // Annual Performance section
+        html += `<h3>Annual Performance</h3>`;
+        html += `<div class="info-grid">`;
+        
+        // Calculate distance from 52-week high and low
+        let distanceFromHigh = null;
+        let distanceFromLow = null;
+        if (data.fiftyTwoWeekHigh && data.currentPrice) {
+            distanceFromHigh = formatPercentWithColor((data.currentPrice / data.fiftyTwoWeekHigh) - 1);
+        }
+        if (data.fiftyTwoWeekLow && data.currentPrice) {
+            distanceFromLow = formatPercentWithColor((data.currentPrice / data.fiftyTwoWeekLow) - 1);
+        }
+        
+        // Calculate 52-week total return (price change + dividend yield)
+        // Fallback to trailingAnnualDividendYield if dividendYield is missing
+        const dividendYield = data.dividendYield !== null && data.dividendYield !== undefined ? data.dividendYield : data.trailingAnnualDividendYield;
+        let totalReturn = null;
+        if (data["52WeekChange"] !== null && dividendYield !== null && dividendYield !== undefined) {
+            const totalReturnValue = data["52WeekChange"] + (dividendYield / 100);
+            totalReturn = formatPercentWithColor(totalReturnValue);
+        }
+        
+        // Calculate outperformance vs S&P 500
+        let outperformance = null;
+        if (data["52WeekChange"] !== null && data.SandP52WeekChange) {
+            const outperformanceValue = data["52WeekChange"] - data.SandP52WeekChange;
+            outperformance = formatPercentWithColor(outperformanceValue);
+        }
+        
+        // Add annual performance metrics (52-Week Total Return moved to end with arrow indicator)
+        const annualPerformanceMetrics = [
+            {label: "52-Week Price Change", value: formatPercentWithColor(data["52WeekChange"])},
+            {label: "52-Week High", value: data.fiftyTwoWeekHigh ? formatCurrency(data.fiftyTwoWeekHigh, data.currency) : null},
+            {label: "52-Week Low", value: data.fiftyTwoWeekLow ? formatCurrency(data.fiftyTwoWeekLow, data.currency) : null},
+            {label: "Distance from 52W High", value: distanceFromHigh},
+            {label: "Distance from 52W Low", value: distanceFromLow},
+            {label: "Annual Dividend Rate", value: data.dividendRate ? formatCurrency(data.dividendRate, data.currency) : null},
+            {label: "Dividend Yield", value: dividendYield ? (dividendYield).toFixed(2) + '%' : null},
+            {label: "S&P 500 52-Week Change", value: formatPercentWithColor(data.SandP52WeekChange)},
+            {label: "Outperformance vs S&P 500", value: outperformance},
+            {
+                label: "52-Week Total Return",
+                value: totalReturn ? totalReturn + getPerformanceArrows(data["52WeekChange"] + (dividendYield ? dividendYield / 100 : 0)) : null
+            }
+        ];
+        
+        annualPerformanceMetrics.forEach(item => {
+            if (item.value) {
+                html += `
+                    <div class="metric-item">
+                        <div class="metric-label">${item.label}</div>
+                        <div class="metric-value">${item.value}</div>
+                    </div>
+                `;
+            }
+        });
+        
+        html += `</div>`;
+        
         // Financial metrics section
         html += `<h3>Financial Metrics</h3>`;
         html += `<div class="info-grid">`;
@@ -584,7 +661,7 @@ function formatTickerInfo(frm) {
             {label: "P/E Ratio", value: data.trailingPE ? data.trailingPE.toFixed(2) : null},
             {label: "Forward P/E", value: data.forwardPE ? data.forwardPE.toFixed(2) : null},
             {label: "EPS (TTM)", value: data.trailingEps ? formatCurrency(data.trailingEps, data.currency) : null},
-            {label: "Dividend Yield", value: formatPercentWithColor(data.dividendYield/100)},
+            {label: "Dividend Yield", value: dividendYield ? formatPercentWithColor(dividendYield/100) : null},
             {label: "Profit Margins", value: formatPercentWithColor(data.profitMargins)},
             {label: "Operating Margins", value: formatPercentWithColor(data.operatingMargins)},
             {label: "Return on Equity", value: formatPercentWithColor(data.returnOnEquity)},
@@ -823,6 +900,35 @@ function formatPercentWithColor(value) {
     } else {
         return percent;
     }
+}
+
+/**
+ * Generate performance arrows based on percentage thresholds (5%, 10%, 20%)
+ * @param {number} value - The percentage value (as decimal, e.g., 0.15 for 15%)
+ * @returns {string} - HTML with colored arrows indicating performance level
+ */
+function getPerformanceArrows(value) {
+    if (value === null || value === undefined) return '';
+    
+    const absValue = Math.abs(value);
+    const isPositive = value > 0;
+    const color = isPositive ? '#28a745' : value < 0 ? '#dc3545' : '#999';
+    let arrowCount = 0;
+    
+    if (Math.abs(value) < 0.005) { // ~0% - neutral
+        return `<span style="color: #999; margin-left: 8px;">—</span>`;
+    }
+    
+    // Thresholds: 5%, 10%, 20%
+    if (absValue >= 0.05) arrowCount = 1;
+    if (absValue >= 0.10) arrowCount = 2;
+    if (absValue >= 0.20) arrowCount = 3;
+    if (absValue >= 0.30) arrowCount = 4; // 30%+ gets 4 arrows
+    
+    const arrow = isPositive ? '↑' : '↓';
+    const arrows = arrow.repeat(arrowCount);
+    
+    return `<span style="color: ${color}; margin-left: 8px; font-weight: bold;">${arrows}</span>`;
 }
 
 // Add this helper function after the frappe.ui.form.on block
