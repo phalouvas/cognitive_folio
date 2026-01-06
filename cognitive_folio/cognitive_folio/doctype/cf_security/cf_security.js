@@ -509,6 +509,23 @@ function formatTickerInfo(frm) {
         
         // Company overview section
         html += `<h3>Company Overview</h3>`;
+        
+        // Add Yahoo Finance link
+        html += `
+            <div style="margin-bottom: 15px;">
+                <a href="https://finance.yahoo.com/quote/${frm.doc.symbol}/" 
+                   target="_blank" 
+                   rel="noopener noreferrer"
+                   class="btn btn-sm btn-default"
+                   style="text-decoration: none;">
+                    <svg style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;" viewBox="0 0 24 24">
+                        <path fill="currentColor" d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
+                    </svg>
+                    View on Yahoo Finance
+                </a>
+            </div>
+        `;
+        
         html += `<div class="info-card">`;
         
         // Company summary if available
