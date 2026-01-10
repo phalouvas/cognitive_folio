@@ -41,19 +41,6 @@ def auto_fetch_portfolio_prices():
 				if result and result > 0:
 					updated_portfolios += 1
 					frappe.logger().info(f"Successfully updated {result} holdings for portfolio: {portfolio.portfolio_name}")
-					
-					# After successful price fetch, run news evaluation
-					try:
-						frappe.logger().info(f"Starting news evaluation for portfolio: {portfolio.portfolio_name}")
-						portfolio_doc.evaluate_holdings_news()
-						frappe.logger().info(f"News evaluation queued for portfolio: {portfolio.portfolio_name}")
-					except Exception as news_error:
-						frappe.log_error(
-							f"Error running news evaluation for portfolio {portfolio.portfolio_name}: {str(news_error)}",
-							"Auto News Evaluation Error"
-						)
-						# Continue with other portfolios even if news evaluation fails
-						continue
 				else:
 					frappe.logger().info(f"No holdings to update for portfolio: {portfolio.portfolio_name}")
 					
@@ -73,4 +60,57 @@ def auto_fetch_portfolio_prices():
 		frappe.log_error(
 			f"Error in auto_fetch_portfolio_prices scheduled task: {str(e)}",
 			"Auto Fetch Portfolio Prices Task Error"
+		)
+@frappe.whitelist()
+def auto_evaluate_holdings_news():
+	"""
+	Scheduled task to evaluate news for all holdings in portfolios with auth_fetch_prices enabled.
+	Runs daily at 4:00 AM (1 hour after price fetch completes).
+	"""
+	try:
+		# Get all portfolios with auth_fetch_prices enabled and not disabled
+		portfolios = frappe.get_all(
+			"CF Portfolio",
+			filters=[
+				["auth_fetch_prices", "=", 1],
+				["disabled", "=", 0]
+			],
+			fields=["name", "portfolio_name"]
+		)
+		
+		if not portfolios:
+			frappe.logger().info("No portfolios found for news evaluation")
+			return
+		
+		total_portfolios = len(portfolios)
+		evaluated_portfolios = 0
+		
+		frappe.logger().info(f"Starting news evaluation for {total_portfolios} portfolios")
+		
+		for portfolio in portfolios:
+			try:
+				# Get the portfolio document
+				portfolio_doc = frappe.get_doc("CF Portfolio", portfolio.name)
+				
+				frappe.logger().info(f"Starting news evaluation for portfolio: {portfolio.portfolio_name}")
+				portfolio_doc.evaluate_holdings_news()
+				evaluated_portfolios += 1
+				frappe.logger().info(f"News evaluation queued for portfolio: {portfolio.portfolio_name}")
+				
+			except Exception as e:
+				frappe.log_error(
+					f"Error evaluating news for portfolio {portfolio.portfolio_name}: {str(e)}",
+					"Auto Evaluate Holdings News Error"
+				)
+				continue
+		
+		frappe.logger().info(f"News evaluation completed for {evaluated_portfolios} out of {total_portfolios} portfolios")
+		
+		# Commit the changes
+		frappe.db.commit()
+		
+	except Exception as e:
+		frappe.log_error(
+			f"Error in auto_evaluate_holdings_news scheduled task: {str(e)}",
+			"Auto Evaluate Holdings News Task Error"
 		)
