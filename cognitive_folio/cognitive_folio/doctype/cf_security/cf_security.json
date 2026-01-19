@@ -18,6 +18,7 @@
   "currency",
   "column_break_rvai",
   "need_evaluation",
+  "earnings_release",
   "ai_modified",
   "news_reasoning",
   "suggestion_section",
@@ -585,6 +586,11 @@
    "fieldtype": "Select",
    "label": "Conviction",
    "options": "\nHigh\nMedium\nLow"
+  },
+  {
+   "fieldname": "earnings_release",
+   "fieldtype": "Date",
+   "label": "Earnings Release"
   }
  ],
  "index_web_pages_for_search": 1,
@@ -606,7 +612,7 @@
    "link_fieldname": "security"
   }
  ],
- "modified": "2026-01-01 09:21:36.772120",
+ "modified": "2026-01-19 07:37:45.273396",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Security",

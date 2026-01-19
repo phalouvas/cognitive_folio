@@ -7,7 +7,7 @@ import requests
 import frappe
 from frappe import _
 from frappe.model.document import Document
-from frappe.utils import flt
+from frappe.utils import flt, getdate, today
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables, clear_string, get_edgar_data
 import re
@@ -33,6 +33,7 @@ class CFSecurity(Document):
 		
 		self.update_price_alert_status()
 		self.calculate_earnings_yield()
+		self.check_earnings_release()
 
 	def update_price_alert_status(self):
 		"""Update price alert status based on current price vs thresholds"""
@@ -60,6 +61,12 @@ class CFSecurity(Document):
 			self.earnings_yield = (self.forward_eps / self.current_price) * 100
 		else:
 			self.earnings_yield = None
+
+	def check_earnings_release(self):
+		"""Check if earnings release date has passed and set need_evaluation flag"""
+		if self.security_type == "Stock" and self.earnings_release:
+			if getdate(self.earnings_release) <= getdate(today()):
+				self.need_evaluation = 1
 
 	def on_change(self):
 		"""Save all holdings"""
