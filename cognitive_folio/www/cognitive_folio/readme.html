@@ -209,7 +209,7 @@ cd frappe-bench
 
         <div class="section" id="financial-data-architecture">
             <h2>Financial Data Architecture</h2>
-            <p>Cognitive Folio uses a <strong>structured financial data system</strong> built around the <code>CF Financial Period</code> DocType. This provides a queryable, consistent database for storing and analyzing financial statements - replacing the old approach of storing large JSON blobs.</p>
+            <p>Cognitive Folio uses a <strong>structured financial data system</strong> for storing and analyzing financial statements, replacing the old approach of storing large JSON blobs.</p>
 
             <h3>Current Scope: US Stocks Only for Regulatory Filings</h3>
             <div class="warning-box">
@@ -236,36 +236,6 @@ cd frappe-bench
             </div>
 
             <h3>Core Components</h3>
-
-            <h4>CF Financial Period DocType</h4>
-            <p>Stores individual financial reporting periods with:</p>
-
-            <div class="info-list">
-                <p><strong>Period Identification:</strong></p>
-                <ul>
-                    <li>Security reference</li>
-                    <li>Period type (Annual/Quarterly/TTM)</li>
-                    <li>Fiscal year and quarter</li>
-                    <li>Filing and period end dates</li>
-                    <li>Data source tracking</li>
-                </ul>
-
-                <p><strong>Financial Statements:</strong></p>
-                <ul>
-                    <li><strong>Income Statement</strong>: Revenue, expenses, net income, EPS</li>
-                    <li><strong>Balance Sheet</strong>: Assets, liabilities, equity</li>
-                    <li><strong>Cash Flow</strong>: Operating, investing, financing cash flows</li>
-                </ul>
-
-                <p><strong>Computed Metrics:</strong></p>
-                <ul>
-                    <li><strong>Margins</strong>: Gross, operating, net margins (%)</li>
-                    <li><strong>Profitability</strong>: ROE, ROA</li>
-                    <li><strong>Leverage</strong>: Debt-to-equity ratio</li>
-                    <li><strong>Liquidity</strong>: Current ratio, quick ratio</li>
-                    <li><strong>Growth</strong>: YoY revenue, income, EPS, FCF growth</li>
-                </ul>
-            </div>
 
             <h4>Data Quality System</h4>
             
@@ -310,7 +280,7 @@ cd frappe-bench
             <ul>
                 <li><strong>For US stocks</strong>: Fetches from SEC Edgar (10-K, 10-Q filings) with XBRL parsing</li>
                 <li><strong>For other stocks</strong>: Falls back to Yahoo Finance</li>
-                <li>Creates CF Financial Period records for each reporting period</li>
+                <li>Creates structured reporting-period data for each fetch</li>
                 <li>Calculates margins, ratios, and growth metrics</li>
                 <li>Handles conflicts using quality scoring (SEC Edgar 95 > Yahoo 85)</li>
                 <li>Auto-upgrades existing Yahoo data when SEC Edgar data becomes available</li>
@@ -324,7 +294,7 @@ cd frappe-bench
                     <li>System automatically fetches SEC CIK (Central Index Key) for US-listed companies</li>
                     <li>Downloads 10-K (annual) and 10-Q (quarterly) filings</li>
                     <li>Parses inline XBRL data from HTML filings</li>
-                    <li>Maps US-GAAP taxonomy to CF Financial Period fields</li>
+                    <li>Maps US-GAAP taxonomy to standardized financial fields</li>
                     <li>Quality Score: 95 (higher than Yahoo Finance 85)</li>
                 </ul>
             </div>
@@ -353,7 +323,7 @@ print(result)</code></pre>
             </ol>
 
             <h3>4. Manual Data Entry</h3>
-            <p>Create new <strong>CF Financial Period</strong> records directly:</p>
+            <p>Enter financial statement data manually:</p>
             <ul>
                 <li>Link to security</li>
                 <li>Set period type, fiscal year, quarter</li>
@@ -372,167 +342,11 @@ print(result)</code></pre>
                 <li><strong>Financial Metrics Dashboard</strong> - Interactive charts and visualizations</li>
             </ul>
 
-            <h3>6. AI Analysis</h3>
-            <p>Financial data automatically enhances AI analysis:</p>
-
-            <h4>In CF Security AI Suggestions:</h4>
-            <pre><code>Use {{periods:annual:5}} to include last 5 annual periods
-Use {{periods:quarterly:4}} to include last 4 quarters</code></pre>
-
-            <h4>In Chat Messages:</h4>
-            <pre><code>Natural language: "compare Q3 vs Q2"
-Auto-transforms to: {{periods:compare:2024Q3:2024Q2}}</code></pre>
-
-            <h4>In Portfolio Analysis:</h4>
-            <pre><code>Use ((periods:annual:3)) for portfolio-wide financial summary
-Use ((periods:latest)) for most recent data across all holdings</code></pre>
+                <h3>6. AI Analysis</h3>
+                <p>Financial data can be referenced in prompts using the structured variables documented in the prompt reference.</p>
         </div>
 
         <hr>
-
-        <div class="section" id="api-developer-reference">
-            <h2>API & Developer Reference</h2>
-
-            <h3>Query Financial Periods</h3>
-            <pre><code>import frappe
-
-# Get last 4 quarters for a security
-periods = frappe.get_all(
-    "CF Financial Period",
-    filters={
-        "security": "AAPL",
-        "period_type": "Quarterly"
-    },
-    fields=[
-        "fiscal_year", "fiscal_quarter", "period_end_date",
-        "total_revenue", "net_income", "free_cash_flow",
-        "gross_margin", "operating_margin", "net_margin",
-        "roe", "roa", "debt_to_equity"
-    ],
-    order_by="period_end_date DESC",
-    limit=4
-)</code></pre>
-
-            <h3>Import from Yahoo Finance</h3>
-            <pre><code>from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import import_from_yahoo_finance
-
-result = import_from_yahoo_finance(
-    security_name="AAPL",
-    replace_existing=False,  # Skip if better data exists
-    respect_override=True    # Honor override_yahoo flag
-)
-
-# Returns: {
-#   "success": True,
-#   "imported": 5,
-#   "updated": 3,
-#   "skipped": 2,
-#   "errors": []
-# }</code></pre>
-
-            <h3>Bulk Import</h3>
-            <pre><code>from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import bulk_import_financial_periods
-
-# Import for multiple securities
-securities = ["AAPL", "MSFT", "GOOGL"]
-result = bulk_import_financial_periods(
-    security_names=securities,
-    replace_existing=False,
-    progress_id="bulk_import_123"  # For realtime progress tracking
-)</code></pre>
-
-            <h3>Format for AI</h3>
-            <pre><code>from cognitive_folio.cognitive_folio.doctype.cf_financial_period.cf_financial_period import format_periods_for_ai
-
-# Generate AI-ready summary
-ai_context = format_periods_for_ai(
-    security_name="AAPL",
-    period_type="Annual",
-    num_periods=5,
-    include_growth=True,
-    format="markdown"  # Options: markdown, text, json, table
-)
-
-# Use in AI prompt
-prompt = f"Analyze the following financial data:\n\n{ai_context}"</code></pre>
-
-            <h3>Data Freshness Tracking</h3>
-            <pre><code># Check data freshness
-security = frappe.get_doc("CF Security", "AAPL")
-security.update_data_freshness()
-
-print(f"Last period: {security.last_financial_period_date}")
-print(f"Days old: {security.days_since_last_period}")
-print(f"Needs update: {security.needs_update}")  # True if >90 days (quarterly) or >365 days (annual)</code></pre>
-
-            <h3>Valuation Using Structured Data</h3>
-            <pre><code># Valuation methods now use CF Financial Period queries
-security = frappe.get_doc("CF Security", "AAPL")
-
-# Fetch periods for analysis
-periods = security._get_financial_periods(period_type="Annual", limit=5)
-
-# DCF calculation uses structured data
-dcf_value = security._calculate_dcf_value()  # Queries periods internally
-residual_income = security._calculate_residual_income()</code></pre>
-
-            <h3>Period Comparisons in Chat</h3>
-            <p>Natural language comparison queries are automatically detected and transformed:</p>
-            <pre><code># User input: "compare Q3 vs Q2"
-# System transforms to: {{periods:compare:2024Q3:2024Q2}}
-
-# Supported patterns:
-# - "compare Q3 vs Q2"
-# - "compare Q3 2024 vs Q2 2024"
-# - "compare 2024 vs 2023"
-# - "compare Q4 vs previous quarter"
-# - "compare 2024 to previous year"</code></pre>
-
-            <h3>Manual Period Entry Example</h3>
-            <pre><code># Create a new financial period
-period = frappe.get_doc({
-    "doctype": "CF Financial Period",
-    "security": "PRIVATE_COMPANY",
-    "period_type": "Annual",
-    "fiscal_year": 2024,
-    "period_end_date": "2024-12-31",
-    "data_source": "Manual",
-    "total_revenue": 1000000,
-    "cost_of_revenue": 600000,
-    "operating_expenses": 200000,
-    "net_income": 150000,
-    "total_assets": 2000000,
-    "total_liabilities": 800000,
-    "operating_cash_flow": 180000,
-    "capital_expenditures": 50000
-})
-
-period.insert()
-# System automatically calculates:
-# - Gross profit (400,000)
-# - Margins (40%, 20%, 15%)
-# - Free cash flow (130,000)
-# - Debt to equity ratio
-# - ROE, ROA, etc.</code></pre>
-
-            <h3>Best Practices</h3>
-            <div class="tip-box">
-                <ol>
-                    <li><strong>Always use <code>format_periods_for_ai()</code></strong> for AI prompts - handles formatting and null values</li>
-                    <li><strong>Query specific fields</strong> instead of <code>fields=["*"]</code> for better performance</li>
-                    <li><strong>Use <code>period_type</code> filter</strong> to separate Annual, Quarterly, and TTM data</li>
-                    <li><strong>Check <code>data_quality_score</code></strong> when comparing multiple sources</li>
-                    <li><strong>Enable auto-import</strong> in CF Settings for automatic Yahoo Finance imports</li>
-                </ol>
-            </div>
-
-            <h3>Scheduled Tasks</h3>
-            <p>The system includes automated maintenance:</p>
-            <pre><code># Daily bulk import (configured in hooks.py)
-# Runs for all securities with:
-# - replace_existing=False (preserves better data)
-# - respect_override=True (honors user locks)</code></pre>
-        </div>
 
         <hr>
 
