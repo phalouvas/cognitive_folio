@@ -2,32 +2,53 @@
 
 AI-Optimized Investing, Thoughtfully Engineered
 
-### Installation
+**What it does**: Portfolio management with AI-powered security analysis, price tracking, news monitoring, and conversational chat via OpenAI/OpenWebUI.
 
-You can install this app using the [bench](https://github.com/frappe/bench) CLI:
+**Key Features**:
+- Fetch prices & news for securities (yfinance)
+- Generate AI suggestions & valuations
+- Portfolio-level analysis with batch operations
+- Chat with conversation history & export
+- SEC Edgar financial data integration
 
+### Quick Start
+
+**Install**:
 ```bash
 cd $PATH_TO_YOUR_BENCH
 bench get-app $URL_OF_THIS_REPO --branch develop
 bench install-app cognitive_folio
 ```
 
-### Contributing
-
-This app uses `pre-commit` for code formatting and linting. Please [install pre-commit](https://pre-commit.com/#installation) and enable it for this repository:
-
+**Dev Setup**:
 ```bash
 cd apps/cognitive_folio
 pre-commit install
 ```
 
-Pre-commit is configured to use the following tools for checking and formatting your code:
+**Configure** (in `CF Settings`):
+- Set OpenAI/OpenWebUI endpoint URL & API key
+- Test connection → auto-populate available models
+- Set system prompt & URL-fetch limits
 
-- ruff
-- eslint
-- prettier
-- pyupgrade
+**Run**:
+```bash
+bench --site tmp.localhost migrate
+bench start                         # Dev server
+bench worker --queue long           # Background jobs in separate terminal
+```
+
+**Test**:
+```bash
+bench --site tmp.localhost run-tests --app cognitive_folio
+```
+
+### Documentation
+
+- **[Copilot Instructions](.github/copilot-instructions.md)** — Full technical details (AI flows, prompt templating, financial variables, debugging)
+- **[Pre-commit]** — Uses ruff, eslint, prettier, pyupgrade
 
 ### License
 
 mit
+

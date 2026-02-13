@@ -1,35 +1,147 @@
 # Copilot Instructions for `cognitive_folio`
 
-- **What this app is**: Frappe/ERPNext app for AI-assisted portfolio management. Core DocTypes live under `cognitive_folio/cognitive_folio/doctype` and use background jobs plus OpenAI-compatible endpoints defined in `CF Settings`.
-- **Key DocTypes & roles**:
-  - `CF Security` (`cf_security.py`): fetches prices/news via `yfinance`, generates AI suggestions, calculates fair values, and flags alerts. Cash securities force `current_price=1.0` and bypass AI.
-  - `CF Portfolio` (`cf_portfolio.py`): aggregates holdings, runs AI portfolio analysis, and triggers holdings price fetch/news evaluation jobs.
-  - `CF Portfolio Holding` (`cf_portfolio_holding.py`): per-holding currency conversion (GBP rates divided by 100), allocation %, dividend income since portfolio start, and cascaded AI suggestions.
-  - `CF Chat` / `CF Chat Message`: stores AI conversations; messages stream responses and emit `cf_streaming_update`/`cf_job_completed` realtime events.
-  - `CF Settings`: stores OpenAI/OpenWebUI endpoint+key, default model, system prompt, and URL-fetch limits; `check_openwebui_connection` pulls available models into child table.
-- **AI generation patterns**:
-  - Security analysis uses `process_security_ai_suggestion` (background queue `long`), expects JSON with `Evaluation.*` fields, converts to markdown, updates alert thresholds, and creates a `CF Chat` + message for traceability.
-  - Portfolio analysis uses `process_portfolio_ai_analysis` with the portfolio prompt; saves HTML suggestion, logs a chat, and notifies via realtime.
-  - Chat messages stream via OpenAI API (`model` stored on message); token budget ~60k with tiktoken; previous messages are replayed newest-first until budget is hit.
-- **Prompt templating**:
-  - Portfolio prompts: `((field))` pulls from `CF Portfolio`; `***HOLDINGS*** ... ***HOLDINGS***` sections expand once per holding with `{{field}}` from `CF Security` and `[[field]]` from the holding.
-  - Security prompts: `{{field}}` supports nested JSON paths and wildcard `ARRAY` handling (see `utils.helper.replace_variables`).
-  - **Financials variable**: `{{financials:y<years>:q<quarters>}}` expands to JSON-formatted financial statements; uses SEC Edgar cache first (via `get_edgar_data` with edgartools XBRLS stitching) for US companies with CIK, falls back to yfinance cached JSON fields (`profit_loss`, `balance_sheet`, `cash_flow` and quarterly variants) for non-US or when Edgar unavailable. Returns structured JSON for AI parsing efficiency. Examples: `{{financials:y10:q16}}` (10 years + 16 quarters), `{{financials:y2:q4}}` (2 years + 4 quarters).
-  - **Edgar qualitative text variable**: `{{edgar:form_type:year_or_index[:section][:quarter]}}` extracts narrative sections from SEC filings as plain text for AI analysis. Form types: 10-K (annual), 10-Q (quarterly), 8-K (material events). Sections: `risk` (Risk Factors), `mda` (Management Discussion & Analysis), `business` (Business Description), `legal` (Legal Proceedings), `all` (full text), default=risk+mda+business. Year/index: -1 (latest), -2 (previous), or absolute year (2024). 8-K special: -1 gets latest filing, -3 gets latest 3, year (2024) aggregates all from that year. 200K char limit with metadata headers. Examples: `{{edgar:10-K:-1:risk}}` (latest 10-K risk factors), `{{edgar:10-Q:-1::Q2}}` (latest Q2 10-Q), `{{edgar:8-K:-3}}` (latest 3 8-Ks). Integrated via `get_edgar_section()`/`expand_edgar_section_variable()` in helper.py; regex pattern in cf_chat_message.py.
-- **Data ingestion helpers**:
-  - URL embedding for chat prompts via `utils.url_fetcher.fetch_and_embed_url_content`; limits controlled by `CF Settings` (`max_url_fetch`, `url_fetch_timeout`, byte and character caps). HTML → markdown via `markdownify` fallback; PDF size capped at 50MB.
-  - PDF attachment references in chat prompts as `<<file.pdf>>` (or HTML-escaped) get inlined with tables via `pdfplumber`.
-  - Optional web search path in chat messages (`web_search` flag) builds a search query then prepends results to the prompt.
-- **Scheduling & jobs** (hooks in `hooks.py`):
-  - `0 3 * * *` `auto_fetch_portfolio_prices` fetches holdings prices (stocks only) and then queues news evaluation.
-  - Both tasks commit inside the job; errors logged via `frappe.log_error` but processing continues.
-- **Financial calculations to mind**:
-  - Holdings conversion uses `get_exchange_rate`; GBP rates divided by 100. `base_average_purchase_price` drives P/L.
-  - Dividend totals sum dividend history JSON from security, filtered by portfolio start date, then converted to portfolio currency.
-- **Frontend bits**: List view scripts in `public/js` (`cf_security_list.js`, `cf_portfolio_holding_list.js`) wire multi-actions like batch fetch/generate AI suggestions.
-- **Dev workflow**:
-  - Bench app; typical site here is `kainotomo.localhost`. Common commands: `bench --site kainotomo.localhost migrate`, `bench --site kainotomo.localhost execute cognitive_folio.tasks.auto_fetch_portfolio_prices`, `bench start` for the dev server.
-  - Tests: `bench --site kainotomo.localhost run-tests --app cognitive_folio` (no bespoke harness). Background jobs rely on Redis workers/queue `long`.
-  - Dependencies installed via `install.after_install` using `bench pip install` (yfinance, openai). Pre-commit uses ruff/eslint/prettier/pyupgrade; ruff config in `pyproject.toml` (line length 110, tab indent).
-- **Ad-hoc testing (bench)**: No shipped tests. Use bench to exercise functions with Frappe context, e.g., `bench --site kainotomo.localhost execute cognitive_folio.utils.markdown.safe_markdown_to_html --args '["**bold** <20%"]'`. For one-off helpers, add a temporary function under `cognitive_folio/utils/tmp_testing.py` and remove it afterward. If a path hits queue `long`, run workers (`bench worker --queue long` or `bench start`) and use `bench show-pending-jobs` when jobs appear stuck.
-- **When changing AI flows**: preserve realtime notifications, chat/message creation for auditability, and prompt expansion rules. Respect long queue and keep token budgeting logic intact when adding context sources.
+## Quick Reference
+
+**What**: AI-assisted portfolio management app for Frappe/ERPNext. Fetches security prices/news, generates AI suggestions via OpenAI/OpenWebUI, and stores conversations.
+
+**Core DocTypes**:
+- `CF Security`: Stock/cash holdings with price/news fetch, AI suggestions, fair value targets, CIK lookup
+- `CF Portfolio`: Aggregates holdings, runs portfolio-level AI analysis, batch news evaluation & suggestion generation
+- `CF Portfolio Holding`: Per-holding metrics (allocation %, dividends, currency conversion, AI suggestions)
+- `CF Chat` / `CF Chat Message`: AI conversation audit trail with background processing (states: Processing → Success/Failed), realtime status updates
+- `CF Settings`: OpenAI/OpenWebUI endpoint config, model list management, URL-fetch limits, system prompt templates
+
+**Supporting DocTypes**:
+- `CF Prompt`: Prompt templates with variable validation & system content
+- `CF AI Model`: Available models from OpenWebUI/OpenAI with metadata
+- `CF Dividend`: Dividend income tracking per security with date & amount
+- `CF Transaction`: Transaction history audit trail (optional)
+- `CF Asset Allocation`: Portfolio allocation targets & tracking
+
+**Key Features**:
+- **Price fetch**: Daily 3 AM via `auto_fetch_portfolio_prices` (stocks only, portfolio must have `auth_fetch_prices=1`)
+- **News eval**: Daily 4 AM via `auto_evaluate_holdings_news` (separate scheduled job; also callable as `CF Portfolio.evaluate_holdings_news()`)
+- **Batch operations**: `CF Portfolio.fetch_holdings_data(with_fundamentals)` (with progress), `generate_holdings_ai_suggestions()` (queues AI for each holding)
+- **Chat export**: Via `CF Chat.export_chat_to_json()` or amend existing with `amend_cf_chat()` 
+- **Workspace sidebar**: Custom nav widget in `workspace_sidebar/cognitive_folio.json`
+- **List actions**: Batch fetch/AI suggestion buttons in CF Security & CF Portfolio Holding list views
+
+**Common Commands**:
+```bash
+bench --site tmp.localhost migrate
+bench --site tmp.localhost execute cognitive_folio.tasks.auto_fetch_portfolio_prices
+bench --site tmp.localhost run-tests --app cognitive_folio
+bench worker --queue long  # Run background jobs
+bench show-pending-jobs    # Debug stuck jobs
+```
+
+---
+
+## Core Architecture
+
+### AI Generation Flow
+- `CF Security`: `process_security_ai_suggestion` queues to background `long` queue → parses JSON response → creates `CF Chat` + `CF Chat Message` for audit → emits `cf_job_completed` realtime event
+- `CF Portfolio`: `process_portfolio_ai_analysis` → saves HTML suggestion → logs chat → notifies realtime; also `evaluate_holdings_news()` for batch news eval
+- `CF Chat Message`: Enqueued via `.process()` method (async) → status: Processing → Success/Failed → realtime notification. **Note**: No true streaming; uses background job queue with token budget ~60k via tiktoken. Previous messages replayed newest-first until budget exhausted.
+- All background jobs run on `long` queue with 30-min timeout; errors logged & user notified via realtime `cf_job_completed` event
+
+### Data & Conversions
+- **Currency**: GBP rates divided by 100 (yfinance returns GBP/100)
+- **Dividends**: Sum from security history JSON, filtered by portfolio start date, converted to portfolio currency
+- **Price/P&L**: Use `base_average_purchase_price` for calculations; cash securities locked at `current_price=1.0`
+
+### CF Settings & Configuration
+- `open_ai_url`: Base URL for OpenAI or OpenWebUI API endpoint
+- `open_ai_api_key`: Secret key (stored encrypted)
+- `check_openwebui_connection()`: Tests connection, auto-populates `ai_models` child table with available models
+- `default_ai_model`: Default model for new chats (selected from `ai_models` after connection test)
+- URL-fetch limits: `max_url_fetch`, `url_fetch_timeout`, byte/char caps for embeddings
+
+### CF Chat Operations
+- **Create**: via `CF Chat` DocType with optional context (security/portfolio/custom prompt)
+- **Amend**: Use `amend_cf_chat(chat_name)` → creates new chat with `duplicated_from` reference, copies messages
+- **Export**: `export_chat_to_json(chat_name)` → JSON with timestamps, prompts, responses for archival
+
+---
+
+## Supporting Features
+
+### CF Prompt Management
+- Store & reuse prompt templates with variable placeholders
+- `validate_prompt()`: Validates syntax of variables in prompt text
+- `test_prompt(context)`: Test prompt expansion without running AI
+- System prompts stored in `CF Settings` for default behavior
+
+### CF Dividend Tracking
+- Record dividend income per security
+- `fetch_shares_owned()`: Auto-populate shares at dividend date from portfolio holdings
+- Filtered in portfolio analysis: only sum dividends after portfolio start date
+
+### CF AI Model Registry
+- Auto-populated from `CF Settings.check_openwebui_connection()`
+- Stores model_id, object_type, owned_by from OpenAI/OpenWebUI API
+- Used for dropdown in chat/suggestion forms
+
+---
+
+## Advanced Topics
+
+### Prompt Templating
+
+**Portfolio prompts**: 
+- `((field))` → `CF Portfolio` field
+- `***HOLDINGS*** ... ***HOLDINGS***` → expands per holding with:
+  - `{{field}}` → `CF Security` field (supports nested JSON, wildcards)
+  - `[[field]]` → `CF Portfolio Holding` field
+
+**Security prompts**: `{{field}}` supports nested JSON paths & wildcard `ARRAY` handling (see `utils.helper.replace_variables`)
+
+**Financial variables**: 
+- `{{financials:y<years>:q<quarters>}}` → JSON statements (e.g., `{{financials:y10:q16}}`)
+  - Tries SEC Edgar first (US stocks with CIK via `get_edgar_data`)
+  - Falls back to yfinance cached fields: `profit_loss`, `balance_sheet`, `cash_flow`
+
+**Edgar qualitative text variables**: `{{edgar:form_type:year_or_index[:section][:quarter]}}`
+- Form types: `10-K` (annual), `10-Q` (quarterly), `8-K` (material events)
+- Sections: `risk`, `mda`, `business`, `legal`, `all` (default: risk+mda+business)
+- Year/index: `-1` (latest), `-2` (previous), or absolute year (2024)
+- 8-K special: `-3` gets latest 3 filings; year aggregates all from that year
+- Limit: 200K chars + metadata. Examples: `{{edgar:10-K:-1:risk}}`, `{{edgar:10-Q:-1::Q2}}`, `{{edgar:8-K:-3}}`
+- Integrated via `get_edgar_section()` & `expand_edgar_section_variable()` in `helper.py`
+
+### Data Ingestion
+
+**URL embedding** (chat prompts): Via `utils.url_fetcher.fetch_and_embed_url_content`
+- Limits: `CF Settings` controls `max_url_fetch`, `url_fetch_timeout`, byte/character caps
+- HTML → markdown via `markdownify` with fallback
+- Max PDF size: 50MB
+
+**PDF references**: `<<file.pdf>>` in chat prompts → inlined with tables via `pdfplumber`
+
+**Web search**: Optional `web_search` flag in chat messages → builds query, prepends results to prompt
+
+### Financial Data Coverage
+
+Use `CF Security.get_financial_data_coverage()` to check available data from yfinance & SEC Edgar (annual years, quarterly periods).
+
+---
+
+## Development
+
+### Setup & Workflow
+- Bench app; typical site: `tmp.localhost`
+- Dependencies: `yfinance`, `openai`, `edgartools` (installed via `install.after_install`)
+- Code style: ruff (line length 110, tab indent), eslint, prettier, pyupgrade; configs in `pyproject.toml`
+- Background jobs use Redis queue `long`; run workers separately for testing
+
+### Testing & Debugging
+- No built-in test harness; use bench to exercise: `bench --site tmp.localhost execute cognitive_folio.utils.markdown.safe_markdown_to_html --args '["**bold**"]'`
+- Temp helpers: add to `cognitive_folio/utils/tmp_testing.py`, remove after use
+- Stuck jobs: Check `frappe.log_error` logs, run `bench show-pending-jobs`, verify Redis queue
+
+### When Modifying AI Flows
+- Preserve realtime notifications (`cf_job_completed`, `cf_streaming_update`)
+- Always create `CF Chat` + `CF Chat Message` records for auditability
+- Respect `long` queue timeout (30 min) for long-running operations
+- Maintain token budget logic (~60k) when adding context sources
+- Handle errors gracefully: log via `frappe.log_error`, notify user via realtime, save partial results when possible

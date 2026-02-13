@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Cognitive Folio logo">
+  <defs>
+    <linearGradient id="cf-green" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2FBF71"/>
+      <stop offset="100%" stop-color="#0f6336"/>
+    </linearGradient>
+  </defs>
+  <rect x="0" y="0" width="512" height="512" rx="96" fill="url(#cf-green)"/>
+  <g fill="#FFFFFF">
+    <path d="M152 172c0-44.18 35.82-80 80-80h84c44.18 0 80 35.82 80 80v12h-48v-12c0-17.67-14.33-32-32-32h-84c-17.67 0-32 14.33-32 32v168c0 17.67 14.33 32 32 32h84c17.67 0 32-14.33 32-32v-12h48v12c0 44.18-35.82 80-80 80h-84c-44.18 0-80-35.82-80-80V172z"/>
+    <path d="M296 200c0-26.51 21.49-48 48-48h44v48h-40c-4.42 0-8 3.58-8 8v16h48v48h-48v88h-44V200z" transform="translate(-64 0)"/>
+  </g>  
+</svg>
