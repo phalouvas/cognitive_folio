@@ -4,9 +4,17 @@
   {
    "chart_name": "Portfolio Value",
    "label": "Portfolio Value"
+  },
+  {
+   "chart_name": "Portfolio Returns by Portfolio",
+   "label": "Portfolio Returns by Portfolio"
+  },
+  {
+   "chart_name": "Recommendation Mix",
+   "label": "Recommendation Mix"
   }
  ],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"_XWq9N7eP4\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Portfolio Value\",\"col\":12}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"nt1ZmN4VJp\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Portfolio Value\",\"col\":4}},{\"id\":\"B9wew-k3nR\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Cost Basis\",\"col\":4}},{\"id\":\"8VnL1l6i44\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Price Alerts\",\"col\":4}},{\"id\":\"_XWq9N7eP4\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Portfolio Value\",\"col\":6}},{\"id\":\"ihXwqQ2Gqy\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Portfolio Returns by Portfolio\",\"col\":6}},{\"id\":\"XyRo5WSyEM\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Recommendation Mix\",\"col\":12}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -150,7 +158,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Reports",
-   "link_count": 1,
+   "link_count": 2,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -164,13 +172,36 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Top Winners and Losers",
+   "link_count": 0,
+   "link_to": "Top Winners and Losers",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-02-13 11:49:32.302941",
+ "modified": "2026-02-13 17:09:12.760213",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
- "number_cards": [],
+ "number_cards": [
+  {
+   "label": "Total Portfolio Value",
+   "number_card_name": "Total Portfolio Value"
+  },
+  {
+   "label": "Total Cost Basis",
+   "number_card_name": "Total Cost Basis"
+  },
+  {
+   "label": "Active Price Alerts",
+   "number_card_name": "Active Price Alerts"
+  }
+ ],
  "owner": "Administrator",
  "parent_page": "",
  "public": 1,

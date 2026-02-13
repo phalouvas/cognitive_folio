@@ -1,0 +1,42 @@
+{
+ "cards": [
+  {
+   "card": "Portfolios"
+  },
+  {
+   "card": "Total Portfolio Value"
+  },
+  {
+   "card": "Total Cost Basis"
+  },
+  {
+   "card": "Active Price Alerts"
+  }
+ ],
+ "charts": [
+  {
+   "chart": "Portfolio Value",
+   "width": "Full"
+  },
+  {
+   "chart": "Portfolio Returns by Portfolio",
+   "width": "Half"
+  },
+  {
+   "chart": "Recommendation Mix",
+   "width": "Half"
+  }
+ ],
+ "creation": "2026-02-13 13:05:00.000000",
+ "dashboard_name": "Cognitive Folio",
+ "docstatus": 0,
+ "doctype": "Dashboard",
+ "idx": 0,
+ "is_default": 0,
+ "is_standard": 1,
+ "modified": "2026-02-13 13:05:00.000000",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "Cognitive Folio",
+ "owner": "Administrator"
+}
