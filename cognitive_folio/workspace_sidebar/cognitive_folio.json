@@ -1,0 +1,29 @@
+{
+ "app": "cognitive_folio",
+ "creation": "2026-02-13 09:03:43.900190",
+ "docstatus": 0,
+ "doctype": "Workspace Sidebar",
+ "header_icon": "piggy-bank",
+ "idx": 0,
+ "items": [
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "home",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Home",
+   "link_to": "Cognitive Folio",
+   "link_type": "Workspace",
+   "show_arrow": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-02-13 09:05:48.885853",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "Cognitive Folio",
+ "owner": "Administrator",
+ "standard": 1,
+ "title": "Cognitive Folio"
+}
