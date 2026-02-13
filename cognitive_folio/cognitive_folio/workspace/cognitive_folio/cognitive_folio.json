@@ -1,7 +1,12 @@
 {
  "app": "cognitive_folio",
- "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
+ "charts": [
+  {
+   "chart_name": "Portfolio Value",
+   "label": "Portfolio Value"
+  }
+ ],
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"_XWq9N7eP4\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Portfolio Value\",\"col\":12}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -161,7 +166,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-02-13 11:27:45.163968",
+ "modified": "2026-02-13 11:49:32.302941",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
