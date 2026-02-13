@@ -1,7 +1,7 @@
 {
  "app": "cognitive_folio",
  "charts": [],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"tMac4ITbfC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Portfolios\",\"col\":3}},{\"id\":\"xMac4ITbsC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Securities\",\"col\":3}},{\"id\":\"yMac4ITbpC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Holdings\",\"col\":3}},{\"id\":\"aMac4ITbaC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Asset Allocations\",\"col\":3}},{\"id\":\"Q1ZXaAS2RB\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Chats\",\"col\":3}},{\"id\":\"zMac4ITbtC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Transactions\",\"col\":3}},{\"id\":\"bMac4ITbdC\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Dividends\",\"col\":3}},{\"id\":\"rVRWrPjsj9\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Prompts\",\"col\":3}},{\"id\":\"6byH4wpYHG\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Settings\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -13,8 +13,155 @@
  "indicator_color": "green",
  "is_hidden": 0,
  "label": "Cognitive Folio",
- "links": [],
- "modified": "2026-02-13 10:36:19.009865",
+ "links": [
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Masters",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Portfolios",
+   "link_count": 0,
+   "link_to": "CF Portfolio",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Securities",
+   "link_count": 0,
+   "link_to": "CF Security",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Portfolio Holdings",
+   "link_count": 0,
+   "link_to": "CF Portfolio Holding",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Asset Allocations",
+   "link_count": 0,
+   "link_to": "CF Asset Allocation",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Details",
+   "link_count": 4,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Chat",
+   "link_count": 0,
+   "link_to": "CF Chat",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Chat Messages",
+   "link_count": 0,
+   "link_to": "CF Chat Message",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Transactions",
+   "link_count": 0,
+   "link_to": "CF Transaction",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Dividends",
+   "link_count": 0,
+   "link_to": "CF Dividend",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Setup",
+   "link_count": 2,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Prompts",
+   "link_count": 0,
+   "link_to": "CF Prompt",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Settings",
+   "link_count": 0,
+   "link_to": "CF Settings",
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 0,
+   "label": "Reports",
+   "link_count": 1,
+   "link_type": "DocType",
+   "onboard": 0,
+   "type": "Card Break"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Portfolio Holdings",
+   "link_count": 0,
+   "link_to": "Portfolio Holdings",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
+  }
+ ],
+ "modified": "2026-02-13 11:27:45.163968",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
@@ -34,14 +181,6 @@
    "url": "https://kainotomo.com/cognitive_folio/readme"
   },
   {
-   "color": "Blue",
-   "doc_view": "Report Builder",
-   "label": "Securities",
-   "link_to": "CF Security",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
    "color": "Grey",
    "doc_view": "List",
    "label": "Financial Data Sources",
@@ -49,74 +188,11 @@
    "url": "https://kainotomo.com/cognitive_folio/financial_data_sources"
   },
   {
-   "color": "Blue",
-   "doc_view": "Report Builder",
-   "label": "Holdings",
-   "link_to": "CF Portfolio Holding",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
    "color": "Grey",
    "doc_view": "List",
    "label": "Variable Reference",
    "type": "URL",
    "url": "https://kainotomo.com/cognitive_folio/variable_reference"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Prompts",
-   "link_to": "CF Prompt",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Chats",
-   "link_to": "CF Chat",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Portfolios",
-   "link_to": "CF Portfolio",
-   "stats_filter": "[[\"CF Portfolio\",\"disabled\",\"=\",0,false]]",
-   "type": "DocType"
-  },
-  {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Transactions",
-   "link_to": "CF Transaction",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Asset Allocations",
-   "link_to": "CF Asset Allocation",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Blue",
-   "doc_view": "List",
-   "label": "Dividends",
-   "link_to": "CF Dividend",
-   "stats_filter": "[]",
-   "type": "DocType"
-  },
-  {
-   "color": "Grey",
-   "doc_view": "List",
-   "label": "Settings",
-   "link_to": "CF Settings",
-   "type": "DocType"
   }
  ],
  "title": "Cognitive Folio",

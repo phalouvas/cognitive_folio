@@ -4,7 +4,7 @@
  "docstatus": 0,
  "doctype": "Workspace Sidebar",
  "header_icon": "piggy-bank",
- "idx": 0,
+ "idx": 2,
  "items": [
   {
    "child": 0,
@@ -17,9 +17,33 @@
    "link_type": "Workspace",
    "show_arrow": 0,
    "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "wallet",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Portfolios",
+   "link_to": "CF Portfolio",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "clipboard-list",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Securities",
+   "link_to": "CF Security",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-02-13 09:05:48.885853",
+ "modified": "2026-02-13 11:29:31.186379",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
