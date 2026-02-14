@@ -124,7 +124,10 @@ class CFPortfolio(Document):
 				security.fetch_data(with_fundamentals=True)
 			else:
 				security.fetch_data(with_fundamentals=False)
-			
+
+		# Always refresh portfolio performance after fetch completes
+		self.calculate_portfolio_performance()
+
 		return total_steps
 	
 	@frappe.whitelist()
