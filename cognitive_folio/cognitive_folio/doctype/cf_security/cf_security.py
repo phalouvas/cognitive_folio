@@ -127,7 +127,7 @@ class CFSecurity(Document):
 		"""Fetch and set the current price after inserting the document"""
 		if YFINANCE_INSTALLED:
 			self.fetch_data(with_fundamentals=True)
-			self.generate_ai_suggestion()
+			#self.generate_ai_suggestion()
 	
 	@frappe.whitelist()
 	def fetch_data(self, with_fundamentals=False):
