@@ -87,9 +87,14 @@ class CFSecurity(Document):
 		try:
 			# First, check if we already have a future earnings date stored
 			if self.earnings_release:
-				if getdate(self.earnings_release) > getdate(today()):
-					frappe.log_error(f"Earnings date already cached: {self.earnings_release}", "Earnings Date Debug")
-					return None  # Already have a future date, skip API call
+				try:
+					if getdate(self.earnings_release) > getdate(today()):
+						frappe.log_error(f"Earnings date already cached: {self.earnings_release}", "Earnings Date Debug")
+						return None  # Already have a future date, skip API call
+				except Exception:
+					# If we can't parse the date, treat it as invalid and continue to fetch new date
+					frappe.log_error(f"Invalid earnings date format: {self.earnings_release}", "Earnings Date Parse Error")
+					# Continue to fetch new date
 
 			# Helper function to check if date is earlier than today
 			def is_date_earlier_than_today(date_str):
@@ -266,14 +271,31 @@ class CFSecurity(Document):
 			self.country = ticker_info.get('country', '')
 			
 			# Extract and set earnings release date with optimized caching
-			earnings_date = self._extract_earnings_date_optimized(ticker, ticker_info)
-			if earnings_date:
-				self.earnings_release = earnings_date
+			# Call _extract_earnings_date_optimized only if we need to get/update earnings date:
+			# 1. earnings_release is empty (None or "")
+			# 2. earnings_release has a date <= today (past date, need new future date)
+			should_fetch_earnings_date = False
+			if not self.earnings_release:
+				# Case 1: earnings_release is empty
+				should_fetch_earnings_date = True
 			else:
-				# Clear earnings_release if no future date found (date is earlier than today or not found)
-				self.earnings_release = None
-				# Also clear need_evaluation since there's no upcoming earnings date to evaluate
-				self.need_evaluation = 0
+				# Case 2: Check if existing date is <= today (past or today)
+				try:
+					if getdate(self.earnings_release) <= getdate(today()):
+						should_fetch_earnings_date = True
+				except Exception:
+					# If we can't parse the date, treat it as empty and fetch new date
+					should_fetch_earnings_date = True
+
+			if should_fetch_earnings_date:
+				earnings_date = self._extract_earnings_date_optimized(ticker, ticker_info)
+				if earnings_date:
+					self.earnings_release = earnings_date
+				else:
+					# Clear earnings_release if no future date found (date is earlier than today or not found)
+					self.earnings_release = None
+					# Also clear need_evaluation since there's no upcoming earnings date to evaluate
+					self.need_evaluation = 0
 			if with_fundamentals:
 				if not self.cik:
 					self.fetch_cik()
