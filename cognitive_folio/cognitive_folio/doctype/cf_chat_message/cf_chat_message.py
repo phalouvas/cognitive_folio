@@ -7,6 +7,27 @@ from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
 
 class CFChatMessage(Document):
 
+	def _publish_chat_realtime(self, event_name, payload):
+		"""Publish realtime updates to related doc rooms."""
+
+		chat_id = payload.get("chat_id")
+		if chat_id:
+			frappe.publish_realtime(
+				event=event_name,
+				message=payload,
+				doctype="CF Chat",
+				docname=chat_id,
+			)
+
+		message_id = payload.get("message_id")
+		if message_id:
+			frappe.publish_realtime(
+				event=event_name,
+				message=payload,
+				doctype="CF Chat Message",
+				docname=message_id,
+			)
+
 	def validate(self):
 		if not self.system_prompt:
 			chat = frappe.get_doc("CF Chat", self.chat)
@@ -70,15 +91,14 @@ class CFChatMessage(Document):
 			frappe.db.commit()
 			
 			# Notify the user that the response is ready
-			frappe.publish_realtime(
-				event='cf_job_completed',
-				message={
+			self._publish_chat_realtime(
+				event_name='cf_job_completed',
+				payload={
 					'message_id': message_doc.name,
 					'chat_id': message_doc.chat,
 					'status': 'success',
 					'message': f"Response ready for message {message_doc.name}"
-				},
-				user=message_doc.owner
+				}
 			)
 		except Exception as e:
 			error_message = str(e)
@@ -105,15 +125,14 @@ class CFChatMessage(Document):
 			
 			# Always try to notify user about the error - moved outside the inner try block
 			try:
-				frappe.publish_realtime(
-					event='cf_job_completed',
-					message={
-						'message_id': self.name,  # Use self.name as fallback
-						'chat_id': getattr(message_doc, 'chat', self.chat),  # Use message_doc if available, else self
+				self._publish_chat_realtime(
+					event_name='cf_job_completed',
+					payload={
+						'message_id': self.name,
+						'chat_id': getattr(message_doc, 'chat', self.chat),
 						'status': 'error',
 						'message': f"Error processing message {self.name}: {error_message}"
-					},
-					user=getattr(message_doc, 'owner', self.owner)  # Use message_doc owner if available, else self
+					}
 				)
 			except Exception as notify_e:
 				# Last resort - log that we couldn't even notify the user
@@ -257,16 +276,15 @@ class CFChatMessage(Document):
 					frappe.db.commit()
 					
 					# Notify frontend to reload the frame
-					frappe.publish_realtime(
-						event='cf_streaming_update',
-						message={
+					self._publish_chat_realtime(
+						event_name='cf_streaming_update',
+						payload={
 							'message_id': self.name,
 							'chat_id': self.chat,
 							'message': full_response,
 							'reasoning': reasoning_content,
 							'status': 'streaming'
-						},
-						user=self.owner
+						}
 					)
 					
 		# Final update with complete response

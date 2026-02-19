@@ -5,10 +5,15 @@ $(document).ready(function() {
 
     // Wait for frappe to be available
     function initializeChatListener() {
-        if (typeof frappe !== 'undefined' && frappe.realtime) {
+        const realtimeReady = (
+            typeof frappe !== 'undefined' &&
+            frappe.realtime &&
+            frappe.realtime.socket
+        );
+
+        if (realtimeReady) {
             // Track if listener is already initialized to prevent duplicates
             if (!frappe._cf_chat_listener_initialized) {
-
                 // Existing job completion listener
                 frappe.realtime.on('cf_job_completed', function(data) {
                     // Clear any pending streaming reload and refresh once on completion
@@ -73,7 +78,7 @@ $(document).ready(function() {
                 frappe._cf_chat_listener_initialized = true;
             }
         } else {
-            // Retry after a short delay if frappe is not ready
+            // Retry after a short delay until realtime socket is ready
             setTimeout(initializeChatListener, 100);
         }
     }
