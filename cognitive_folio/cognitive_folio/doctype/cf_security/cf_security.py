@@ -71,16 +71,16 @@ class CFSecurity(Document):
 	def _extract_earnings_date_optimized(self, ticker, ticker_info):
 		"""
 		Smart earnings date extraction with minimal API calls.
-		
+
 		Strategy:
 		1. Check ticker_info first (free, already fetched)
 		2. Call get_earnings_dates() only if no future date exists
-		3. Return formatted date string or None
-		
+		3. Return formatted date string or None if not found
+
 		Args:
 			ticker: yfinance.Ticker instance
 			ticker_info: Dictionary from ticker.get_info()
-		
+
 		Returns:
 			str: Formatted date string ('YYYY-MM-DD') or None if not found
 		"""
@@ -90,7 +90,17 @@ class CFSecurity(Document):
 				if getdate(self.earnings_release) > getdate(today()):
 					frappe.log_error(f"Earnings date already cached: {self.earnings_release}", "Earnings Date Debug")
 					return None  # Already have a future date, skip API call
-			
+
+			# Helper function to check if date is earlier than today
+			def is_date_earlier_than_today(date_str):
+				"""Check if a date string (YYYY-MM-DD) is earlier than today"""
+				try:
+					date_obj = getdate(date_str)
+					return date_obj <= getdate(today())
+				except Exception:
+					# If we can't parse the date, assume it's valid
+					return False
+
 			# Strategy 1: Check ticker_info first (free, no API call)
 			earnings_date_key = ticker_info.get('earningsDate')
 			if earnings_date_key:
@@ -100,14 +110,23 @@ class CFSecurity(Document):
 						from datetime import datetime
 						earnings_dt = datetime.fromtimestamp(earnings_date_key)
 						formatted_date = earnings_dt.strftime('%Y-%m-%d')
+						# Check if date is earlier than today
+						if is_date_earlier_than_today(formatted_date):
+							frappe.log_error(f"Earnings date from ticker_info is earlier than today: {formatted_date}", "Earnings Date Debug")
+							return None
 						frappe.log_error(f"Earnings date from ticker_info: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 					else:
-						frappe.log_error(f"Earnings date from ticker_info: {earnings_date_key}", "Earnings Date Debug")
-						return str(earnings_date_key)
+						formatted_date = str(earnings_date_key)
+						# Check if date is earlier than today
+						if is_date_earlier_than_today(formatted_date):
+							frappe.log_error(f"Earnings date from ticker_info is earlier than today: {formatted_date}", "Earnings Date Debug")
+							return None
+						frappe.log_error(f"Earnings date from ticker_info: {formatted_date}", "Earnings Date Debug")
+						return formatted_date
 				except Exception as e:
 					frappe.log_error(f"Error parsing earningsDate from ticker_info: {str(e)}", "Earnings Date Parse Error")
-			
+
 			# Strategy 2: Check earningsTimestamp as fallback
 			earnings_timestamp = ticker_info.get('earningsTimestamp')
 			if earnings_timestamp:
@@ -116,11 +135,15 @@ class CFSecurity(Document):
 						from datetime import datetime
 						earnings_dt = datetime.fromtimestamp(earnings_timestamp)
 						formatted_date = earnings_dt.strftime('%Y-%m-%d')
+						# Check if date is earlier than today
+						if is_date_earlier_than_today(formatted_date):
+							frappe.log_error(f"Earnings date from earningsTimestamp is earlier than today: {formatted_date}", "Earnings Date Debug")
+							return None
 						frappe.log_error(f"Earnings date from earningsTimestamp: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 				except Exception as e:
 					frappe.log_error(f"Error parsing earningsTimestamp: {str(e)}", "Earnings Date Parse Error")
-			
+
 			# Strategy 3: Call get_earnings_dates() only when ticker_info doesn't have the date
 			frappe.log_error(f"Fetching earnings dates via get_earnings_dates() for {self.symbol}", "Earnings Date Debug")
 			try:
@@ -129,11 +152,15 @@ class CFSecurity(Document):
 					# Get the first (most recent/upcoming) earnings date
 					first_earnings_date = earnings_df.index[0]
 					formatted_date = first_earnings_date.strftime('%Y-%m-%d')
+					# Check if date is earlier than today
+					if is_date_earlier_than_today(formatted_date):
+						frappe.log_error(f"Earnings date from get_earnings_dates() is earlier than today: {formatted_date}", "Earnings Date Debug")
+						return None
 					frappe.log_error(f"Earnings date from get_earnings_dates(): {formatted_date}", "Earnings Date Debug")
 					return formatted_date
 			except Exception as e:
 				frappe.log_error(f"Error calling get_earnings_dates(): {str(e)}", "Earnings Dates API Error")
-			
+
 			# Strategy 4: Fallback to ticker.calendar if available
 			try:
 				if hasattr(ticker, 'calendar') and ticker.calendar:
@@ -141,14 +168,18 @@ class CFSecurity(Document):
 					if isinstance(calendar_dict, dict) and 'Earnings Date' in calendar_dict:
 						earnings_date = calendar_dict['Earnings Date']
 						formatted_date = str(earnings_date).split()[0]  # Extract just the date part
+						# Check if date is earlier than today
+						if is_date_earlier_than_today(formatted_date):
+							frappe.log_error(f"Earnings date from ticker.calendar is earlier than today: {formatted_date}", "Earnings Date Debug")
+							return None
 						frappe.log_error(f"Earnings date from ticker.calendar: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 			except Exception as e:
 				frappe.log_error(f"Error accessing ticker.calendar: {str(e)}", "Ticker Calendar Error")
-			
+
 			frappe.log_error(f"No earnings date found for {self.symbol}", "Earnings Date Debug")
 			return None
-			
+
 		except Exception as e:
 			frappe.log_error(f"Error in _extract_earnings_date_optimized for {self.symbol}: {str(e)}", "Earnings Date Extraction Error")
 			return None
@@ -238,6 +269,11 @@ class CFSecurity(Document):
 			earnings_date = self._extract_earnings_date_optimized(ticker, ticker_info)
 			if earnings_date:
 				self.earnings_release = earnings_date
+			else:
+				# Clear earnings_release if no future date found (date is earlier than today or not found)
+				self.earnings_release = None
+				# Also clear need_evaluation since there's no upcoming earnings date to evaluate
+				self.need_evaluation = 0
 			if with_fundamentals:
 				if not self.cik:
 					self.fetch_cik()
