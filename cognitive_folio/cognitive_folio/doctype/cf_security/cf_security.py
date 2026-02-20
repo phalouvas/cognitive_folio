@@ -65,8 +65,14 @@ class CFSecurity(Document):
 	def check_earnings_release(self):
 		"""Check if earnings release date has passed and set need_evaluation flag"""
 		if self.security_type == "Stock" and self.earnings_release:
-			if getdate(self.earnings_release) <= getdate(today()):
-				self.need_evaluation = 1
+			try:
+				if getdate(self.earnings_release) <= getdate(today()):
+					self.need_evaluation = 1
+			except Exception:
+				# Invalid date format, clear the field
+				frappe.log_error(f"Invalid earnings date format in check_earnings_release: {self.earnings_release}", "Earnings Date Parse Error")
+				self.earnings_release = None
+				self.need_evaluation = 0
 
 	def _extract_earnings_date_optimized(self, ticker, ticker_info):
 		"""
@@ -89,7 +95,6 @@ class CFSecurity(Document):
 			if self.earnings_release:
 				try:
 					if getdate(self.earnings_release) > getdate(today()):
-						frappe.log_error(f"Earnings date already cached: {self.earnings_release}", "Earnings Date Debug")
 						return None  # Already have a future date, skip API call
 				except Exception:
 					# If we can't parse the date, treat it as invalid and continue to fetch new date
@@ -99,58 +104,61 @@ class CFSecurity(Document):
 			# Helper function to check if date is earlier than today
 			def is_date_earlier_than_today(date_str):
 				"""Check if a date string (YYYY-MM-DD) is earlier than today"""
-				try:
-					date_obj = getdate(date_str)
-					return date_obj <= getdate(today())
-				except Exception:
-					# If we can't parse the date, assume it's valid
-					return False
+				date_obj = getdate(date_str)
+				return date_obj <= getdate(today())
 
 			# Strategy 1: Check ticker_info first (free, no API call)
 			earnings_date_key = ticker_info.get('earningsDate')
 			if earnings_date_key:
-				try:
-					if isinstance(earnings_date_key, (int, float)):
-						# Unix timestamp
-						from datetime import datetime
-						earnings_dt = datetime.fromtimestamp(earnings_date_key)
-						formatted_date = earnings_dt.strftime('%Y-%m-%d')
-						# Check if date is earlier than today
-						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from ticker_info is earlier than today: {formatted_date}", "Earnings Date Debug")
-							return None
-						frappe.log_error(f"Earnings date from ticker_info: {formatted_date}", "Earnings Date Debug")
-						return formatted_date
-					else:
-						formatted_date = str(earnings_date_key)
-						# Check if date is earlier than today
-						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from ticker_info is earlier than today: {formatted_date}", "Earnings Date Debug")
-							return None
-						frappe.log_error(f"Earnings date from ticker_info: {formatted_date}", "Earnings Date Debug")
-						return formatted_date
-				except Exception as e:
-					frappe.log_error(f"Error parsing earningsDate from ticker_info: {str(e)}", "Earnings Date Parse Error")
+				# Skip if earnings_date_key is a list (empty or not) - not a valid date
+				if isinstance(earnings_date_key, list):
+					frappe.log_error(f"EarningsDate is a list: {earnings_date_key}", "Earnings Date Debug")
+				else:
+					try:
+						if isinstance(earnings_date_key, (int, float)):
+							# Unix timestamp
+							from datetime import datetime
+							earnings_dt = datetime.fromtimestamp(earnings_date_key)
+							formatted_date = earnings_dt.strftime('%Y-%m-%d')
+							# Check if date is earlier than today
+							if is_date_earlier_than_today(formatted_date):
+								return None
+							return formatted_date
+						else:
+							formatted_date = str(earnings_date_key)
+							# Skip if formatted_date looks like a list representation or empty
+							if formatted_date.startswith('[') or formatted_date.startswith('(') or not formatted_date.strip():
+								frappe.log_error(f"EarningsDate is malformed: {formatted_date}", "Earnings Date Debug")
+							else:
+								# Check if date is earlier than today
+								if is_date_earlier_than_today(formatted_date):
+									return None
+								return formatted_date
+					except Exception as e:
+						frappe.log_error(f"Error parsing earningsDate from ticker_info: {str(e)}", "Earnings Date Parse Error")
 
 			# Strategy 2: Check earningsTimestamp as fallback
 			earnings_timestamp = ticker_info.get('earningsTimestamp')
 			if earnings_timestamp:
-				try:
-					if isinstance(earnings_timestamp, (int, float)):
-						from datetime import datetime
-						earnings_dt = datetime.fromtimestamp(earnings_timestamp)
-						formatted_date = earnings_dt.strftime('%Y-%m-%d')
-						# Check if date is earlier than today
-						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from earningsTimestamp is earlier than today: {formatted_date}", "Earnings Date Debug")
-							return None
-						frappe.log_error(f"Earnings date from earningsTimestamp: {formatted_date}", "Earnings Date Debug")
-						return formatted_date
-				except Exception as e:
-					frappe.log_error(f"Error parsing earningsTimestamp: {str(e)}", "Earnings Date Parse Error")
+				# Skip if earnings_timestamp is a list (empty or not) - not a valid timestamp
+				if isinstance(earnings_timestamp, list):
+					frappe.log_error(f"EarningsTimestamp is a list: {earnings_timestamp}", "Earnings Date Debug")
+				else:
+					try:
+						if isinstance(earnings_timestamp, (int, float)):
+							from datetime import datetime
+							earnings_dt = datetime.fromtimestamp(earnings_timestamp)
+							formatted_date = earnings_dt.strftime('%Y-%m-%d')
+							# Check if date is earlier than today
+							if is_date_earlier_than_today(formatted_date):
+								return None
+							return formatted_date
+						else:
+							frappe.log_error(f"EarningsTimestamp is not numeric: {type(earnings_timestamp)}", "Earnings Date Debug")
+					except Exception as e:
+						frappe.log_error(f"Error parsing earningsTimestamp: {str(e)}", "Earnings Date Parse Error")
 
 			# Strategy 3: Call get_earnings_dates() only when ticker_info doesn't have the date
-			frappe.log_error(f"Fetching earnings dates via get_earnings_dates() for {self.symbol}", "Earnings Date Debug")
 			try:
 				earnings_df = ticker.get_earnings_dates()
 				if earnings_df is not None and not earnings_df.empty:
@@ -159,9 +167,7 @@ class CFSecurity(Document):
 					formatted_date = first_earnings_date.strftime('%Y-%m-%d')
 					# Check if date is earlier than today
 					if is_date_earlier_than_today(formatted_date):
-						frappe.log_error(f"Earnings date from get_earnings_dates() is earlier than today: {formatted_date}", "Earnings Date Debug")
 						return None
-					frappe.log_error(f"Earnings date from get_earnings_dates(): {formatted_date}", "Earnings Date Debug")
 					return formatted_date
 			except Exception as e:
 				frappe.log_error(f"Error calling get_earnings_dates(): {str(e)}", "Earnings Dates API Error")
@@ -172,17 +178,31 @@ class CFSecurity(Document):
 					calendar_dict = ticker.calendar
 					if isinstance(calendar_dict, dict) and 'Earnings Date' in calendar_dict:
 						earnings_date = calendar_dict['Earnings Date']
-						formatted_date = str(earnings_date).split()[0]  # Extract just the date part
+						# Check if earnings_date is valid (not empty list or None)
+						if not earnings_date or (isinstance(earnings_date, list) and len(earnings_date) == 0):
+							frappe.log_error(f"Earnings Date in calendar is empty: {earnings_date}", "Ticker Calendar Debug")
+							return None
+
+						# Convert to string and extract date part
+						earnings_date_str = str(earnings_date)
+						if not earnings_date_str or earnings_date_str.strip() == '':
+							frappe.log_error(f"Earnings Date string is empty: {earnings_date_str}", "Ticker Calendar Debug")
+							return None
+
+						# Split and get first part (date)
+						parts = earnings_date_str.split()
+						if len(parts) == 0:
+							frappe.log_error(f"Earnings Date string has no parts after split: {earnings_date_str}", "Ticker Calendar Debug")
+							return None
+
+						formatted_date = parts[0]
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from ticker.calendar is earlier than today: {formatted_date}", "Earnings Date Debug")
 							return None
-						frappe.log_error(f"Earnings date from ticker.calendar: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 			except Exception as e:
 				frappe.log_error(f"Error accessing ticker.calendar: {str(e)}", "Ticker Calendar Error")
 
-			frappe.log_error(f"No earnings date found for {self.symbol}", "Earnings Date Debug")
 			return None
 
 		except Exception as e:
