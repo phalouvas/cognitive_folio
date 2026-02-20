@@ -89,7 +89,6 @@ class CFSecurity(Document):
 			if self.earnings_release:
 				try:
 					if getdate(self.earnings_release) > getdate(today()):
-						frappe.log_error(f"Earnings date already cached: {self.earnings_release}", "Earnings Date Debug")
 						return None  # Already have a future date, skip API call
 				except Exception:
 					# If we can't parse the date, treat it as invalid and continue to fetch new date
@@ -117,17 +116,13 @@ class CFSecurity(Document):
 						formatted_date = earnings_dt.strftime('%Y-%m-%d')
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from ticker_info is earlier than today: {formatted_date}", "Earnings Date Debug")
 							return None
-						frappe.log_error(f"Earnings date from ticker_info: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 					else:
 						formatted_date = str(earnings_date_key)
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from ticker_info is earlier than today: {formatted_date}", "Earnings Date Debug")
 							return None
-						frappe.log_error(f"Earnings date from ticker_info: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 				except Exception as e:
 					frappe.log_error(f"Error parsing earningsDate from ticker_info: {str(e)}", "Earnings Date Parse Error")
@@ -142,15 +137,12 @@ class CFSecurity(Document):
 						formatted_date = earnings_dt.strftime('%Y-%m-%d')
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from earningsTimestamp is earlier than today: {formatted_date}", "Earnings Date Debug")
 							return None
-						frappe.log_error(f"Earnings date from earningsTimestamp: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 				except Exception as e:
 					frappe.log_error(f"Error parsing earningsTimestamp: {str(e)}", "Earnings Date Parse Error")
 
 			# Strategy 3: Call get_earnings_dates() only when ticker_info doesn't have the date
-			frappe.log_error(f"Fetching earnings dates via get_earnings_dates() for {self.symbol}", "Earnings Date Debug")
 			try:
 				earnings_df = ticker.get_earnings_dates()
 				if earnings_df is not None and not earnings_df.empty:
@@ -159,9 +151,7 @@ class CFSecurity(Document):
 					formatted_date = first_earnings_date.strftime('%Y-%m-%d')
 					# Check if date is earlier than today
 					if is_date_earlier_than_today(formatted_date):
-						frappe.log_error(f"Earnings date from get_earnings_dates() is earlier than today: {formatted_date}", "Earnings Date Debug")
 						return None
-					frappe.log_error(f"Earnings date from get_earnings_dates(): {formatted_date}", "Earnings Date Debug")
 					return formatted_date
 			except Exception as e:
 				frappe.log_error(f"Error calling get_earnings_dates(): {str(e)}", "Earnings Dates API Error")
@@ -175,14 +165,11 @@ class CFSecurity(Document):
 						formatted_date = str(earnings_date).split()[0]  # Extract just the date part
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
-							frappe.log_error(f"Earnings date from ticker.calendar is earlier than today: {formatted_date}", "Earnings Date Debug")
 							return None
-						frappe.log_error(f"Earnings date from ticker.calendar: {formatted_date}", "Earnings Date Debug")
 						return formatted_date
 			except Exception as e:
 				frappe.log_error(f"Error accessing ticker.calendar: {str(e)}", "Ticker Calendar Error")
 
-			frappe.log_error(f"No earnings date found for {self.symbol}", "Earnings Date Debug")
 			return None
 
 		except Exception as e:
