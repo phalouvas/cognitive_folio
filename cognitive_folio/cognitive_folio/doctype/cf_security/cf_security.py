@@ -178,7 +178,24 @@ class CFSecurity(Document):
 					calendar_dict = ticker.calendar
 					if isinstance(calendar_dict, dict) and 'Earnings Date' in calendar_dict:
 						earnings_date = calendar_dict['Earnings Date']
-						formatted_date = str(earnings_date).split()[0]  # Extract just the date part
+						# Check if earnings_date is valid (not empty list or None)
+						if not earnings_date or (isinstance(earnings_date, list) and len(earnings_date) == 0):
+							frappe.log_error(f"Earnings Date in calendar is empty: {earnings_date}", "Ticker Calendar Debug")
+							return None
+
+						# Convert to string and extract date part
+						earnings_date_str = str(earnings_date)
+						if not earnings_date_str or earnings_date_str.strip() == '':
+							frappe.log_error(f"Earnings Date string is empty: {earnings_date_str}", "Ticker Calendar Debug")
+							return None
+
+						# Split and get first part (date)
+						parts = earnings_date_str.split()
+						if len(parts) == 0:
+							frappe.log_error(f"Earnings Date string has no parts after split: {earnings_date_str}", "Ticker Calendar Debug")
+							return None
+
+						formatted_date = parts[0]
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
 							return None
