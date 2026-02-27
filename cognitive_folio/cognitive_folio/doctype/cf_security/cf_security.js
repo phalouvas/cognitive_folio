@@ -471,39 +471,8 @@ function formatTickerInfo(frm) {
     try {
         const data = JSON.parse(frm.doc.ticker_info);
         
-        // Create container with styling
+        // Create container with Frappe styling
         let html = `
-            <style>
-                .ticker-info-container { font-family: var(--font-stack); }
-                .ticker-info-container h3 { margin-top: 20px; margin-bottom: 10px; color: #1a1a1a; }
-                .ticker-info-container .info-card { 
-                    background: #f8f8f8; border-radius: 5px; padding: 15px; 
-                    margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-                }
-                .ticker-info-container .info-grid {
-                    display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-                    grid-gap: 15px; margin-bottom: 15px;
-                }
-                .ticker-info-container .metric-item {
-                    padding: 10px; border-radius: 4px; background: #fff;
-                    border-left: 4px solid #4d99e7;
-                }
-                .ticker-info-container .metric-label {
-                    font-size: 0.85rem; color: #6c7680; margin-bottom: 5px;
-                }
-                .ticker-info-container .metric-value {
-                    font-size: 1.1rem; font-weight: 500; color: #1a1a1a;
-                }
-                .ticker-info-container .positive { color: #28a745; }
-                .ticker-info-container .negative { color: #dc3545; }
-                .ticker-info-container .table-condensed { margin-bottom: 0; }
-                .ticker-info-container .table-condensed td, 
-                .ticker-info-container .table-condensed th { padding: 5px 8px; }
-                .ticker-info-container .company-summary {
-                    line-height: 1.5; margin-bottom: 15px; 
-                    max-height: 150px; overflow-y: auto;
-                }
-            </style>
             <div class="ticker-info-container">
         `;
         
@@ -512,13 +481,12 @@ function formatTickerInfo(frm) {
         
         // Add Yahoo Finance link
         html += `
-            <div style="margin-bottom: 15px;">
+            <div class="mb-3">
                 <a href="https://finance.yahoo.com/quote/${frm.doc.symbol}/" 
                    target="_blank" 
                    rel="noopener noreferrer"
-                   class="btn btn-sm btn-default"
-                   style="text-decoration: none;">
-                    <svg style="width: 16px; height: 16px; vertical-align: middle; margin-right: 5px;" viewBox="0 0 24 24">
+                   class="btn btn-sm btn-default text-decoration-none">
+                    <svg class="mr-1" style="width: 16px; height: 16px; vertical-align: middle;" viewBox="0 0 24 24">
                         <path fill="currentColor" d="M14,3V5H17.59L7.76,14.83L9.17,16.24L19,6.41V10H21V3M19,19H5V5H12V3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V12H19V19Z" />
                     </svg>
                     View on Yahoo Finance
@@ -526,19 +494,19 @@ function formatTickerInfo(frm) {
             </div>
         `;
         
-        html += `<div class="info-card">`;
+        html += `<div class="card card-body mb-3">`;
         
         // Company summary if available
         if (data.longBusinessSummary) {
             html += `
-                <div class="company-summary">
+                <div class="mb-3 overflow-auto" style="max-height: 150px;">
                     ${data.longBusinessSummary}
                 </div>
             `;
         }
         
-        // Basic company info
-        html += `<div class="info-grid">`;
+        // Basic company info - use Frappe grid system
+        html += `<div class="row">`;
         
         // Add company details grid items
         const companyDetails = [
@@ -553,9 +521,9 @@ function formatTickerInfo(frm) {
         companyDetails.forEach(item => {
             if (item.value) {
                 html += `
-                    <div class="metric-item">
-                        <div class="metric-label">${item.label}</div>
-                        <div class="metric-value">${item.value}</div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <div class="small text-muted">${item.label}</div>
+                        <div class="font-weight-medium">${item.value}</div>
                     </div>
                 `;
             }
@@ -565,7 +533,7 @@ function formatTickerInfo(frm) {
         
         // Market data section
         html += `<h3>Market Data</h3>`;
-        html += `<div class="info-grid">`;
+        html += `<div class="row">`;
         
         // Add market metrics grid items
         const marketMetrics = [
@@ -582,9 +550,9 @@ function formatTickerInfo(frm) {
         marketMetrics.forEach(item => {
             if (item.value) {
                 html += `
-                    <div class="metric-item">
-                        <div class="metric-label">${item.label}</div>
-                        <div class="metric-value">${item.value}</div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <div class="small text-muted">${item.label}</div>
+                        <div class="font-weight-medium">${item.value}</div>
                     </div>
                 `;
             }
@@ -594,7 +562,7 @@ function formatTickerInfo(frm) {
         
         // Annual Performance section
         html += `<h3>Annual Performance</h3>`;
-        html += `<div class="info-grid">`;
+        html += `<div class="row">`;
         
         // Calculate distance from 52-week high and low
         let distanceFromHigh = null;
@@ -642,9 +610,9 @@ function formatTickerInfo(frm) {
         annualPerformanceMetrics.forEach(item => {
             if (item.value) {
                 html += `
-                    <div class="metric-item">
-                        <div class="metric-label">${item.label}</div>
-                        <div class="metric-value">${item.value}</div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <div class="small text-muted">${item.label}</div>
+                        <div class="font-weight-medium">${item.value}</div>
                     </div>
                 `;
             }
@@ -654,7 +622,7 @@ function formatTickerInfo(frm) {
         
         // Financial metrics section
         html += `<h3>Financial Metrics</h3>`;
-        html += `<div class="info-grid">`;
+        html += `<div class="row">`;
         
         // Add financial metrics grid items
         const financialMetrics = [
@@ -675,9 +643,9 @@ function formatTickerInfo(frm) {
         financialMetrics.forEach(item => {
             if (item.value) {
                 html += `
-                    <div class="metric-item">
-                        <div class="metric-label">${item.label}</div>
-                        <div class="metric-value">${item.value}</div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <div class="small text-muted">${item.label}</div>
+                        <div class="font-weight-medium">${item.value}</div>
                     </div>
                 `;
             }
@@ -690,8 +658,8 @@ function formatTickerInfo(frm) {
         
         // Analyst Recommendations subsection
         if (data.averageAnalystRating || data.recommendationKey || data.targetMeanPrice) {
-            html += `<h4 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Analyst Recommendations</h4>`;
-            html += `<div class="info-grid">`;
+            html += `<h4 class="mt-3 mb-2 h6">Analyst Recommendations</h4>`;
+            html += `<div class="row">`;
             
             // Analyst ratings and price targets
             const analysisMetrics = [
@@ -709,9 +677,9 @@ function formatTickerInfo(frm) {
             analysisMetrics.forEach(item => {
                 if (item.value) {
                     html += `
-                        <div class="metric-item">
-                            <div class="metric-label">${item.label}</div>
-                            <div class="metric-value">${item.value}</div>
+                        <div class="col-sm-6 col-md-4 mb-3">
+                            <div class="small text-muted">${item.label}</div>
+                            <div class="font-weight-medium">${item.value}</div>
                         </div>
                     `;
                 }
@@ -721,8 +689,8 @@ function formatTickerInfo(frm) {
         }
         
         // Financial Highlights subsection
-        html += `<h4 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Financial Highlights</h4>`;
-        html += `<div class="info-grid">`;
+        html += `<h4 class="mt-3 mb-2 h6">Financial Highlights</h4>`;
+        html += `<div class="row">`;
         
         // Add balance sheet and cash flow metrics
         const financialHighlights = [
@@ -745,9 +713,9 @@ function formatTickerInfo(frm) {
         financialHighlights.forEach(item => {
             if (item.value) {
                 html += `
-                    <div class="metric-item">
-                        <div class="metric-label">${item.label}</div>
-                        <div class="metric-value">${item.value}</div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <div class="small text-muted">${item.label}</div>
+                        <div class="font-weight-medium">${item.value}</div>
                     </div>
                 `;
             }
@@ -756,8 +724,8 @@ function formatTickerInfo(frm) {
         html += `</div>`;
         
         // Financial Health Ratios subsection
-        html += `<h4 style="margin-top: 15px; margin-bottom: 10px; font-size: 1rem;">Financial Health Ratios</h4>`;
-        html += `<div class="info-grid">`;
+        html += `<h4 class="mt-3 mb-2 h6">Financial Health Ratios</h4>`;
+        html += `<div class="row">`;
         
         // Add health ratios
         const healthRatios = [
@@ -775,9 +743,9 @@ function formatTickerInfo(frm) {
         healthRatios.forEach(item => {
             if (item.value) {
                 html += `
-                    <div class="metric-item">
-                        <div class="metric-label">${item.label}</div>
-                        <div class="metric-value">${item.value}</div>
+                    <div class="col-sm-6 col-md-4 mb-3">
+                        <div class="small text-muted">${item.label}</div>
+                        <div class="font-weight-medium">${item.value}</div>
                     </div>
                 `;
             }
@@ -788,9 +756,9 @@ function formatTickerInfo(frm) {
         // Key executive team (if data available)
         if (data.companyOfficers && data.companyOfficers.length > 0) {
             html += `<h3>Key Executives</h3>`;
-            html += `<div class="info-card">`;
+            html += `<div class="card card-body mb-3">`;
             html += `<div class="table-responsive">`;
-            html += `<table class="table table-bordered table-condensed">`;
+            html += `<table class="table table-bordered">`;
             html += `<thead><tr>
                 <th>Name</th>
                 <th>Title</th>
@@ -894,9 +862,9 @@ function formatPercentWithColor(value) {
     
     const percent = (value * 100).toFixed(2) + '%';
     if (value > 0) {
-        return `<span class="positive">+${percent}</span>`;
+        return `<span class="text-success">+${percent}</span>`;
     } else if (value < 0) {
-        return `<span class="negative">${percent}</span>`;
+        return `<span class="text-danger">${percent}</span>`;
     } else {
         return percent;
     }
@@ -912,11 +880,11 @@ function getPerformanceArrows(value) {
     
     const absValue = Math.abs(value);
     const isPositive = value > 0;
-    const color = isPositive ? '#28a745' : value < 0 ? '#dc3545' : '#999';
+    const colorClass = isPositive ? 'text-success' : value < 0 ? 'text-danger' : 'text-muted';
     let arrowCount = 0;
     
     if (Math.abs(value) < 0.005) { // ~0% - neutral
-        return `<span style="color: #999; margin-left: 8px;">—</span>`;
+        return `<span class="text-muted ml-2">—</span>`;
     }
     
     // Thresholds: 5%, 10%, 20%
@@ -928,7 +896,7 @@ function getPerformanceArrows(value) {
     const arrow = isPositive ? '↑' : '↓';
     const arrows = arrow.repeat(arrowCount);
     
-    return `<span style="color: ${color}; margin-left: 8px; font-weight: bold;">${arrows}</span>`;
+    return `<span class="${colorClass} ml-2 font-weight-bold">${arrows}</span>`;
 }
 
 // Add this helper function after the frappe.ui.form.on block
