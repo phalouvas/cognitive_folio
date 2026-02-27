@@ -180,7 +180,6 @@ class CFSecurity(Document):
 						earnings_date = calendar_dict['Earnings Date']
 						# Check if earnings_date is valid (not empty list or None)
 						if not earnings_date or (isinstance(earnings_date, list) and len(earnings_date) == 0):
-							frappe.log_error(f"Earnings Date in calendar is empty: {earnings_date}", "Ticker Calendar Debug")
 							return None
 
 						# Convert to string and extract date part
