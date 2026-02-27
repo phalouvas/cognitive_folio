@@ -107,72 +107,6 @@ class CFSecurity(Document):
 				date_obj = getdate(date_str)
 				return date_obj <= getdate(today())
 
-			# Strategy 1: Check ticker_info first (free, no API call)
-			earnings_date_key = ticker_info.get('earningsDate')
-			if earnings_date_key:
-				# Skip if earnings_date_key is a list (empty or not) - not a valid date
-				if isinstance(earnings_date_key, list):
-					frappe.log_error(f"EarningsDate is a list: {earnings_date_key}", "Earnings Date Debug")
-				else:
-					try:
-						if isinstance(earnings_date_key, (int, float)):
-							# Unix timestamp
-							from datetime import datetime
-							earnings_dt = datetime.fromtimestamp(earnings_date_key)
-							formatted_date = earnings_dt.strftime('%Y-%m-%d')
-							# Check if date is earlier than today
-							if is_date_earlier_than_today(formatted_date):
-								return None
-							return formatted_date
-						else:
-							formatted_date = str(earnings_date_key)
-							# Skip if formatted_date looks like a list representation or empty
-							if formatted_date.startswith('[') or formatted_date.startswith('(') or not formatted_date.strip():
-								frappe.log_error(f"EarningsDate is malformed: {formatted_date}", "Earnings Date Debug")
-							else:
-								# Check if date is earlier than today
-								if is_date_earlier_than_today(formatted_date):
-									return None
-								return formatted_date
-					except Exception as e:
-						frappe.log_error(f"Error parsing earningsDate from ticker_info: {str(e)}", "Earnings Date Parse Error")
-
-			# Strategy 2: Check earningsTimestamp as fallback
-			earnings_timestamp = ticker_info.get('earningsTimestamp')
-			if earnings_timestamp:
-				# Skip if earnings_timestamp is a list (empty or not) - not a valid timestamp
-				if isinstance(earnings_timestamp, list):
-					frappe.log_error(f"EarningsTimestamp is a list: {earnings_timestamp}", "Earnings Date Debug")
-				else:
-					try:
-						if isinstance(earnings_timestamp, (int, float)):
-							from datetime import datetime
-							earnings_dt = datetime.fromtimestamp(earnings_timestamp)
-							formatted_date = earnings_dt.strftime('%Y-%m-%d')
-							# Check if date is earlier than today
-							if is_date_earlier_than_today(formatted_date):
-								return None
-							return formatted_date
-						else:
-							frappe.log_error(f"EarningsTimestamp is not numeric: {type(earnings_timestamp)}", "Earnings Date Debug")
-					except Exception as e:
-						frappe.log_error(f"Error parsing earningsTimestamp: {str(e)}", "Earnings Date Parse Error")
-
-			# Strategy 3: Call get_earnings_dates() only when ticker_info doesn't have the date
-			try:
-				earnings_df = ticker.get_earnings_dates()
-				if earnings_df is not None and not earnings_df.empty:
-					# Get the first (most recent/upcoming) earnings date
-					first_earnings_date = earnings_df.index[0]
-					formatted_date = first_earnings_date.strftime('%Y-%m-%d')
-					# Check if date is earlier than today
-					if is_date_earlier_than_today(formatted_date):
-						return None
-					return formatted_date
-			except Exception as e:
-				frappe.log_error(f"Error calling get_earnings_dates(): {str(e)}", "Earnings Dates API Error")
-
-			# Strategy 4: Fallback to ticker.calendar if available
 			try:
 				if hasattr(ticker, 'calendar') and ticker.calendar:
 					calendar_dict = ticker.calendar
@@ -182,19 +116,30 @@ class CFSecurity(Document):
 						if not earnings_date or (isinstance(earnings_date, list) and len(earnings_date) == 0):
 							return None
 
-						# Convert to string and extract date part
-						earnings_date_str = str(earnings_date)
-						if not earnings_date_str or earnings_date_str.strip() == '':
-							frappe.log_error(f"Earnings Date string is empty: {earnings_date_str}", "Ticker Calendar Debug")
-							return None
+						# Handle different types of earnings_date
+						if isinstance(earnings_date, list) and len(earnings_date) > 0:
+							# If it's a list, get the first element
+							earnings_date = earnings_date[0]
+						
+						# Check if it's a datetime.date object
+						if hasattr(earnings_date, 'year') and hasattr(earnings_date, 'month') and hasattr(earnings_date, 'day'):
+							# It's a datetime.date object, format it as YYYY-MM-DD
+							formatted_date = f"{earnings_date.year}-{earnings_date.month:02d}-{earnings_date.day:02d}"
+						else:
+							# Convert to string and extract date part
+							earnings_date_str = str(earnings_date)
+							if not earnings_date_str or earnings_date_str.strip() == '':
+								frappe.log_error(f"Earnings Date string is empty: {earnings_date_str}", "Ticker Calendar Debug")
+								return None
 
-						# Split and get first part (date)
-						parts = earnings_date_str.split()
-						if len(parts) == 0:
-							frappe.log_error(f"Earnings Date string has no parts after split: {earnings_date_str}", "Ticker Calendar Debug")
-							return None
+							# Split and get first part (date)
+							parts = earnings_date_str.split()
+							if len(parts) == 0:
+								frappe.log_error(f"Earnings Date string has no parts after split: {earnings_date_str}", "Ticker Calendar Debug")
+								return None
 
-						formatted_date = parts[0]
+							formatted_date = parts[0]
+						
 						# Check if date is earlier than today
 						if is_date_earlier_than_today(formatted_date):
 							return None
