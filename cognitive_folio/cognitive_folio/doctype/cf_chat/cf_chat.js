@@ -1,6 +1,8 @@
 // Copyright (c) 2025, KAINOTOMO PH LTD and contributors
 // For license information, please see license.txt
 
+const CHAT_POLL_INTERVAL_MS = 2000;
+
 frappe.ui.form.on("CF Chat", {
     refresh(frm) {
         // Add custom button to quickly add new message
@@ -59,12 +61,26 @@ frappe.ui.form.on("CF Chat", {
 
         // Load and display chat messages as timeline
         if (!frm.is_new()) {
-            render_chat_timeline(frm);
+            render_chat_timeline(frm, {
+                on_status: function(latest_status) {
+                    update_timeline_polling_by_latest_status(frm, latest_status);
+                }
+            });
         }
+    },
+
+    before_unload(frm) {
+        stop_timeline_polling(frm);
     }
 });
 
-function render_chat_timeline(frm) {
+function render_chat_timeline(frm, options = {}) {
+    if (!frm || frm.is_new()) {
+        return;
+    }
+
+    const on_status = options.on_status || null;
+
     frappe.call({
         method: 'frappe.client.get_list',
         args: {
@@ -79,9 +95,81 @@ function render_chat_timeline(frm) {
         callback: function(r) {
             if (r.message) {
                 display_timeline(frm, r.message);
+                if (on_status) {
+                    on_status(get_latest_message_status(r.message));
+                }
+            } else if (on_status) {
+                on_status(null);
+            }
+        },
+        error: function() {
+            if (on_status) {
+                on_status("Processing");
             }
         }
     });
+}
+
+function get_latest_message_status(messages) {
+    if (!messages || !messages.length) {
+        return null;
+    }
+
+    return messages[0].status || null;
+}
+
+function is_latest_terminal_status(status) {
+    return status === "Success" || status === "Failed";
+}
+
+function update_timeline_polling_by_latest_status(frm, latest_status) {
+    if (!frm || frm.is_new()) {
+        stop_timeline_polling(frm);
+        return;
+    }
+
+    if (latest_status && is_latest_terminal_status(latest_status)) {
+        stop_timeline_polling(frm);
+        return;
+    }
+
+    start_timeline_polling(frm);
+}
+
+function start_timeline_polling(frm) {
+    if (!frm || frm.is_new()) {
+        return;
+    }
+
+    if (frm.__cf_timeline_poll_timer) {
+        return;
+    }
+
+    frm.__cf_timeline_poll_timer = setInterval(function() {
+        if (document.hidden) {
+            return;
+        }
+
+        if (!cur_frm || cur_frm.doctype !== "CF Chat" || cur_frm.doc.name !== frm.doc.name) {
+            stop_timeline_polling(frm);
+            return;
+        }
+
+        render_chat_timeline(frm, {
+            on_status: function(latest_status) {
+                update_timeline_polling_by_latest_status(frm, latest_status);
+            }
+        });
+    }, CHAT_POLL_INTERVAL_MS);
+}
+
+function stop_timeline_polling(frm) {
+    if (!frm || !frm.__cf_timeline_poll_timer) {
+        return;
+    }
+
+    clearInterval(frm.__cf_timeline_poll_timer);
+    frm.__cf_timeline_poll_timer = null;
 }
 
 function display_timeline(frm, messages) {
