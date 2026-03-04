@@ -50,23 +50,6 @@ class CFChatMessage(Document):
 			chat = frappe.get_doc("CF Chat", self.chat)
 			if chat.system_prompt:
 				self.system_prompt = chat.system_prompt
-		
-		# Convert variables in prompt on save for preview
-		if self.prompt and self.chat:
-			try:
-				chat = frappe.get_doc("CF Chat", self.chat)
-				portfolio = None
-				if chat.portfolio:
-					portfolio = frappe.get_doc("CF Portfolio", chat.portfolio)
-				security = None
-				if chat.security:
-					security = frappe.get_doc("CF Security", chat.security)
-				
-				# Convert variables for preview
-				self.prompt = self.prepare_prompt(portfolio, security)
-			except Exception as e:
-				# Don't fail validation if variable conversion fails
-				frappe.log_error(f"Variable conversion on save failed: {str(e)}", "Chat Message Validation")
 
 	@frappe.whitelist()
 	def process(self):
@@ -177,6 +160,22 @@ class CFChatMessage(Document):
 			security.save()
 		settings = frappe.get_single("CF Settings")
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+		runtime_audit = {
+			"model": self.model,
+			"augmentations": [],
+			"web_search": {
+				"enabled": bool(getattr(self, 'web_search', False)),
+				"query": None,
+				"results_count": 0,
+				"fallback": None,
+			},
+			"tools": {
+				"enabled": self._tool_calls_enabled(settings),
+				"rounds": 0,
+				"calls": 0,
+				"names": [],
+			},
+		}
 	
 		# Initialize tokenizer for the model
 		try:
@@ -205,19 +204,29 @@ class CFChatMessage(Document):
 		max_context_tokens = self._get_max_context_tokens(settings)  # Leave buffer for response
 		available_tokens = max_context_tokens - system_tokens
 		
-		# Process current message prompt first to know how much space it needs
-		self.prompt = self.prepare_prompt(portfolio, security)
+		original_prompt = self.prompt or ""
+
+		# Build runtime model prompt while preserving original user prompt
+		runtime_prompt = self._prepare_prompt_without_mutation(original_prompt, portfolio, security)
+		if runtime_prompt != original_prompt:
+			runtime_audit["augmentations"].append("template_variables")
 
 		# Detect URLs and embed their content (guarded by optional checkbox)
 		if getattr(self, 'fetch_urls', False):
 			try:
-				self.prompt = fetch_and_embed_url_content(self.prompt, self)
+				before_prompt = runtime_prompt
+				runtime_prompt = fetch_and_embed_url_content(runtime_prompt, self)
+				if runtime_prompt != before_prompt:
+					runtime_audit["augmentations"].append("url_content")
 			except Exception as e:
 				frappe.log_error(f"URL embedding failed for message {self.name}: {str(e)}", "URL Fetch Error")
 		
 		# Extract PDF text and tables, convert to markdown if available
 		try:
-			self.prompt = self.extract_pdf_text()
+			before_prompt = runtime_prompt
+			runtime_prompt = self._extract_pdf_text_for_prompt(runtime_prompt)
+			if runtime_prompt != before_prompt:
+				runtime_audit["augmentations"].append("pdf_extraction")
 		except Exception as e:
 			frappe.log_error(f"PDF extraction failed for message {self.name}: {str(e)}", "PDF Extraction Error")
 		
@@ -225,17 +234,23 @@ class CFChatMessage(Document):
 		if getattr(self, 'web_search', False):  # Check if web_search field exists and is True
 			try:
 				# Use OpenAI to extract intelligent search query
-				search_query = self.extract_search_query()
+				search_query = self.extract_search_query(runtime_prompt)
 				if search_query:
+					runtime_audit["web_search"]["query"] = (search_query or "")[:200]
 					search_results = self.perform_web_search(search_query)
 					if search_results:
+						runtime_audit["web_search"]["results_count"] = self._count_markdown_search_results(search_results)
+						runtime_audit["web_search"]["fallback"] = "resolved"
 						# Prepend search results to the prompt only when useful content exists
-						self.prompt = f"{search_results}\n\n--- User Query ---\n{self.prompt}"
+						runtime_prompt = f"{search_results}\n\n--- User Query ---\n{runtime_prompt}"
+						runtime_audit["augmentations"].append("web_search")
+					else:
+						runtime_audit["web_search"]["fallback"] = "no_results_all_providers"
 			except Exception as e:
 				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
 				# Continue without web search if it fails
     
-		current_prompt_tokens = len(encoding.encode(self.prompt or ""))
+		current_prompt_tokens = len(encoding.encode(runtime_prompt or ""))
 		available_tokens -= current_prompt_tokens
 		
 		# Add previous messages while staying within token limit
@@ -254,7 +269,7 @@ class CFChatMessage(Document):
 			used_tokens += message_tokens
 		
 		# Add current message
-		messages.append({"role": "user", "content": self.prompt})
+		messages.append({"role": "user", "content": runtime_prompt})
 
 		if self._tool_calls_enabled(settings):
 			full_response, reasoning_content, finish_reason, usage_summary, tool_trace = self._run_tool_call_chain(
@@ -294,6 +309,14 @@ class CFChatMessage(Document):
 			})
 
 			self.tokens = base_tokens
+			self.tokens["prompt_augmented"] = bool(runtime_prompt != original_prompt)
+			self.tokens["prompt_original_length"] = len(original_prompt or "")
+			self.tokens["prompt_runtime_length"] = len(runtime_prompt or "")
+			runtime_audit["tools"]["rounds"] = int((usage_summary or {}).get("tool_rounds", 0) or 0) if isinstance(usage_summary, dict) else 0
+			runtime_audit["tools"]["calls"] = len(tool_trace or [])
+			runtime_audit["tools"]["names"] = sorted({(item or {}).get("tool") for item in (tool_trace or []) if (item or {}).get("tool")})
+			runtime_audit["prompt_augmented"] = bool(runtime_prompt != original_prompt)
+			self.runtime_audit = runtime_audit
 			self.db_update()
 			frappe.db.commit()
 			return
@@ -405,7 +428,33 @@ class CFChatMessage(Document):
 			"duration_seconds": total_duration_seconds,
 			"max_tokens": self._get_max_completion_tokens(settings),
 			"tool_calls_enabled": False,
+			"prompt_augmented": bool(runtime_prompt != original_prompt),
+			"prompt_original_length": len(original_prompt or ""),
+			"prompt_runtime_length": len(runtime_prompt or ""),
 		})
+		runtime_audit["prompt_augmented"] = bool(runtime_prompt != original_prompt)
+		self.runtime_audit = runtime_audit
+
+	def _count_markdown_search_results(self, search_results_markdown):
+		if not search_results_markdown:
+			return 0
+		return len(re.findall(r"^\d+\.\s", search_results_markdown, flags=re.MULTILINE))
+
+	def _prepare_prompt_without_mutation(self, prompt_text, portfolio, security):
+		original_prompt = self.prompt
+		try:
+			self.prompt = prompt_text
+			return self.prepare_prompt(portfolio, security)
+		finally:
+			self.prompt = original_prompt
+
+	def _extract_pdf_text_for_prompt(self, prompt_text):
+		original_prompt = self.prompt
+		try:
+			self.prompt = prompt_text
+			return self.extract_pdf_text()
+		finally:
+			self.prompt = original_prompt
 
 	def _run_tool_call_chain(self, client, messages, settings, chat, portfolio, security):
 		tools = self._get_tool_definitions()
@@ -1255,7 +1304,7 @@ class CFChatMessage(Document):
 		
 		return "\n".join(lines)
 
-	def extract_search_query(self):
+	def extract_search_query(self, prompt_text=None):
 		"""Use OpenAI to intelligently extract search query from prompt"""
 		try:
 			from openai import OpenAI
@@ -1275,7 +1324,7 @@ Rules:
 5. Return only the search query, nothing else
 6. If no clear search terms can be identified, return the main topic in 2-3 words
 
-User prompt: "{self.prompt[:500]}"
+User prompt: "{(prompt_text if prompt_text is not None else self.prompt)[:500]}"
 
 Search query:"""
 
@@ -1293,59 +1342,72 @@ Search query:"""
 			
 			# Fallback if extraction failed
 			if not search_query or len(search_query) < 3:
-				return self.prompt[:50].strip()
+				source_prompt = prompt_text if prompt_text is not None else self.prompt
+				return (source_prompt or "")[:50].strip()
 				
 			return search_query
 			
 		except Exception as e:
 			frappe.log_error(f"Search query extraction error: {str(e)}", "Search Query Extraction")
 			# Fallback to simple extraction
-			return self.prompt[:50].strip()
+			source_prompt = prompt_text if prompt_text is not None else self.prompt
+			return (source_prompt or "")[:50].strip()
 
 	def perform_web_search(self, query, num_results=3):
-		"""Perform web search and return compact markdown context for the model prompt."""
+		"""Perform web search and return snippets-only context for the model prompt."""
 		results = self._search_web_results(query, num_results=num_results)
 		if not results:
 			return ""
 
-		formatted = f"--- Web Search Results for '{query}' ---\n\n"
-		for i, result in enumerate(results, 1):
-			title = result.get('title') or 'Untitled'
-			url = result.get('url') or ''
-			snippet = result.get('snippet') or ''
-			formatted += f"{i}. {title}\nURL: {url}\nSummary: {snippet}\n\n"
+		snippets = []
+		for result in results:
+			snippet = (result.get('snippet') or '').strip()
+			if not snippet:
+				continue
+			if len(snippet) > 240:
+				snippet = snippet[:240] + "..."
+			snippets.append(snippet)
 
-		formatted += "--- End of Web Search Results ---\n"
-		return formatted
+		if not snippets:
+			return ""
+
+		lines = ["Web snippets:"]
+		for i, snippet in enumerate(snippets, 1):
+			lines.append(f"{i}. {snippet}")
+
+		return "\n".join(lines)
 
 	def _search_web_results(self, query, num_results=3):
-		"""Return normalized web search results with title/url/snippet."""
+		"""Return normalized web search results with a minimal DDGS-only implementation."""
 		try:
 			from duckduckgo_search import DDGS
-			
+		except ImportError:
+			frappe.log_error("duckduckgo_search package not installed", "Web Search Error")
+			return []
+
+		try:
 			with DDGS() as ddgs:
 				raw_results = list(ddgs.text(query, max_results=num_results))
-
-				normalized = []
-				for result in raw_results or []:
-					title = (result.get('title') or '').strip()
-					url = (result.get('href') or '').strip()
-					snippet = (result.get('body') or '').strip()
-					if not url:
-						continue
-					if len(snippet) > 500:
-						snippet = snippet[:500] + "..."
-					normalized.append({
-						"title": title,
-						"url": url,
-						"snippet": snippet,
-					})
-
-				return normalized
-				
-		except ImportError:
-			frappe.log_error("DuckDuckGo search package not installed", "Web Search Error")
-			return []
 		except Exception as e:
 			frappe.log_error(f"Web search error: {str(e)}", "Web Search Error")
 			return []
+
+		normalized = []
+		for result in raw_results or []:
+			if not isinstance(result, dict):
+				continue
+			title = (result.get('title') or '').strip()
+			url = (result.get('href') or '').strip()
+			snippet = (result.get('body') or '').strip()
+			if not url:
+				continue
+			if len(snippet) > 500:
+				snippet = snippet[:500] + "..."
+			normalized.append({
+				"title": title or "Untitled",
+				"url": url,
+				"snippet": snippet,
+				"source": "ddgs",
+			})
+
+		return normalized
