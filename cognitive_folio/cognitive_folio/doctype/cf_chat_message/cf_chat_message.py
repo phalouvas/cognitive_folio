@@ -1,9 +1,18 @@
 import frappe
 from frappe.model.document import Document
 import re
+import time
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables, expand_financials_variable, expand_edgar_section_variable
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
+
+
+MAX_CONTEXT_TOKENS = 60000
+DEFAULT_COMPLETION_MAX_TOKENS = 4000
+MAX_OPENAI_RETRIES = 3
+RETRY_BACKOFF_BASE_SECONDS = 1.5
+STREAM_FLUSH_INTERVAL_SECONDS = 1.0
+STREAM_FLUSH_MIN_CHAR_DELTA = 120
 
 class CFChatMessage(Document):
 
@@ -140,6 +149,8 @@ class CFChatMessage(Document):
 							   message=f"Original error: {error_message}\nNotification error: {str(notify_e)}")
 
 	def send(self):
+		request_started_at = time.time()
+
 		try:
 			from openai import OpenAI
 			import tiktoken
@@ -183,7 +194,7 @@ class CFChatMessage(Document):
 		
 		# Calculate tokens for system message and reserve space for current prompt
 		system_tokens = len(encoding.encode(messages[0]["content"]))
-		max_context_tokens = 60000  # Leave buffer for response
+		max_context_tokens = MAX_CONTEXT_TOKENS  # Leave buffer for response
 		available_tokens = max_context_tokens - system_tokens
 		
 		# Process current message prompt first to know how much space it needs
@@ -215,44 +226,44 @@ class CFChatMessage(Document):
 				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
 				# Continue without web search if it fails
     
-		current_prompt_tokens = len(encoding.encode(self.prompt))
+		current_prompt_tokens = len(encoding.encode(self.prompt or ""))
 		available_tokens -= current_prompt_tokens
 		
 		# Add previous messages while staying within token limit
 		used_tokens = 0
 		for message in chat_messages:  # Already ordered in most recent first order
-			user_tokens = len(encoding.encode(message.prompt))
-			assistant_tokens = len(encoding.encode(message.response))
+			user_tokens = len(encoding.encode(message.prompt or ""))
+			assistant_tokens = len(encoding.encode(message.response or ""))
 			message_tokens = user_tokens + assistant_tokens
 			
 			if used_tokens + message_tokens > available_tokens:
 				break  # Stop adding messages if we exceed token limit
 				
 			# Insert at position 1 to maintain chronological order (after system message)
-			messages.insert(1, {"role": "user", "content": message.prompt})
-			messages.insert(2, {"role": "assistant", "content": message.response})
+			messages.insert(1, {"role": "user", "content": message.prompt or ""})
+			messages.insert(2, {"role": "assistant", "content": message.response or ""})
 			used_tokens += message_tokens
 		
 		# Add current message
 		messages.append({"role": "user", "content": self.prompt})
 	
-		# Enable streaming
-		response = client.chat.completions.create(
-			model=self.model,
-			messages=messages,
-			stream=True,  # Enable streaming
-			temperature=1.0
-		)
+		response = self._create_streaming_completion_with_retry(client, messages)
 	
 		# Initialize response variables
 		full_response = ""
 		reasoning_content = ""
+		finish_reason = None
+		last_saved_response_length = 0
+		last_saved_reasoning_length = 0
+		last_flush_at = time.time()
 		
 		# Process streaming chunks
 		for chunk in response:
 			if chunk.choices and len(chunk.choices) > 0:
 				choice = chunk.choices[0]
 				content_updated = False
+				if getattr(choice, "finish_reason", None):
+					finish_reason = choice.finish_reason
 				
 				# Handle reasoning content if available
 				if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
@@ -266,26 +277,40 @@ class CFChatMessage(Document):
 				
 				# Send update if either content or reasoning was updated
 				if content_updated:
-					# Update the document with the current partial response
-					self.response = full_response
-					self.response_html = safe_markdown_to_html(full_response)
-					self.reasoning = reasoning_content
-					
-					# Save the partial response to database
-					self.db_update()
-					frappe.db.commit()
-					
-					# Notify frontend to reload the frame
-					self._publish_chat_realtime(
-						event_name='cf_streaming_update',
-						payload={
-							'message_id': self.name,
-							'chat_id': self.chat,
-							'message': full_response,
-							'reasoning': reasoning_content,
-							'status': 'streaming'
-						}
+					now_ts = time.time()
+					response_delta = len(full_response) - last_saved_response_length
+					reasoning_delta = len(reasoning_content) - last_saved_reasoning_length
+					should_flush = (
+						response_delta >= STREAM_FLUSH_MIN_CHAR_DELTA
+						or reasoning_delta >= STREAM_FLUSH_MIN_CHAR_DELTA
+						or (now_ts - last_flush_at) >= STREAM_FLUSH_INTERVAL_SECONDS
 					)
+
+					if should_flush:
+						# Update the document with the current partial response
+						self.response = full_response
+						self.response_html = safe_markdown_to_html(full_response)
+						self.reasoning = reasoning_content
+
+						# Save the partial response to database
+						self.db_update()
+						frappe.db.commit()
+
+						last_saved_response_length = len(full_response)
+						last_saved_reasoning_length = len(reasoning_content)
+						last_flush_at = now_ts
+
+						# Notify frontend to reload the frame
+						self._publish_chat_realtime(
+							event_name='cf_streaming_update',
+							payload={
+								'message_id': self.name,
+								'chat_id': self.chat,
+								'message': full_response,
+								'reasoning': reasoning_content,
+								'status': 'streaming'
+							}
+						)
 					
 		# Final update with complete response
 		self.response = full_response
@@ -294,6 +319,7 @@ class CFChatMessage(Document):
 		
 		# Note: tokens might not be available in streaming mode
 		# You might need to calculate them manually or handle differently
+		total_duration_seconds = round(time.time() - request_started_at, 3)
 		try:
 			# Some streaming responses might still have usage info
 			if hasattr(response, 'usage'):
@@ -309,6 +335,78 @@ class CFChatMessage(Document):
 				"completion_tokens": response_tokens,
 				"total_tokens": total_tokens
 			}
+
+		if not isinstance(self.tokens, dict):
+			if isinstance(self.tokens, str):
+				try:
+					import json
+					self.tokens = json.loads(self.tokens)
+				except Exception:
+					self.tokens = {"raw_usage": self.tokens}
+			else:
+				self.tokens = {}
+
+		self.tokens.update({
+			"model": self.model,
+			"finish_reason": finish_reason,
+			"duration_seconds": total_duration_seconds,
+			"max_tokens": self._get_max_completion_tokens(),
+		})
+
+	def _build_chat_completion_params(self, messages):
+		params = {
+			"model": self.model,
+			"messages": messages,
+			"stream": True,
+			"max_tokens": self._get_max_completion_tokens(),
+		}
+
+		if not self._is_reasoner_model(self.model):
+			params["temperature"] = 1.0
+
+		return params
+
+	def _create_streaming_completion_with_retry(self, client, messages):
+		params = self._build_chat_completion_params(messages)
+
+		for attempt in range(1, MAX_OPENAI_RETRIES + 1):
+			try:
+				return client.chat.completions.create(**params)
+			except Exception as exc:
+				if attempt >= MAX_OPENAI_RETRIES or not self._is_retryable_error(exc):
+					raise
+
+				sleep_seconds = RETRY_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
+				frappe.logger("cognitive_folio").warning(
+					"Transient chat API error for %s (attempt %s/%s): %s",
+					self.name,
+					attempt,
+					MAX_OPENAI_RETRIES,
+					str(exc),
+				)
+				time.sleep(sleep_seconds)
+
+		raise RuntimeError("Failed to create streaming chat completion")
+
+	def _is_reasoner_model(self, model_name):
+		return (model_name or "").startswith("deepseek-reasoner")
+
+	def _get_max_completion_tokens(self):
+		return DEFAULT_COMPLETION_MAX_TOKENS
+
+	def _is_retryable_error(self, exc):
+		status_code = getattr(exc, "status_code", None)
+		if status_code in {408, 409, 429}:
+			return True
+		if isinstance(status_code, int) and status_code >= 500:
+			return True
+
+		exception_name = exc.__class__.__name__.lower()
+		if any(keyword in exception_name for keyword in ("timeout", "ratelimit", "connection", "apierror", "apitimeouterror")):
+			return True
+
+		error_text = str(exc).lower()
+		return any(keyword in error_text for keyword in ("timed out", "timeout", "rate limit", "temporarily unavailable", "connection reset"))
 
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
