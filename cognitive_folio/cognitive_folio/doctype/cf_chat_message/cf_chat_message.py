@@ -197,7 +197,7 @@ class CFChatMessage(Document):
 		
 		# Calculate tokens for system message and reserve space for current prompt
 		system_tokens = len(encoding.encode(messages[0]["content"]))
-		max_context_tokens = MAX_CONTEXT_TOKENS  # Leave buffer for response
+		max_context_tokens = self._get_max_context_tokens(settings)  # Leave buffer for response
 		available_tokens = max_context_tokens - system_tokens
 		
 		# Process current message prompt first to know how much space it needs
@@ -250,7 +250,7 @@ class CFChatMessage(Document):
 		# Add current message
 		messages.append({"role": "user", "content": self.prompt})
 	
-		response = self._create_streaming_completion_with_retry(client, messages)
+		response = self._create_streaming_completion_with_retry(client, messages, settings)
 	
 		# Initialize response variables
 		full_response = ""
@@ -259,6 +259,8 @@ class CFChatMessage(Document):
 		last_saved_response_length = 0
 		last_saved_reasoning_length = 0
 		last_flush_at = time.time()
+		stream_flush_interval_seconds = self._get_stream_flush_interval_seconds(settings)
+		stream_flush_min_char_delta = self._get_stream_flush_min_char_delta(settings)
 		
 		# Process streaming chunks
 		for chunk in response:
@@ -284,9 +286,9 @@ class CFChatMessage(Document):
 					response_delta = len(full_response) - last_saved_response_length
 					reasoning_delta = len(reasoning_content) - last_saved_reasoning_length
 					should_flush = (
-						response_delta >= STREAM_FLUSH_MIN_CHAR_DELTA
-						or reasoning_delta >= STREAM_FLUSH_MIN_CHAR_DELTA
-						or (now_ts - last_flush_at) >= STREAM_FLUSH_INTERVAL_SECONDS
+						response_delta >= stream_flush_min_char_delta
+						or reasoning_delta >= stream_flush_min_char_delta
+						or (now_ts - last_flush_at) >= stream_flush_interval_seconds
 					)
 
 					if should_flush:
@@ -353,15 +355,15 @@ class CFChatMessage(Document):
 			"model": self.model,
 			"finish_reason": finish_reason,
 			"duration_seconds": total_duration_seconds,
-			"max_tokens": self._get_max_completion_tokens(),
+			"max_tokens": self._get_max_completion_tokens(settings),
 		})
 
-	def _build_chat_completion_params(self, messages):
+	def _build_chat_completion_params(self, messages, settings):
 		params = {
 			"model": self.model,
 			"messages": messages,
 			"stream": True,
-			"max_tokens": self._get_max_completion_tokens(),
+			"max_tokens": self._get_max_completion_tokens(settings),
 		}
 
 		if not self._is_reasoner_model(self.model):
@@ -369,22 +371,24 @@ class CFChatMessage(Document):
 
 		return params
 
-	def _create_streaming_completion_with_retry(self, client, messages):
-		params = self._build_chat_completion_params(messages)
+	def _create_streaming_completion_with_retry(self, client, messages, settings):
+		params = self._build_chat_completion_params(messages, settings)
+		max_retries = self._get_max_api_retries(settings)
+		retry_backoff_base_seconds = self._get_retry_backoff_base_seconds(settings)
 
-		for attempt in range(1, MAX_OPENAI_RETRIES + 1):
+		for attempt in range(1, max_retries + 1):
 			try:
 				return client.chat.completions.create(**params)
 			except Exception as exc:
-				if attempt >= MAX_OPENAI_RETRIES or not self._is_retryable_error(exc):
+				if attempt >= max_retries or not self._is_retryable_error(exc):
 					raise
 
-				sleep_seconds = RETRY_BACKOFF_BASE_SECONDS * (2 ** (attempt - 1))
+				sleep_seconds = retry_backoff_base_seconds * (2 ** (attempt - 1))
 				frappe.logger("cognitive_folio").warning(
 					"Transient chat API error for %s (attempt %s/%s): %s",
 					self.name,
 					attempt,
-					MAX_OPENAI_RETRIES,
+					max_retries,
 					str(exc),
 				)
 				time.sleep(sleep_seconds)
@@ -394,11 +398,48 @@ class CFChatMessage(Document):
 	def _is_reasoner_model(self, model_name):
 		return (model_name or "").startswith("deepseek-reasoner")
 
-	def _get_max_completion_tokens(self):
+	def _get_max_completion_tokens(self, settings):
 		if self._is_reasoner_model(self.model):
-			return max(1, min(DEFAULT_REASONER_MAX_TOKENS, MAX_REASONER_MAX_TOKENS))
+			default_tokens = self._read_int_setting(settings, "reasoner_default_max_tokens", DEFAULT_REASONER_MAX_TOKENS)
+			max_cap = self._read_int_setting(settings, "reasoner_max_tokens_cap", MAX_REASONER_MAX_TOKENS)
+			return max(1, min(default_tokens, max_cap))
 
-		return max(1, min(DEFAULT_CHAT_MAX_TOKENS, MAX_CHAT_MAX_TOKENS))
+		default_tokens = self._read_int_setting(settings, "chat_default_max_tokens", DEFAULT_CHAT_MAX_TOKENS)
+		max_cap = self._read_int_setting(settings, "chat_max_tokens_cap", MAX_CHAT_MAX_TOKENS)
+		return max(1, min(default_tokens, max_cap))
+
+	def _get_max_context_tokens(self, settings):
+		return max(1, self._read_int_setting(settings, "max_context_tokens", MAX_CONTEXT_TOKENS))
+
+	def _get_max_api_retries(self, settings):
+		return max(1, self._read_int_setting(settings, "max_api_retries", MAX_OPENAI_RETRIES))
+
+	def _get_retry_backoff_base_seconds(self, settings):
+		return max(0.1, self._read_float_setting(settings, "retry_backoff_base_seconds", RETRY_BACKOFF_BASE_SECONDS))
+
+	def _get_stream_flush_interval_seconds(self, settings):
+		return max(0.1, self._read_float_setting(settings, "stream_flush_interval_seconds", STREAM_FLUSH_INTERVAL_SECONDS))
+
+	def _get_stream_flush_min_char_delta(self, settings):
+		return max(1, self._read_int_setting(settings, "stream_flush_min_char_delta", STREAM_FLUSH_MIN_CHAR_DELTA))
+
+	def _read_int_setting(self, settings, fieldname, default_value):
+		try:
+			value = int(settings.get(fieldname))
+			if value <= 0:
+				return default_value
+			return value
+		except (TypeError, ValueError):
+			return default_value
+
+	def _read_float_setting(self, settings, fieldname, default_value):
+		try:
+			value = float(settings.get(fieldname))
+			if value <= 0:
+				return default_value
+			return value
+		except (TypeError, ValueError):
+			return default_value
 
 	def _is_retryable_error(self, exc):
 		status_code = getattr(exc, "status_code", None)

@@ -8,6 +8,19 @@
   "open_ai_url",
   "open_ai_api_key",
   "system_content",
+  "section_break_ai_runtime",
+  "max_context_tokens",
+  "chat_default_max_tokens",
+  "reasoner_default_max_tokens",
+  "column_break_gqks",
+  "chat_max_tokens_cap",
+  "reasoner_max_tokens_cap",
+  "section_break_reliability",
+  "max_api_retries",
+  "retry_backoff_base_seconds",
+  "column_break_rpda",
+  "stream_flush_interval_seconds",
+  "stream_flush_min_char_delta",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -23,6 +36,83 @@
    "fieldname": "open_ai_api_key",
    "fieldtype": "Password",
    "label": "Open AI API key"
+  },
+  {
+   "fieldname": "section_break_ai_runtime",
+   "fieldtype": "Section Break",
+   "label": "AI Runtime"
+  },
+  {
+   "default": "120000",
+   "description": "Context token budget for reconstructed conversation history (DeepSeek context is 128K).",
+   "fieldname": "max_context_tokens",
+   "fieldtype": "Int",
+   "label": "Max Context Tokens"
+  },
+  {
+   "default": "4000",
+   "description": "Default completion tokens for deepseek-chat.",
+   "fieldname": "chat_default_max_tokens",
+   "fieldtype": "Int",
+   "label": "Chat Default Max Tokens"
+  },
+  {
+   "default": "32000",
+   "description": "Default completion tokens for deepseek-reasoner.",
+   "fieldname": "reasoner_default_max_tokens",
+   "fieldtype": "Int",
+   "label": "Reasoner Default Max Tokens"
+  },
+  {
+   "fieldname": "column_break_gqks",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8000",
+   "description": "Maximum allowed completion tokens for deepseek-chat.",
+   "fieldname": "chat_max_tokens_cap",
+   "fieldtype": "Int",
+   "label": "Chat Max Tokens Cap"
+  },
+  {
+   "default": "64000",
+   "description": "Maximum allowed completion tokens for deepseek-reasoner.",
+   "fieldname": "reasoner_max_tokens_cap",
+   "fieldtype": "Int",
+   "label": "Reasoner Max Tokens Cap"
+  },
+  {
+   "fieldname": "section_break_reliability",
+   "fieldtype": "Section Break",
+   "label": "Reliability & Streaming"
+  },
+  {
+   "default": "3",
+   "description": "Number of retry attempts for transient API errors (timeouts, rate limits, 5xx).",
+   "fieldname": "max_api_retries",
+   "fieldtype": "Int",
+   "label": "Max API Retries"
+  },
+  {
+   "default": "1.5",
+   "description": "Base delay in seconds for exponential retry backoff.",
+   "fieldname": "retry_backoff_base_seconds",
+   "fieldtype": "Float",
+   "label": "Retry Backoff Base Seconds"
+  },
+  {
+   "default": "1.0",
+   "description": "Maximum seconds between partial streaming saves/updates.",
+   "fieldname": "stream_flush_interval_seconds",
+   "fieldtype": "Float",
+   "label": "Stream Flush Interval Seconds"
+  },
+  {
+   "default": "120",
+   "description": "Minimum newly generated characters before forcing a partial stream save/update.",
+   "fieldname": "stream_flush_min_char_delta",
+   "fieldtype": "Int",
+   "label": "Stream Flush Min Char Delta"
   },
   {
    "fieldname": "section_break_models",
@@ -46,13 +136,17 @@
    "fieldname": "system_content",
    "fieldtype": "Markdown Editor",
    "label": "System Content"
+  },
+  {
+   "fieldname": "column_break_rpda",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-12-18 06:41:21.959027",
+ "modified": "2026-03-04 09:35:38.156034",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",
