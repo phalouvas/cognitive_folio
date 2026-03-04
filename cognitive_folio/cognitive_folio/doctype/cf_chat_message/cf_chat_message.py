@@ -7,8 +7,11 @@ from cognitive_folio.utils.helper import replace_variables, expand_financials_va
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
 
 
-MAX_CONTEXT_TOKENS = 60000
-DEFAULT_COMPLETION_MAX_TOKENS = 4000
+MAX_CONTEXT_TOKENS = 120000
+DEFAULT_CHAT_MAX_TOKENS = 4000
+DEFAULT_REASONER_MAX_TOKENS = 32000
+MAX_CHAT_MAX_TOKENS = 8000
+MAX_REASONER_MAX_TOKENS = 64000
 MAX_OPENAI_RETRIES = 3
 RETRY_BACKOFF_BASE_SECONDS = 1.5
 STREAM_FLUSH_INTERVAL_SECONDS = 1.0
@@ -392,7 +395,10 @@ class CFChatMessage(Document):
 		return (model_name or "").startswith("deepseek-reasoner")
 
 	def _get_max_completion_tokens(self):
-		return DEFAULT_COMPLETION_MAX_TOKENS
+		if self._is_reasoner_model(self.model):
+			return max(1, min(DEFAULT_REASONER_MAX_TOKENS, MAX_REASONER_MAX_TOKENS))
+
+		return max(1, min(DEFAULT_CHAT_MAX_TOKENS, MAX_CHAT_MAX_TOKENS))
 
 	def _is_retryable_error(self, exc):
 		status_code = getattr(exc, "status_code", None)
