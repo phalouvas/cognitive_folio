@@ -21,6 +21,12 @@
   "column_break_rpda",
   "stream_flush_interval_seconds",
   "stream_flush_min_char_delta",
+    "section_break_tool_calls",
+    "tool_calls_enabled",
+    "max_tool_rounds",
+    "max_tool_calls_per_round",
+    "column_break_tools",
+    "tool_result_max_chars",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -114,6 +120,43 @@
    "fieldtype": "Int",
    "label": "Stream Flush Min Char Delta"
   },
+    {
+     "fieldname": "section_break_tool_calls",
+     "fieldtype": "Section Break",
+     "label": "Tool Calls"
+    },
+    {
+     "default": "1",
+     "description": "Enable model-driven function calling and multi-call chains.",
+     "fieldname": "tool_calls_enabled",
+     "fieldtype": "Check",
+     "label": "Enable Tool Calls"
+    },
+    {
+     "default": "8",
+     "description": "Maximum number of model-tool rounds per assistant response.",
+     "fieldname": "max_tool_rounds",
+     "fieldtype": "Int",
+     "label": "Max Tool Rounds"
+    },
+    {
+     "default": "8",
+     "description": "Maximum tool calls allowed in a single round.",
+     "fieldname": "max_tool_calls_per_round",
+     "fieldtype": "Int",
+     "label": "Max Tool Calls Per Round"
+    },
+    {
+     "fieldname": "column_break_tools",
+     "fieldtype": "Column Break"
+    },
+    {
+     "default": "8000",
+     "description": "Maximum characters stored per tool result payload.",
+     "fieldname": "tool_result_max_chars",
+     "fieldtype": "Int",
+     "label": "Tool Result Max Chars"
+    },
   {
    "fieldname": "section_break_models",
    "fieldtype": "Section Break",

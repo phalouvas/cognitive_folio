@@ -2,6 +2,7 @@ import frappe
 from frappe.model.document import Document
 import re
 import time
+import json
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables, expand_financials_variable, expand_edgar_section_variable
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
@@ -16,6 +17,10 @@ MAX_OPENAI_RETRIES = 3
 RETRY_BACKOFF_BASE_SECONDS = 1.5
 STREAM_FLUSH_INTERVAL_SECONDS = 1.0
 STREAM_FLUSH_MIN_CHAR_DELTA = 120
+TOOL_CALLS_ENABLED_DEFAULT = 1
+DEFAULT_MAX_TOOL_ROUNDS = 8
+DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 8
+DEFAULT_TOOL_RESULT_MAX_CHARS = 8000
 
 class CFChatMessage(Document):
 
@@ -223,8 +228,9 @@ class CFChatMessage(Document):
 				search_query = self.extract_search_query()
 				if search_query:
 					search_results = self.perform_web_search(search_query)
-					# Prepend search results to the prompt
-					self.prompt = f"{search_results}\n\n--- User Query ---\n{self.prompt}"
+					if search_results:
+						# Prepend search results to the prompt only when useful content exists
+						self.prompt = f"{search_results}\n\n--- User Query ---\n{self.prompt}"
 			except Exception as e:
 				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
 				# Continue without web search if it fails
@@ -249,6 +255,48 @@ class CFChatMessage(Document):
 		
 		# Add current message
 		messages.append({"role": "user", "content": self.prompt})
+
+		if self._tool_calls_enabled(settings):
+			full_response, reasoning_content, finish_reason, usage_summary, tool_trace = self._run_tool_call_chain(
+				client=client,
+				messages=messages,
+				settings=settings,
+				chat=chat,
+				portfolio=portfolio,
+				security=security,
+			)
+
+			self.response = full_response
+			self.response_html = safe_markdown_to_html(full_response)
+			self.reasoning = reasoning_content
+
+			total_duration_seconds = round(time.time() - request_started_at, 3)
+			response_tokens = len(encoding.encode(full_response or ""))
+			prompt_tokens = current_prompt_tokens + system_tokens + used_tokens
+			total_tokens = prompt_tokens + response_tokens
+
+			base_tokens = {
+				"prompt_tokens": prompt_tokens,
+				"completion_tokens": response_tokens,
+				"total_tokens": total_tokens,
+			}
+			if isinstance(usage_summary, dict):
+				base_tokens.update(usage_summary)
+
+			base_tokens.update({
+				"model": self.model,
+				"finish_reason": finish_reason,
+				"duration_seconds": total_duration_seconds,
+				"max_tokens": self._get_max_completion_tokens(settings),
+				"tool_calls_enabled": True,
+				"tool_calls_count": len(tool_trace),
+				"tool_calls_trace": tool_trace,
+			})
+
+			self.tokens = base_tokens
+			self.db_update()
+			frappe.db.commit()
+			return
 	
 		response = self._create_streaming_completion_with_retry(client, messages, settings)
 	
@@ -356,7 +404,458 @@ class CFChatMessage(Document):
 			"finish_reason": finish_reason,
 			"duration_seconds": total_duration_seconds,
 			"max_tokens": self._get_max_completion_tokens(settings),
+			"tool_calls_enabled": False,
 		})
+
+	def _run_tool_call_chain(self, client, messages, settings, chat, portfolio, security):
+		tools = self._get_tool_definitions()
+		max_rounds = self._get_max_tool_rounds(settings)
+		max_tool_calls_per_round = self._get_max_tool_calls_per_round(settings)
+		tool_result_max_chars = self._get_tool_result_max_chars(settings)
+
+		all_reasoning_parts = []
+		tool_trace = []
+		last_finish_reason = None
+		aggregate_usage = {
+			"tool_rounds": 0,
+			"prompt_tokens": 0,
+			"completion_tokens": 0,
+			"total_tokens": 0,
+		}
+
+		for round_index in range(1, max_rounds + 1):
+			response = self._create_non_stream_completion_with_retry(
+				client=client,
+				messages=messages,
+				settings=settings,
+				tools=tools,
+			)
+			aggregate_usage["tool_rounds"] = round_index
+			self._accumulate_usage(aggregate_usage, getattr(response, "usage", None))
+
+			if not response.choices:
+				raise RuntimeError("Tool-chain completion returned no choices")
+
+			choice = response.choices[0]
+			message = choice.message
+			assistant_content = getattr(message, "content", None) or ""
+			reasoning_content = getattr(message, "reasoning_content", None) or ""
+			if reasoning_content:
+				all_reasoning_parts.append(reasoning_content)
+
+			tool_calls = list(getattr(message, "tool_calls", None) or [])
+			last_finish_reason = getattr(choice, "finish_reason", None)
+
+			if not tool_calls:
+				messages.append(self._build_assistant_message_dict(assistant_content, reasoning_content, []))
+				return assistant_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+			assistant_tool_calls = []
+			for tc in tool_calls[:max_tool_calls_per_round]:
+				call_id = getattr(tc, "id", None)
+				function_obj = getattr(tc, "function", None)
+				function_name = getattr(function_obj, "name", "") if function_obj else ""
+				arguments_raw = getattr(function_obj, "arguments", "{}") if function_obj else "{}"
+				assistant_tool_calls.append({
+					"id": call_id,
+					"type": "function",
+					"function": {
+						"name": function_name,
+						"arguments": arguments_raw,
+					},
+				})
+
+			messages.append(self._build_assistant_message_dict(assistant_content, reasoning_content, assistant_tool_calls))
+
+			for tc in tool_calls[:max_tool_calls_per_round]:
+				call_started = time.time()
+				call_id = getattr(tc, "id", None)
+				function_obj = getattr(tc, "function", None)
+				function_name = getattr(function_obj, "name", "") if function_obj else ""
+				arguments_raw = getattr(function_obj, "arguments", "{}") if function_obj else "{}"
+
+				tool_result = self._execute_tool_call(
+					function_name=function_name,
+					arguments_raw=arguments_raw,
+					chat=chat,
+					portfolio=portfolio,
+					security=security,
+				)
+
+				result_content = json.dumps(tool_result, ensure_ascii=False, default=str)
+				if len(result_content) > tool_result_max_chars:
+					result_content = result_content[:tool_result_max_chars] + "..."
+
+				messages.append({
+					"role": "tool",
+					"tool_call_id": call_id,
+					"name": function_name,
+					"content": result_content,
+				})
+
+				tool_trace.append({
+					"round": round_index,
+					"tool": function_name,
+					"call_id": call_id,
+					"ok": bool(tool_result.get("ok", False)),
+					"duration_ms": round((time.time() - call_started) * 1000, 2),
+					"args": tool_result.get("args", {}),
+					"error": tool_result.get("error"),
+				})
+
+				self._publish_chat_realtime(
+					event_name='cf_streaming_update',
+					payload={
+						'message_id': self.name,
+						'chat_id': self.chat,
+						'message': f"[Tool] {function_name} executed",
+						'reasoning': "\n\n".join(all_reasoning_parts),
+						'status': 'streaming'
+					}
+				)
+
+		raise RuntimeError(f"Tool-call chain exceeded max rounds ({max_rounds})")
+
+	def _build_assistant_message_dict(self, content, reasoning_content, tool_calls):
+		message = {
+			"role": "assistant",
+			"content": content or "",
+		}
+		if reasoning_content:
+			message["reasoning_content"] = reasoning_content
+		if tool_calls:
+			message["tool_calls"] = tool_calls
+		return message
+
+	def _create_non_stream_completion_with_retry(self, client, messages, settings, tools):
+		params = {
+			"model": self.model,
+			"messages": messages,
+			"stream": False,
+			"max_tokens": self._get_max_completion_tokens(settings),
+			"tools": tools,
+		}
+		if not self._is_reasoner_model(self.model):
+			params["temperature"] = 1.0
+
+		max_retries = self._get_max_api_retries(settings)
+		retry_backoff_base_seconds = self._get_retry_backoff_base_seconds(settings)
+		for attempt in range(1, max_retries + 1):
+			try:
+				return client.chat.completions.create(**params)
+			except Exception as exc:
+				if attempt >= max_retries or not self._is_retryable_error(exc):
+					raise
+				time.sleep(retry_backoff_base_seconds * (2 ** (attempt - 1)))
+
+		raise RuntimeError("Failed to create non-stream chat completion")
+
+	def _accumulate_usage(self, aggregate_usage, usage_obj):
+		if not usage_obj:
+			return
+		for key in ("prompt_tokens", "completion_tokens", "total_tokens"):
+			try:
+				aggregate_usage[key] += int(getattr(usage_obj, key, 0) or 0)
+			except Exception:
+				continue
+
+	def _tool_calls_enabled(self, settings):
+		raw = settings.get("tool_calls_enabled")
+		if raw is None:
+			return bool(TOOL_CALLS_ENABLED_DEFAULT)
+		return bool(int(raw))
+
+	def _get_max_tool_rounds(self, settings):
+		return max(1, self._read_int_setting(settings, "max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS))
+
+	def _get_max_tool_calls_per_round(self, settings):
+		return max(1, self._read_int_setting(settings, "max_tool_calls_per_round", DEFAULT_MAX_TOOL_CALLS_PER_ROUND))
+
+	def _get_tool_result_max_chars(self, settings):
+		return max(500, self._read_int_setting(settings, "tool_result_max_chars", DEFAULT_TOOL_RESULT_MAX_CHARS))
+
+	def _get_tool_definitions(self):
+		return [
+			{
+				"type": "function",
+				"function": {
+					"name": "get_security_snapshot",
+					"description": "Get market and recommendation snapshot for one security.",
+					"parameters": {
+						"type": "object",
+						"properties": {
+							"identifier": {"type": "string", "description": "Security symbol, name, or ISIN"},
+							"include_news": {"type": "boolean", "description": "Include latest parsed news items"},
+							"news_limit": {"type": "integer", "description": "Max news items to include"},
+						},
+						"required": ["identifier"],
+					},
+				},
+			},
+			{
+				"type": "function",
+				"function": {
+					"name": "get_portfolio_holdings",
+					"description": "Get holdings summary for a portfolio.",
+					"parameters": {
+						"type": "object",
+						"properties": {
+							"portfolio": {"type": "string", "description": "Portfolio name"},
+							"limit": {"type": "integer", "description": "Max holdings to return"},
+						},
+						"required": ["portfolio"],
+					},
+				},
+			},
+			{
+				"type": "function",
+				"function": {
+					"name": "get_latest_security_news",
+					"description": "Get latest news items for a security.",
+					"parameters": {
+						"type": "object",
+						"properties": {
+							"identifier": {"type": "string", "description": "Security symbol, name, or ISIN"},
+							"limit": {"type": "integer", "description": "Max number of items"},
+						},
+						"required": ["identifier"],
+					},
+				},
+			},
+			{
+				"type": "function",
+				"function": {
+					"name": "web_search",
+					"description": "Search the web and return top textual snippets.",
+					"parameters": {
+						"type": "object",
+						"properties": {
+							"query": {"type": "string", "description": "Search query"},
+							"max_results": {"type": "integer", "description": "Max results to return"},
+						},
+						"required": ["query"],
+					},
+				},
+			},
+			{
+				"type": "function",
+				"function": {
+					"name": "fetch_url_content",
+					"description": "Fetch and extract textual content from a URL.",
+					"parameters": {
+						"type": "object",
+						"properties": {
+							"url": {"type": "string", "description": "HTTP or HTTPS URL"},
+							"max_chars": {"type": "integer", "description": "Maximum characters in returned content"},
+						},
+						"required": ["url"],
+					},
+				},
+			},
+		]
+
+	def _execute_tool_call(self, function_name, arguments_raw, chat, portfolio, security):
+		args = self._safe_json_loads(arguments_raw, default={})
+		if not isinstance(args, dict):
+			args = {}
+
+		handlers = {
+			"get_security_snapshot": lambda: self._tool_get_security_snapshot(args, security),
+			"get_portfolio_holdings": lambda: self._tool_get_portfolio_holdings(args, portfolio),
+			"get_latest_security_news": lambda: self._tool_get_latest_security_news(args, security),
+			"web_search": lambda: self._tool_web_search(args),
+			"fetch_url_content": lambda: self._tool_fetch_url_content(args),
+		}
+
+		if function_name not in handlers:
+			return {"ok": False, "args": args, "error": f"Unknown tool: {function_name}"}
+
+		try:
+			result = handlers[function_name]()
+			return {"ok": True, "args": args, "result": result}
+		except Exception as exc:
+			frappe.log_error(title=f"Tool call failed: {function_name}", message=str(exc))
+			return {"ok": False, "args": args, "error": str(exc)}
+
+	def _tool_get_security_snapshot(self, args, default_security):
+		security_doc = self._resolve_security_doc(args.get("identifier"), default_security)
+		news_limit = max(1, min(int(args.get("news_limit", 3) or 3), 10))
+		include_news = bool(args.get("include_news", False))
+
+		payload = {
+			"security": security_doc.name,
+			"security_name": security_doc.security_name,
+			"symbol": security_doc.symbol,
+			"security_type": security_doc.security_type,
+			"currency": security_doc.currency,
+			"current_price": security_doc.current_price,
+			"suggestion_action": security_doc.suggestion_action,
+			"suggestion_rating": security_doc.suggestion_rating,
+			"suggestion_buy_price": security_doc.suggestion_buy_price,
+			"suggestion_sell_price": security_doc.suggestion_sell_price,
+			"suggestion_fair_value": security_doc.suggestion_fair_value,
+		}
+
+		if include_news:
+			payload["news"] = self._extract_security_news_items(security_doc, news_limit)
+
+		return payload
+
+	def _tool_get_latest_security_news(self, args, default_security):
+		security_doc = self._resolve_security_doc(args.get("identifier"), default_security)
+		limit = max(1, min(int(args.get("limit", 5) or 5), 20))
+		return {
+			"security": security_doc.name,
+			"symbol": security_doc.symbol,
+			"items": self._extract_security_news_items(security_doc, limit),
+		}
+
+	def _tool_get_portfolio_holdings(self, args, default_portfolio):
+		portfolio_doc = self._resolve_portfolio_doc(args.get("portfolio"), default_portfolio)
+		limit = max(1, min(int(args.get("limit", 20) or 20), 100))
+
+		holdings = frappe.get_all(
+			"CF Portfolio Holding",
+			filters={"portfolio": portfolio_doc.name},
+			fields=[
+				"security",
+				"security_name",
+				"quantity",
+				"current_value",
+				"allocation_percentage",
+				"profit_loss",
+				"profit_loss_percentage",
+				"current_price",
+				"average_purchase_price",
+				"suggestion_action",
+			],
+			order_by="allocation_percentage desc",
+			limit_page_length=limit,
+		)
+
+		return {
+			"portfolio": portfolio_doc.name,
+			"portfolio_name": portfolio_doc.portfolio_name,
+			"currency": portfolio_doc.currency,
+			"current_value": portfolio_doc.current_value,
+			"cost": portfolio_doc.cost,
+			"risk_profile": portfolio_doc.risk_profile,
+			"holdings": holdings,
+		}
+
+	def _tool_fetch_url_content(self, args):
+		url = (args.get("url") or "").strip()
+		if not (url.startswith("http://") or url.startswith("https://")):
+			raise ValueError("url must start with http:// or https://")
+
+		max_chars = max(200, min(int(args.get("max_chars", DEFAULT_TOOL_RESULT_MAX_CHARS) or DEFAULT_TOOL_RESULT_MAX_CHARS), 20000))
+		extracted = fetch_and_embed_url_content(url, self)
+		if extracted and len(extracted) > max_chars:
+			extracted = extracted[:max_chars] + "..."
+
+		return {
+			"url": url,
+			"content": extracted,
+		}
+
+	def _tool_web_search(self, args):
+		query = (args.get("query") or "").strip()
+		if not query:
+			raise ValueError("query is required")
+
+		max_results = max(1, min(int(args.get("max_results", 5) or 5), 10))
+		results = self._search_web_results(query, num_results=max_results)
+		return {
+			"query": query,
+			"count": len(results),
+			"results": results,
+		}
+
+	def _resolve_security_doc(self, identifier, default_security):
+		if default_security and (not identifier or str(identifier).strip() == ""):
+			return default_security
+
+		identifier = (identifier or "").strip()
+		if not identifier:
+			raise ValueError("Security identifier is required")
+
+		exact_name = frappe.db.exists("CF Security", identifier)
+		if exact_name:
+			return frappe.get_doc("CF Security", exact_name)
+
+		matches = frappe.get_all(
+			"CF Security",
+			filters={"isin": identifier},
+			fields=["name"],
+			limit_page_length=1,
+		)
+		if matches:
+			return frappe.get_doc("CF Security", matches[0].name)
+
+		matches = frappe.get_all(
+			"CF Security",
+			filters={"security_name": identifier},
+			fields=["name"],
+			limit_page_length=1,
+		)
+		if matches:
+			return frappe.get_doc("CF Security", matches[0].name)
+
+		raise ValueError(f"Security not found: {identifier}")
+
+	def _resolve_portfolio_doc(self, portfolio_name, default_portfolio):
+		if default_portfolio and (not portfolio_name or str(portfolio_name).strip() == ""):
+			return default_portfolio
+
+		portfolio_name = (portfolio_name or "").strip()
+		if not portfolio_name:
+			raise ValueError("Portfolio is required")
+
+		exact = frappe.db.exists("CF Portfolio", portfolio_name)
+		if exact:
+			return frappe.get_doc("CF Portfolio", exact)
+
+		matches = frappe.get_all(
+			"CF Portfolio",
+			filters={"portfolio_name": portfolio_name},
+			fields=["name"],
+			limit_page_length=1,
+		)
+		if matches:
+			return frappe.get_doc("CF Portfolio", matches[0].name)
+
+		raise ValueError(f"Portfolio not found: {portfolio_name}")
+
+	def _extract_security_news_items(self, security_doc, limit):
+		news_data = self._safe_json_loads(getattr(security_doc, "news", None), default=[])
+		if not isinstance(news_data, list):
+			return []
+
+		items = []
+		for item in news_data[:limit]:
+			if not isinstance(item, dict):
+				continue
+			content = item.get("content") or {}
+			if not isinstance(content, dict):
+				content = {}
+			items.append({
+				"title": content.get("title") or item.get("title"),
+				"summary": content.get("summary") or item.get("summary"),
+				"url": content.get("canonicalUrl", {}).get("url") if isinstance(content.get("canonicalUrl"), dict) else item.get("link"),
+				"provider": content.get("provider", {}).get("displayName") if isinstance(content.get("provider"), dict) else item.get("publisher"),
+				"published_at": content.get("pubDate") or item.get("providerPublishTime"),
+			})
+		return items
+
+	def _safe_json_loads(self, value, default):
+		if value in (None, ""):
+			return default
+		if isinstance(value, (dict, list)):
+			return value
+		try:
+			return json.loads(value)
+		except Exception:
+			return default
 
 	def _build_chat_completion_params(self, messages, settings):
 		params = {
@@ -804,34 +1303,49 @@ Search query:"""
 			return self.prompt[:50].strip()
 
 	def perform_web_search(self, query, num_results=3):
-		"""Perform web search using DuckDuckGo with OpenAI-extracted query"""
+		"""Perform web search and return compact markdown context for the model prompt."""
+		results = self._search_web_results(query, num_results=num_results)
+		if not results:
+			return ""
+
+		formatted = f"--- Web Search Results for '{query}' ---\n\n"
+		for i, result in enumerate(results, 1):
+			title = result.get('title') or 'Untitled'
+			url = result.get('url') or ''
+			snippet = result.get('snippet') or ''
+			formatted += f"{i}. {title}\nURL: {url}\nSummary: {snippet}\n\n"
+
+		formatted += "--- End of Web Search Results ---\n"
+		return formatted
+
+	def _search_web_results(self, query, num_results=3):
+		"""Return normalized web search results with title/url/snippet."""
 		try:
 			from duckduckgo_search import DDGS
 			
 			with DDGS() as ddgs:
-				results = list(ddgs.text(query, max_results=num_results))
-				
-				if not results:
-					return f"No web search results found for query: '{query}'"
-				
-				formatted = f"--- Web Search Results for '{query}' ---\n\n"
-				for i, result in enumerate(results, 1):
-					title = result.get('title', 'No title')
-					url = result.get('href', 'No URL')
-					body = result.get('body', 'No summary')
-					
-					# Truncate summary if too long
-					if len(body) > 300:
-						body = body[:300] + "..."
-					
-					formatted += f"{url}\n"
-				
-				formatted += "--- End of Web Search Results ---\n"
-				return formatted
+				raw_results = list(ddgs.text(query, max_results=num_results))
+
+				normalized = []
+				for result in raw_results or []:
+					title = (result.get('title') or '').strip()
+					url = (result.get('href') or '').strip()
+					snippet = (result.get('body') or '').strip()
+					if not url:
+						continue
+					if len(snippet) > 500:
+						snippet = snippet[:500] + "..."
+					normalized.append({
+						"title": title,
+						"url": url,
+						"snippet": snippet,
+					})
+
+				return normalized
 				
 		except ImportError:
 			frappe.log_error("DuckDuckGo search package not installed", "Web Search Error")
-			return "[Web search unavailable - duckduckgo-search package not installed. Run: bench pip install duckduckgo-search]"
+			return []
 		except Exception as e:
 			frappe.log_error(f"Web search error: {str(e)}", "Web Search Error")
-			return f"[Web search error: {str(e)}]"
+			return []
