@@ -8,6 +8,32 @@ from urllib.parse import urljoin
 import json
 
 class CFSettings(Document):
+	def validate(self):
+		self.max_context_tokens = self._coerce_int(self.max_context_tokens, 120000, 1, 200000)
+		self.chat_default_max_tokens = self._coerce_int(self.chat_default_max_tokens, 4000, 1, 64000)
+		self.reasoner_default_max_tokens = self._coerce_int(self.reasoner_default_max_tokens, 32000, 1, 128000)
+		self.chat_max_tokens_cap = self._coerce_int(self.chat_max_tokens_cap, 8000, 1, 128000)
+		self.reasoner_max_tokens_cap = self._coerce_int(self.reasoner_max_tokens_cap, 64000, 1, 128000)
+		self.max_api_retries = self._coerce_int(self.max_api_retries, 3, 1, 10)
+		self.retry_backoff_base_seconds = self._coerce_float(self.retry_backoff_base_seconds, 1.5, 0.1, 30.0)
+		self.stream_flush_interval_seconds = self._coerce_float(self.stream_flush_interval_seconds, 0.5, 0.1, 10.0)
+		self.stream_flush_min_char_delta = self._coerce_int(self.stream_flush_min_char_delta, 120, 1, 5000)
+		self.max_tool_rounds = self._coerce_int(self.max_tool_rounds, 8, 1, 30)
+		self.max_tool_calls_per_round = self._coerce_int(self.max_tool_calls_per_round, 8, 1, 30)
+		self.tool_result_max_chars = self._coerce_int(self.tool_result_max_chars, 8000, 500, 40000)
+
+		self.thinking_budget_tokens = self._coerce_int(self.thinking_budget_tokens, 2048, 128, 64000)
+		self.top_p = self._coerce_float(self.top_p, 1.0, 0.0, 1.0, allow_zero=True)
+		self.frequency_penalty = self._coerce_float(self.frequency_penalty, 0.0, -2.0, 2.0, allow_zero=True)
+		self.presence_penalty = self._coerce_float(self.presence_penalty, 0.0, -2.0, 2.0, allow_zero=True)
+
+		seed_value = self.seed_value
+		if seed_value not in (None, ""):
+			self.seed_value = self._coerce_int(seed_value, 0, 0, 2147483647)
+
+		if (self.thinking_type or "").strip() == "":
+			self.thinking_type = "reasoning"
+
 	@frappe.whitelist()
 	def check_openwebui_connection(self):
 
@@ -50,3 +76,21 @@ class CFSettings(Document):
 		except Exception as e:
 			frappe.log_error(f"Error updating AI models: {str(e)}", "CF Settings")
 			raise
+
+	def _coerce_int(self, value, default, min_value, max_value):
+		try:
+			parsed = int(value)
+		except (TypeError, ValueError):
+			return default
+		return max(min_value, min(max_value, parsed))
+
+	def _coerce_float(self, value, default, min_value, max_value, allow_zero=False):
+		try:
+			parsed = float(value)
+		except (TypeError, ValueError):
+			return default
+
+		if not allow_zero and parsed <= 0:
+			return default
+
+		return max(min_value, min(max_value, parsed))

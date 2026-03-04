@@ -12,21 +12,30 @@
   "max_context_tokens",
   "chat_default_max_tokens",
   "reasoner_default_max_tokens",
+  "thinking_budget_tokens",
+  "thinking_enabled",
+  "thinking_type",
   "column_break_gqks",
   "chat_max_tokens_cap",
   "reasoner_max_tokens_cap",
+  "json_mode_enabled",
+  "seed_value",
+  "top_p",
+  "frequency_penalty",
+  "presence_penalty",
   "section_break_reliability",
   "max_api_retries",
   "retry_backoff_base_seconds",
   "column_break_rpda",
   "stream_flush_interval_seconds",
   "stream_flush_min_char_delta",
-    "section_break_tool_calls",
-    "tool_calls_enabled",
-    "max_tool_rounds",
-    "max_tool_calls_per_round",
-    "column_break_tools",
-    "tool_result_max_chars",
+  "enable_conversation_summarization",
+  "section_break_tool_calls",
+  "tool_calls_enabled",
+  "max_tool_rounds",
+  "max_tool_calls_per_round",
+  "column_break_tools",
+  "tool_result_max_chars",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -70,6 +79,27 @@
    "label": "Reasoner Default Max Tokens"
   },
   {
+   "default": "2048",
+   "description": "Thinking budget tokens sent via extra_body.thinking for supported DeepSeek models.",
+   "fieldname": "thinking_budget_tokens",
+   "fieldtype": "Int",
+   "label": "Thinking Budget Tokens"
+  },
+  {
+   "default": "0",
+   "description": "Enable thinking mode for deepseek-chat models (deepseek-reasoner already uses thinking behavior).",
+   "fieldname": "thinking_enabled",
+   "fieldtype": "Check",
+   "label": "Thinking Enabled"
+  },
+  {
+   "default": "reasoning",
+   "description": "Thinking type passed in extra_body.thinking.type.",
+   "fieldname": "thinking_type",
+   "fieldtype": "Data",
+   "label": "Thinking Type"
+  },
+  {
    "fieldname": "column_break_gqks",
    "fieldtype": "Column Break"
   },
@@ -86,6 +116,40 @@
    "fieldname": "reasoner_max_tokens_cap",
    "fieldtype": "Int",
    "label": "Reasoner Max Tokens Cap"
+  },
+  {
+   "default": "0",
+   "description": "Request JSON object outputs using response_format when supported.",
+   "fieldname": "json_mode_enabled",
+   "fieldtype": "Check",
+   "label": "JSON Mode Enabled"
+  },
+  {
+   "description": "Optional deterministic seed for non-thinking completions.",
+   "fieldname": "seed_value",
+   "fieldtype": "Int",
+   "label": "Seed Value"
+  },
+  {
+   "default": "1.0",
+   "description": "Sampling nucleus probability for non-thinking completions (0-1).",
+   "fieldname": "top_p",
+   "fieldtype": "Float",
+   "label": "Top P"
+  },
+  {
+   "default": "0.0",
+   "description": "Frequency penalty for non-thinking completions (-2 to 2).",
+   "fieldname": "frequency_penalty",
+   "fieldtype": "Float",
+   "label": "Frequency Penalty"
+  },
+  {
+   "default": "0.0",
+   "description": "Presence penalty for non-thinking completions (-2 to 2).",
+   "fieldname": "presence_penalty",
+   "fieldtype": "Float",
+   "label": "Presence Penalty"
   },
   {
    "fieldname": "section_break_reliability",
@@ -107,7 +171,7 @@
    "label": "Retry Backoff Base Seconds"
   },
   {
-   "default": "1.0",
+    "default": "0.5",
    "description": "Maximum seconds between partial streaming saves/updates.",
    "fieldname": "stream_flush_interval_seconds",
    "fieldtype": "Float",
@@ -120,43 +184,50 @@
    "fieldtype": "Int",
    "label": "Stream Flush Min Char Delta"
   },
-    {
-     "fieldname": "section_break_tool_calls",
-     "fieldtype": "Section Break",
-     "label": "Tool Calls"
-    },
-    {
-     "default": "1",
-     "description": "Enable model-driven function calling and multi-call chains.",
-     "fieldname": "tool_calls_enabled",
-     "fieldtype": "Check",
-     "label": "Enable Tool Calls"
-    },
-    {
-     "default": "8",
-     "description": "Maximum number of model-tool rounds per assistant response.",
-     "fieldname": "max_tool_rounds",
-     "fieldtype": "Int",
-     "label": "Max Tool Rounds"
-    },
-    {
-     "default": "8",
-     "description": "Maximum tool calls allowed in a single round.",
-     "fieldname": "max_tool_calls_per_round",
-     "fieldtype": "Int",
-     "label": "Max Tool Calls Per Round"
-    },
-    {
-     "fieldname": "column_break_tools",
-     "fieldtype": "Column Break"
-    },
-    {
-     "default": "8000",
-     "description": "Maximum characters stored per tool result payload.",
-     "fieldname": "tool_result_max_chars",
-     "fieldtype": "Int",
-     "label": "Tool Result Max Chars"
-    },
+  {
+   "default": "0",
+   "description": "Summarize earlier chat turns when history exceeds context budget.",
+   "fieldname": "enable_conversation_summarization",
+   "fieldtype": "Check",
+   "label": "Enable Conversation Summarization"
+  },
+  {
+   "fieldname": "section_break_tool_calls",
+   "fieldtype": "Section Break",
+   "label": "Tool Calls"
+  },
+  {
+   "default": "1",
+   "description": "Enable model-driven function calling and multi-call chains.",
+   "fieldname": "tool_calls_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Tool Calls"
+  },
+  {
+   "default": "8",
+   "description": "Maximum number of model-tool rounds per assistant response.",
+   "fieldname": "max_tool_rounds",
+   "fieldtype": "Int",
+   "label": "Max Tool Rounds"
+  },
+  {
+   "default": "8",
+   "description": "Maximum tool calls allowed in a single round.",
+   "fieldname": "max_tool_calls_per_round",
+   "fieldtype": "Int",
+   "label": "Max Tool Calls Per Round"
+  },
+  {
+   "fieldname": "column_break_tools",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8000",
+   "description": "Maximum characters stored per tool result payload.",
+   "fieldname": "tool_result_max_chars",
+   "fieldtype": "Int",
+   "label": "Tool Result Max Chars"
+  },
   {
    "fieldname": "section_break_models",
    "fieldtype": "Section Break",

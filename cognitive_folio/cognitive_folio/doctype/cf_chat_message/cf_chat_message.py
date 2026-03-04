@@ -3,6 +3,7 @@ from frappe.model.document import Document
 import re
 import time
 import json
+from functools import lru_cache
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables, expand_financials_variable, expand_edgar_section_variable
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
@@ -15,12 +16,17 @@ MAX_CHAT_MAX_TOKENS = 8000
 MAX_REASONER_MAX_TOKENS = 64000
 MAX_OPENAI_RETRIES = 3
 RETRY_BACKOFF_BASE_SECONDS = 1.5
-STREAM_FLUSH_INTERVAL_SECONDS = 1.0
+STREAM_FLUSH_INTERVAL_SECONDS = 0.5
 STREAM_FLUSH_MIN_CHAR_DELTA = 120
 TOOL_CALLS_ENABLED_DEFAULT = 1
 DEFAULT_MAX_TOOL_ROUNDS = 8
 DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 8
 DEFAULT_TOOL_RESULT_MAX_CHARS = 8000
+DEFAULT_THINKING_BUDGET_TOKENS = 2048
+DEFAULT_THINKING_TYPE = "reasoning"
+DEFAULT_TOP_P = 1.0
+DEFAULT_FREQUENCY_PENALTY = 0.0
+DEFAULT_PRESENCE_PENALTY = 0.0
 
 class CFChatMessage(Document):
 
@@ -253,20 +259,34 @@ class CFChatMessage(Document):
 		current_prompt_tokens = len(encoding.encode(runtime_prompt or ""))
 		available_tokens -= current_prompt_tokens
 		
+		overflow_messages = []
+
 		# Add previous messages while staying within token limit
 		used_tokens = 0
-		for message in chat_messages:  # Already ordered in most recent first order
+		for idx, message in enumerate(chat_messages):  # Already ordered in most recent first order
 			user_tokens = len(encoding.encode(message.prompt or ""))
 			assistant_tokens = len(encoding.encode(message.response or ""))
 			message_tokens = user_tokens + assistant_tokens
 			
 			if used_tokens + message_tokens > available_tokens:
+				overflow_messages = chat_messages[idx:]
 				break  # Stop adding messages if we exceed token limit
 				
 			# Insert at position 1 to maintain chronological order (after system message)
 			messages.insert(1, {"role": "user", "content": message.prompt or ""})
 			messages.insert(2, {"role": "assistant", "content": message.response or ""})
 			used_tokens += message_tokens
+
+		if overflow_messages and self._conversation_summarization_enabled(settings):
+			summary = self._summarize_conversation(overflow_messages)
+			if summary:
+				messages.insert(1, {
+					"role": "system",
+					"content": f"Summary of earlier conversation context:\n{summary}",
+				})
+
+		# DeepSeek multi-turn guideline: clear prior reasoning content before a new user turn.
+		messages = self._clear_reasoning_content(messages)
 		
 		# Add current message
 		messages.append({"role": "user", "content": runtime_prompt})
@@ -426,7 +446,7 @@ class CFChatMessage(Document):
 			"model": self.model,
 			"finish_reason": finish_reason,
 			"duration_seconds": total_duration_seconds,
-			"max_tokens": self._get_max_completion_tokens(settings),
+			"max_tokens": self._get_max_completion_tokens(settings, runtime_prompt),
 			"tool_calls_enabled": False,
 			"prompt_augmented": bool(runtime_prompt != original_prompt),
 			"prompt_original_length": len(original_prompt or ""),
@@ -549,6 +569,7 @@ class CFChatMessage(Document):
 					"ok": bool(tool_result.get("ok", False)),
 					"duration_ms": round((time.time() - call_started) * 1000, 2),
 					"args": tool_result.get("args", {}),
+					"error_code": tool_result.get("error_code"),
 					"error": tool_result.get("error"),
 				})
 
@@ -581,11 +602,14 @@ class CFChatMessage(Document):
 			"model": self.model,
 			"messages": messages,
 			"stream": False,
-			"max_tokens": self._get_max_completion_tokens(settings),
+			"max_tokens": self._get_max_completion_tokens(settings, self._extract_latest_user_message(messages)),
 			"tools": tools,
 		}
-		if not self._is_reasoner_model(self.model):
-			params["temperature"] = 1.0
+
+		params.update(self._build_optional_completion_params(settings))
+		thinking_config = self._get_thinking_config(settings)
+		if thinking_config:
+			params["extra_body"] = thinking_config
 
 		max_retries = self._get_max_api_retries(settings)
 		retry_backoff_base_seconds = self._get_retry_backoff_base_seconds(settings)
@@ -593,6 +617,8 @@ class CFChatMessage(Document):
 			try:
 				return client.chat.completions.create(**params)
 			except Exception as exc:
+				if self._strip_unsupported_request_params(params, exc):
+					continue
 				if attempt >= max_retries or not self._is_retryable_error(exc):
 					raise
 				time.sleep(retry_backoff_base_seconds * (2 ** (attempt - 1)))
@@ -633,9 +659,26 @@ class CFChatMessage(Document):
 					"parameters": {
 						"type": "object",
 						"properties": {
-							"identifier": {"type": "string", "description": "Security symbol, name, or ISIN"},
+							"identifier": {
+								"anyOf": [
+									{"type": "string", "pattern": "^[A-Za-z0-9._\\-:]{1,64}$"},
+									{"type": "string", "format": "uuid"}
+								],
+								"description": "Security symbol, name, ISIN, or security ID"
+							},
 							"include_news": {"type": "boolean", "description": "Include latest parsed news items"},
-							"news_limit": {"type": "integer", "description": "Max news items to include"},
+							"news_limit": {
+								"anyOf": [
+									{"type": "integer", "minimum": 1, "maximum": 10},
+									{"type": "string", "pattern": "^[0-9]{1,2}$"}
+								],
+								"description": "Max news items to include"
+							},
+							"identifier_type": {
+								"type": "string",
+								"enum": ["auto", "symbol", "name", "isin", "id"],
+								"description": "Optional identifier hint"
+							},
 						},
 						"required": ["identifier"],
 					},
@@ -649,8 +692,20 @@ class CFChatMessage(Document):
 					"parameters": {
 						"type": "object",
 						"properties": {
-							"portfolio": {"type": "string", "description": "Portfolio name"},
-							"limit": {"type": "integer", "description": "Max holdings to return"},
+							"portfolio": {
+								"anyOf": [
+									{"type": "string", "pattern": "^[A-Za-z0-9._\\- ]{1,140}$"},
+									{"type": "string", "format": "uuid"}
+								],
+								"description": "Portfolio name or ID"
+							},
+							"limit": {
+								"anyOf": [
+									{"type": "integer", "minimum": 1, "maximum": 100},
+									{"type": "string", "pattern": "^[0-9]{1,3}$"}
+								],
+								"description": "Max holdings to return"
+							},
 						},
 						"required": ["portfolio"],
 					},
@@ -664,8 +719,20 @@ class CFChatMessage(Document):
 					"parameters": {
 						"type": "object",
 						"properties": {
-							"identifier": {"type": "string", "description": "Security symbol, name, or ISIN"},
-							"limit": {"type": "integer", "description": "Max number of items"},
+							"identifier": {
+								"anyOf": [
+									{"type": "string", "pattern": "^[A-Za-z0-9._\\-:]{1,64}$"},
+									{"type": "string", "format": "uuid"}
+								],
+								"description": "Security symbol, name, ISIN, or security ID"
+							},
+							"limit": {
+								"anyOf": [
+									{"type": "integer", "minimum": 1, "maximum": 20},
+									{"type": "string", "pattern": "^[0-9]{1,2}$"}
+								],
+								"description": "Max number of items"
+							},
 						},
 						"required": ["identifier"],
 					},
@@ -679,8 +746,19 @@ class CFChatMessage(Document):
 					"parameters": {
 						"type": "object",
 						"properties": {
-							"query": {"type": "string", "description": "Search query"},
-							"max_results": {"type": "integer", "description": "Max results to return"},
+							"query": {"type": "string", "minLength": 2, "maxLength": 200, "description": "Search query"},
+							"max_results": {
+								"anyOf": [
+									{"type": "integer", "minimum": 1, "maximum": 10},
+									{"type": "string", "pattern": "^[0-9]{1,2}$"}
+								],
+								"description": "Max results to return"
+							},
+							"provider": {
+								"type": "string",
+								"enum": ["auto", "ddgs"],
+								"description": "Search provider hint"
+							},
 						},
 						"required": ["query"],
 					},
@@ -694,8 +772,19 @@ class CFChatMessage(Document):
 					"parameters": {
 						"type": "object",
 						"properties": {
-							"url": {"type": "string", "description": "HTTP or HTTPS URL"},
-							"max_chars": {"type": "integer", "description": "Maximum characters in returned content"},
+							"url": {
+								"type": "string",
+								"format": "uri",
+								"pattern": "^https?://",
+								"description": "HTTP or HTTPS URL"
+							},
+							"max_chars": {
+								"anyOf": [
+									{"type": "integer", "minimum": 200, "maximum": 20000},
+									{"type": "string", "pattern": "^[0-9]{3,5}$"}
+								],
+								"description": "Maximum characters in returned content"
+							},
 						},
 						"required": ["url"],
 					},
@@ -707,24 +796,68 @@ class CFChatMessage(Document):
 		args = self._safe_json_loads(arguments_raw, default={})
 		if not isinstance(args, dict):
 			args = {}
+		args_key = json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
+
+		try:
+			return self._execute_tool_call_cached(
+				function_name=function_name,
+				args_key=args_key,
+				chat_name=getattr(chat, "name", None) if chat else None,
+				portfolio_name=getattr(portfolio, "name", None) if portfolio else None,
+				security_name=getattr(security, "name", None) if security else None,
+			)
+		except Exception as exc:
+			frappe.log_error(title=f"Tool call failed: {function_name}", message=str(exc))
+			return {
+				"ok": False,
+				"args": args,
+				"error_code": "tool_execution_error",
+				"error": str(exc),
+			}
+
+	@lru_cache(maxsize=256)
+	def _execute_tool_call_cached(self, function_name, args_key, chat_name, portfolio_name, security_name):
+		args = self._safe_json_loads(args_key, default={})
+		if not isinstance(args, dict):
+			args = {}
+
+		portfolio_doc = frappe.get_doc("CF Portfolio", portfolio_name) if portfolio_name else None
+		security_doc = frappe.get_doc("CF Security", security_name) if security_name else None
 
 		handlers = {
-			"get_security_snapshot": lambda: self._tool_get_security_snapshot(args, security),
-			"get_portfolio_holdings": lambda: self._tool_get_portfolio_holdings(args, portfolio),
-			"get_latest_security_news": lambda: self._tool_get_latest_security_news(args, security),
+			"get_security_snapshot": lambda: self._tool_get_security_snapshot(args, security_doc),
+			"get_portfolio_holdings": lambda: self._tool_get_portfolio_holdings(args, portfolio_doc),
+			"get_latest_security_news": lambda: self._tool_get_latest_security_news(args, security_doc),
 			"web_search": lambda: self._tool_web_search(args),
 			"fetch_url_content": lambda: self._tool_fetch_url_content(args),
 		}
 
 		if function_name not in handlers:
-			return {"ok": False, "args": args, "error": f"Unknown tool: {function_name}"}
+			return {
+				"ok": False,
+				"args": args,
+				"error_code": "unknown_tool",
+				"error": f"Unknown tool '{function_name}'. Available tools: {', '.join(sorted(handlers.keys()))}",
+			}
 
 		try:
 			result = handlers[function_name]()
 			return {"ok": True, "args": args, "result": result}
+		except ValueError as exc:
+			return {
+				"ok": False,
+				"args": args,
+				"error_code": "validation_error",
+				"error": f"Tool '{function_name}' validation failed: {str(exc)}",
+			}
 		except Exception as exc:
 			frappe.log_error(title=f"Tool call failed: {function_name}", message=str(exc))
-			return {"ok": False, "args": args, "error": str(exc)}
+			return {
+				"ok": False,
+				"args": args,
+				"error_code": "tool_runtime_error",
+				"error": f"Tool '{function_name}' execution failed: {str(exc)}",
+			}
 
 	def _tool_get_security_snapshot(self, args, default_security):
 		security_doc = self._resolve_security_doc(args.get("identifier"), default_security)
@@ -911,11 +1044,12 @@ class CFChatMessage(Document):
 			"model": self.model,
 			"messages": messages,
 			"stream": True,
-			"max_tokens": self._get_max_completion_tokens(settings),
+			"max_tokens": self._get_max_completion_tokens(settings, self._extract_latest_user_message(messages)),
 		}
-
-		if not self._is_reasoner_model(self.model):
-			params["temperature"] = 1.0
+		params.update(self._build_optional_completion_params(settings))
+		thinking_config = self._get_thinking_config(settings)
+		if thinking_config:
+			params["extra_body"] = thinking_config
 
 		return params
 
@@ -928,6 +1062,9 @@ class CFChatMessage(Document):
 			try:
 				return client.chat.completions.create(**params)
 			except Exception as exc:
+				if self._strip_unsupported_request_params(params, exc):
+					continue
+
 				if attempt >= max_retries or not self._is_retryable_error(exc):
 					raise
 
@@ -943,13 +1080,23 @@ class CFChatMessage(Document):
 
 		raise RuntimeError("Failed to create streaming chat completion")
 
-	def _is_reasoner_model(self, model_name):
-		return (model_name or "").startswith("deepseek-reasoner")
+	def _is_reasoner_model(self, model_name, settings=None):
+		normalized_model = (model_name or "").strip().lower()
+		if normalized_model.startswith("deepseek-reasoner"):
+			return True
 
-	def _get_max_completion_tokens(self, settings):
-		if self._is_reasoner_model(self.model):
+		if settings and self._thinking_enabled_for_chat_models(settings) and normalized_model.startswith("deepseek-chat"):
+			return True
+
+		return False
+
+	def _get_max_completion_tokens(self, settings, prompt_text=None):
+		if self._is_reasoner_model(self.model, settings):
 			default_tokens = self._read_int_setting(settings, "reasoner_default_max_tokens", DEFAULT_REASONER_MAX_TOKENS)
 			max_cap = self._read_int_setting(settings, "reasoner_max_tokens_cap", MAX_REASONER_MAX_TOKENS)
+			if self._is_complex_query(prompt_text):
+				adaptive_tokens = int(default_tokens * 1.25)
+				default_tokens = max(default_tokens, adaptive_tokens)
 			return max(1, min(default_tokens, max_cap))
 
 		default_tokens = self._read_int_setting(settings, "chat_default_max_tokens", DEFAULT_CHAT_MAX_TOKENS)
@@ -971,6 +1118,184 @@ class CFChatMessage(Document):
 	def _get_stream_flush_min_char_delta(self, settings):
 		return max(1, self._read_int_setting(settings, "stream_flush_min_char_delta", STREAM_FLUSH_MIN_CHAR_DELTA))
 
+	def _thinking_enabled_for_chat_models(self, settings):
+		raw = settings.get("thinking_enabled")
+		if raw is None:
+			return False
+		return bool(int(raw))
+
+	def _is_thinking_mode_active(self, settings):
+		return self._is_reasoner_model(self.model, settings)
+
+	def _get_thinking_type(self, settings):
+		value = (settings.get("thinking_type") or DEFAULT_THINKING_TYPE).strip().lower()
+		if not value:
+			return DEFAULT_THINKING_TYPE
+		return value
+
+	def _get_thinking_budget_tokens(self, settings):
+		return max(128, self._read_int_setting(settings, "thinking_budget_tokens", DEFAULT_THINKING_BUDGET_TOKENS))
+
+	def _get_thinking_config(self, settings):
+		if not self._is_thinking_mode_active(settings):
+			return None
+
+		return {
+			"thinking": {
+				"type": self._get_thinking_type(settings),
+				"budget_tokens": self._get_thinking_budget_tokens(settings),
+			}
+		}
+
+	def _json_mode_enabled(self, settings):
+		raw = settings.get("json_mode_enabled")
+		if raw is None:
+			return False
+		return bool(int(raw))
+
+	def _get_seed_value(self, settings):
+		seed_raw = settings.get("seed_value")
+		if seed_raw in (None, ""):
+			return None
+		try:
+			seed_value = int(seed_raw)
+		except (TypeError, ValueError):
+			return None
+		return seed_value if seed_value >= 0 else None
+
+	def _get_top_p(self, settings):
+		value = self._read_signed_float_setting(settings, "top_p", DEFAULT_TOP_P)
+		if value < 0:
+			return 0.0
+		if value > 1:
+			return 1.0
+		return value
+
+	def _get_frequency_penalty(self, settings):
+		value = self._read_signed_float_setting(settings, "frequency_penalty", DEFAULT_FREQUENCY_PENALTY)
+		return max(-2.0, min(2.0, value))
+
+	def _get_presence_penalty(self, settings):
+		value = self._read_signed_float_setting(settings, "presence_penalty", DEFAULT_PRESENCE_PENALTY)
+		return max(-2.0, min(2.0, value))
+
+	def _build_optional_completion_params(self, settings):
+		params = {}
+
+		if self._json_mode_enabled(settings):
+			params["response_format"] = {"type": "json_object"}
+
+		if self._is_thinking_mode_active(settings):
+			return params
+
+		params["temperature"] = 1.0
+		params["top_p"] = self._get_top_p(settings)
+		params["frequency_penalty"] = self._get_frequency_penalty(settings)
+		params["presence_penalty"] = self._get_presence_penalty(settings)
+
+		seed = self._get_seed_value(settings)
+		if seed is not None:
+			params["seed"] = seed
+
+		return params
+
+	def _strip_unsupported_request_params(self, params, exc):
+		error_text = str(exc).lower()
+		removed = False
+
+		if "response_format" in error_text and "response_format" in params:
+			params.pop("response_format", None)
+			removed = True
+
+		if "seed" in error_text and "seed" in params:
+			params.pop("seed", None)
+			removed = True
+
+		if any(keyword in error_text for keyword in ("top_p", "frequency_penalty", "presence_penalty", "temperature")):
+			for key in ("top_p", "frequency_penalty", "presence_penalty", "temperature"):
+				if key in params:
+					params.pop(key, None)
+					removed = True
+
+		if any(keyword in error_text for keyword in ("extra_body", "thinking")) and "extra_body" in params:
+			params.pop("extra_body", None)
+			removed = True
+
+		if removed:
+			frappe.logger("cognitive_folio").warning(
+				"Removed unsupported completion params for %s after API error: %s",
+				self.name,
+				error_text,
+			)
+
+		return removed
+
+	def _extract_latest_user_message(self, messages):
+		for message in reversed(messages or []):
+			if isinstance(message, dict) and message.get("role") == "user":
+				return message.get("content") or ""
+		return ""
+
+	def _clear_reasoning_content(self, messages):
+		cleaned_messages = []
+		for message in messages or []:
+			if not isinstance(message, dict):
+				cleaned_messages.append(message)
+				continue
+
+			cloned = dict(message)
+			if cloned.get("role") == "assistant" and "reasoning_content" in cloned:
+				cloned.pop("reasoning_content", None)
+			cleaned_messages.append(cloned)
+
+		return cleaned_messages
+
+	def _conversation_summarization_enabled(self, settings):
+		raw = settings.get("enable_conversation_summarization")
+		if raw is None:
+			return False
+		return bool(int(raw))
+
+	def _summarize_conversation(self, overflow_messages):
+		if not overflow_messages:
+			return ""
+
+		lines = []
+		for item in reversed(overflow_messages[-8:]):
+			user_text = (item.get("prompt") or "").strip()
+			assistant_text = (item.get("response") or "").strip()
+			if user_text:
+				lines.append(f"User: {user_text[:240]}")
+			if assistant_text:
+				lines.append(f"Assistant: {assistant_text[:320]}")
+
+		summary = "\n".join(lines)
+		if len(summary) > 2400:
+			summary = summary[:2400] + "..."
+		return summary
+
+	def _is_complex_query(self, prompt_text):
+		prompt_text = (prompt_text or "").strip()
+		if not prompt_text:
+			return False
+
+		if len(prompt_text) >= 1200:
+			return True
+
+		complex_markers = [
+			"analyze",
+			"compare",
+			"valuation",
+			"scenario",
+			"sensitivity",
+			"portfolio",
+			"risk",
+			"forecast",
+		]
+		lowered = prompt_text.lower()
+		matches = sum(1 for marker in complex_markers if marker in lowered)
+		return matches >= 2
+
 	def _read_int_setting(self, settings, fieldname, default_value):
 		try:
 			value = int(settings.get(fieldname))
@@ -986,6 +1311,12 @@ class CFChatMessage(Document):
 			if value <= 0:
 				return default_value
 			return value
+		except (TypeError, ValueError):
+			return default_value
+
+	def _read_signed_float_setting(self, settings, fieldname, default_value):
+		try:
+			return float(settings.get(fieldname))
 		except (TypeError, ValueError):
 			return default_value
 
