@@ -36,6 +36,12 @@
   "max_tool_calls_per_round",
   "column_break_tools",
   "tool_result_max_chars",
+  "section_break_web_search",
+  "web_search_providers",
+  "web_search_max_results",
+  "column_break_web_search",
+  "web_search_financial_domains",
+  "web_search_cache_enabled",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -227,6 +233,43 @@
    "fieldname": "tool_result_max_chars",
    "fieldtype": "Int",
    "label": "Tool Result Max Chars"
+  },
+  {
+   "fieldname": "section_break_web_search",
+   "fieldtype": "Section Break",
+   "label": "Web Search"
+  },
+  {
+   "default": "ddgs",
+   "description": "Comma-separated ordered list of search providers used by tool-driven searches: ddgs (DuckDuckGo), wikipedia.",
+   "fieldname": "web_search_providers",
+   "fieldtype": "Data",
+   "label": "Web Search Providers"
+  },
+  {
+   "default": "5",
+   "description": "Maximum number of results returned per web search query.",
+   "fieldname": "web_search_max_results",
+   "fieldtype": "Int",
+   "label": "Web Search Max Results"
+  },
+  {
+   "fieldname": "column_break_web_search",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "sec.gov,finance.yahoo.com,reuters.com,bloomberg.com,wsj.com,ft.com,marketwatch.com,investor.gov",
+   "description": "Comma-separated financial domains used when the search_financial tool selects financial_news source.",
+   "fieldname": "web_search_financial_domains",
+   "fieldtype": "Small Text",
+   "label": "Financial Domain Priority List"
+  },
+  {
+   "default": "0",
+   "description": "Cache web search results within a request to avoid duplicate queries.",
+   "fieldname": "web_search_cache_enabled",
+   "fieldtype": "Check",
+   "label": "Cache Web Search Results"
   },
   {
    "fieldname": "section_break_models",

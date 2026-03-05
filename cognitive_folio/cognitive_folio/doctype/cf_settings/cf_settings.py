@@ -22,6 +22,12 @@ class CFSettings(Document):
 		self.max_tool_calls_per_round = self._coerce_int(self.max_tool_calls_per_round, 8, 1, 30)
 		self.tool_result_max_chars = self._coerce_int(self.tool_result_max_chars, 8000, 500, 40000)
 
+		self.web_search_max_results = self._coerce_int(
+			self.web_search_max_results, 5, 1, 20
+		)
+		if not (self.web_search_providers or "").strip():
+			self.web_search_providers = "ddgs"
+
 		self.thinking_budget_tokens = self._coerce_int(self.thinking_budget_tokens, 2048, 128, 64000)
 		self.top_p = self._coerce_float(self.top_p, 1.0, 0.0, 1.0, allow_zero=True)
 		self.frequency_penalty = self._coerce_float(self.frequency_penalty, 0.0, -2.0, 2.0, allow_zero=True)

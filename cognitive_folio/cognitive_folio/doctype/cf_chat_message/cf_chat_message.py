@@ -28,6 +28,22 @@ DEFAULT_TOP_P = 1.0
 DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
 
+# Web Search
+DEFAULT_WEB_SEARCH_MAX_RESULTS = 5
+DEFAULT_WEB_SEARCH_PROVIDERS = "ddgs"
+DEFAULT_FINANCIAL_DOMAINS = (
+	"sec.gov,finance.yahoo.com,reuters.com,bloomberg.com,"
+	"wsj.com,ft.com,marketwatch.com,investor.gov"
+)
+FINANCIAL_QUERY_KEYWORDS = frozenset([
+	"stock", "equity", "share", "dividend", "earnings", "revenue", "profit", "loss",
+	"market cap", "pe ratio", "p/e", "ebitda", "balance sheet", "cash flow",
+	"10-k", "10-q", "8-k", "sec filing", "annual report", "quarterly report",
+	"ticker", "isin", "bond", "yield", "interest rate", "fed",
+	"sec", "edgar", "ipo", "merger", "acquisition", "valuation", "analyst",
+	"price target", "buy rating", "sell rating", "hold rating",
+])
+
 class CFChatMessage(Document):
 
 	def _publish_chat_realtime(self, event_name, payload):
@@ -170,10 +186,13 @@ class CFChatMessage(Document):
 			"model": self.model,
 			"augmentations": [],
 			"web_search": {
-				"enabled": bool(getattr(self, 'web_search', False)),
+				"enabled": bool(getattr(self, "web_search", False)),
 				"query": None,
 				"results_count": 0,
 				"fallback": None,
+				"providers_used": [],
+				"search_iterations": 0,
+				"financial_searches": 0,
 			},
 			"tools": {
 				"enabled": self._tool_calls_enabled(settings),
@@ -336,6 +355,12 @@ class CFChatMessage(Document):
 			runtime_audit["tools"]["calls"] = len(tool_trace or [])
 			runtime_audit["tools"]["names"] = sorted({(item or {}).get("tool") for item in (tool_trace or []) if (item or {}).get("tool")})
 			runtime_audit["prompt_augmented"] = bool(runtime_prompt != original_prompt)
+			# Track tool-driven search provenance
+			search_tool_calls = [t for t in (tool_trace or []) if (t or {}).get("tool") in ("web_search", "search_financial")]
+			runtime_audit["web_search"]["search_iterations"] = len(search_tool_calls)
+			runtime_audit["web_search"]["financial_searches"] = sum(
+				1 for t in (tool_trace or []) if (t or {}).get("tool") == "search_financial"
+			)
 			self.runtime_audit = runtime_audit
 			self.db_update()
 			frappe.db.commit()
@@ -491,13 +516,31 @@ class CFChatMessage(Document):
 			"completion_tokens": 0,
 			"total_tokens": 0,
 		}
+		synthesis_nudge_sent = False
 
 		for round_index in range(1, max_rounds + 1):
+			# Two rounds before hitting the ceiling, inject a synthesis instruction so
+			# the model stops chaining tool calls and produces a final text answer.
+			if not synthesis_nudge_sent and (max_rounds - round_index) < 2:
+				messages.append({
+					"role": "system",
+					"content": (
+						"You have used several research rounds. "
+						"Stop calling tools now and write your final, complete answer "
+						"based on everything you have gathered so far."
+					),
+				})
+				synthesis_nudge_sent = True
+
+			# On the very last round, remove tools entirely so the model cannot
+			# make further tool calls and must respond with text.
+			active_tools = None if round_index == max_rounds else tools
+
 			response = self._create_non_stream_completion_with_retry(
 				client=client,
 				messages=messages,
 				settings=settings,
-				tools=tools,
+				tools=active_tools,
 			)
 			aggregate_usage["tool_rounds"] = round_index
 			self._accumulate_usage(aggregate_usage, getattr(response, "usage", None))
@@ -514,6 +557,15 @@ class CFChatMessage(Document):
 
 			tool_calls = list(getattr(message, "tool_calls", None) or [])
 			last_finish_reason = getattr(choice, "finish_reason", None)
+
+			# DeepSeek-Reasoner embeds tool calls as DSML markup inside the content
+			# field rather than using the structured tool_calls list.  Detect and
+			# promote those to the same processing path.
+			if not tool_calls and self._has_dsml_tool_calls(assistant_content):
+				dsml_calls = self._parse_dsml_tool_calls(assistant_content)
+				if dsml_calls:
+					tool_calls = dsml_calls  # list of _DsmlToolCall
+					assistant_content = self._strip_dsml_markup(assistant_content)
 
 			if not tool_calls:
 				messages.append(self._build_assistant_message_dict(assistant_content, reasoning_content, []))
@@ -584,7 +636,174 @@ class CFChatMessage(Document):
 					}
 				)
 
-		raise RuntimeError(f"Tool-call chain exceeded max rounds ({max_rounds})")
+		# All rounds exhausted with tool calls still pending.
+		# Do one final tool-free call so the user always gets a text response.
+		frappe.logger("cognitive_folio").warning(
+			"Tool-call chain reached max rounds (%s) for message %s; forcing final synthesis.",
+			max_rounds,
+			self.name,
+		)
+		if not synthesis_nudge_sent:
+			messages.append({
+				"role": "system",
+				"content": (
+					"You have used the maximum number of research rounds. "
+					"Write your final, complete answer now based on what you have gathered."
+				),
+			})
+		final_response = self._create_non_stream_completion_with_retry(
+			client=client,
+			messages=messages,
+			settings=settings,
+			tools=None,
+		)
+		self._accumulate_usage(aggregate_usage, getattr(final_response, "usage", None))
+		if final_response.choices:
+			final_choice = final_response.choices[0]
+			final_message = final_choice.message
+			final_content = getattr(final_message, "content", None) or ""
+			final_reasoning = getattr(final_message, "reasoning_content", None) or ""
+			if final_reasoning:
+				all_reasoning_parts.append(final_reasoning)
+			last_finish_reason = getattr(final_choice, "finish_reason", None)
+			return final_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+		# Absolute last resort: return whatever text has accumulated.
+		accumulated = " ".join(
+			m.get("content", "")
+			for m in messages
+			if isinstance(m, dict) and m.get("role") == "assistant" and m.get("content")
+		)
+		return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+	# ------------------------------------------------------------------
+	# DeepSeek-Reasoner DSML tool-call format helpers
+	# ------------------------------------------------------------------
+
+	# The special separator character used by deepseek-reasoner in DSML markup.
+	_DSML_SEP = "\uff5c"  # ｜ U+FF5C FULLWIDTH VERTICAL LINE
+
+	class _DsmlToolCall:
+		"""Minimal duck-type of an OpenAI tool_call object built from parsed DSML."""
+		class _Function:
+			def __init__(self, name, arguments):
+				self.name = name
+				self.arguments = arguments
+
+		def __init__(self, call_id, name, arguments_raw):
+			self.id = call_id
+			self.function = CFChatMessage._DsmlToolCall._Function(name, arguments_raw)
+
+	def _has_dsml_tool_calls(self, content):
+		"""Return True if content contains DeepSeek-Reasoner DSML function-call markup."""
+		sep = self._DSML_SEP
+		return bool(content) and f"<{sep}DSML{sep}" in content
+
+	def _parse_dsml_tool_calls(self, content):
+		"""Parse DSML function-call markup from deepseek-reasoner content.
+
+		Returns a list of _DsmlToolCall instances compatible with the OpenAI
+		tool_calls duck-type used in _run_tool_call_chain.
+
+		Expected markup (closing tags are optional):
+		  <｜DSML｜functioncalls>
+		    <｜DSML｜invoke name="fetch_url_content">
+		      <｜DSML｜parameter name="url" string="true">https://...
+		      <｜DSML｜parameter name="max_chars" string="false">5000
+		    </｜DSML｜invoke>
+		  </｜DSML｜functioncalls>
+		"""
+		import uuid
+		sep = re.escape(self._DSML_SEP)
+
+		# Match each <｜DSML｜invoke name="..."> … block.
+		# Terminate at the next invoke, at </｜DSML｜invoke>, at </｜DSML｜functioncalls>, or at end.
+		invoke_re = re.compile(
+			rf"<{sep}DSML{sep}invoke\s+name=[\"']([^\"']+)[\"']\s*>"
+			rf"(.*?)"
+			rf"(?=<{sep}DSML{sep}invoke[\s>]|</{sep}DSML{sep}(?:invoke|functioncalls)>|$)",
+			re.DOTALL | re.IGNORECASE,
+		)
+		# Match <｜DSML｜parameter name="...">value
+		param_re = re.compile(
+			rf"<{sep}DSML{sep}parameter\s+name=[\"']([^\"']+)[\"'][^>]*>(.*?)(?=<{sep}DSML{sep}|$)",
+			re.DOTALL | re.IGNORECASE,
+		)
+
+		result = []
+		for m in invoke_re.finditer(content):
+			raw_name = m.group(1).strip()
+			body = m.group(2)
+
+			canonical_name = self._resolve_dsml_tool_name(raw_name)
+			if not canonical_name:
+				continue
+
+			params = {}
+			for pm in param_re.finditer(body):
+				raw_pname = pm.group(1).strip()
+				pvalue = pm.group(2).strip()
+				canonical_pname = self._resolve_dsml_param_name(canonical_name, raw_pname)
+				params[canonical_pname] = pvalue
+
+			result.append(CFChatMessage._DsmlToolCall(
+				call_id=f"dsml_{uuid.uuid4().hex[:12]}",
+				name=canonical_name,
+				arguments_raw=json.dumps(params, ensure_ascii=False),
+			))
+		return result
+
+	def _strip_dsml_markup(self, content):
+		"""Remove DSML function-call blocks from content, returning only prose text."""
+		if not self._has_dsml_tool_calls(content):
+			return content
+		sep = re.escape(self._DSML_SEP)
+		# Remove the outer functioncalls wrapper + everything inside it
+		cleaned = re.sub(
+			rf"<{sep}DSML{sep}functioncalls>.*?(?:</{sep}DSML{sep}functioncalls>|$)",
+			"",
+			content,
+			flags=re.DOTALL | re.IGNORECASE,
+		).strip()
+		# Catch any isolated DSML tags that survived (e.g. no outer wrapper)
+		cleaned = re.sub(
+			rf"<{sep}DSML{sep}.*",
+			"",
+			cleaned,
+			flags=re.DOTALL | re.IGNORECASE,
+		).strip()
+		return cleaned
+
+	def _resolve_dsml_tool_name(self, raw_name):
+		"""Resolve a DSML tool name (may lack underscores) to its canonical snake_case form."""
+		norm = re.sub(r"[^a-z0-9]", "", raw_name.lower())
+		for tool in (
+			"get_security_snapshot",
+			"get_portfolio_holdings",
+			"get_latest_security_news",
+			"web_search",
+			"search_financial",
+			"fetch_url_content",
+		):
+			if norm == re.sub(r"[^a-z0-9]", "", tool):
+				return tool
+		return None
+
+	def _resolve_dsml_param_name(self, tool_name, raw_param):
+		"""Resolve a DSML parameter name (may lack underscores) to its canonical form."""
+		_PARAM_MAP = {
+			"get_security_snapshot": ["identifier", "include_news", "news_limit", "identifier_type"],
+			"get_portfolio_holdings": ["portfolio", "limit"],
+			"get_latest_security_news": ["identifier", "limit"],
+			"web_search": ["query", "max_results", "provider", "date_range", "domain_filter", "result_type"],
+			"search_financial": ["query", "ticker", "source", "form_type", "max_results"],
+			"fetch_url_content": ["url", "max_chars"],
+		}
+		norm = re.sub(r"[^a-z0-9]", "", raw_param.lower())
+		for param in _PARAM_MAP.get(tool_name, []):
+			if norm == re.sub(r"[^a-z0-9]", "", param):
+				return param
+		return raw_param  # Return as-is if unrecognised
 
 	def _build_assistant_message_dict(self, content, reasoning_content, tool_calls):
 		message = {
@@ -603,8 +822,11 @@ class CFChatMessage(Document):
 			"messages": messages,
 			"stream": False,
 			"max_tokens": self._get_max_completion_tokens(settings, self._extract_latest_user_message(messages)),
-			"tools": tools,
 		}
+		# Only include tools when actually provided — omitting the key entirely
+		# ensures the model does not attempt function calling on the final pass.
+		if tools:
+			params["tools"] = tools
 
 		params.update(self._build_optional_completion_params(settings))
 		thinking_config = self._get_thinking_config(settings)
@@ -742,7 +964,11 @@ class CFChatMessage(Document):
 				"type": "function",
 				"function": {
 					"name": "web_search",
-					"description": "Search the web and return top textual snippets.",
+					"description": (
+						"Search the web and return top textual snippets. "
+						"Supports multi-provider search (DuckDuckGo, Wikipedia) with optional "
+						"domain restriction and date-range filtering."
+					),
 					"parameters": {
 						"type": "object",
 						"properties": {
@@ -752,12 +978,80 @@ class CFChatMessage(Document):
 									{"type": "integer", "minimum": 1, "maximum": 10},
 									{"type": "string", "pattern": "^[0-9]{1,2}$"}
 								],
-								"description": "Max results to return"
+								"description": "Max results to return",
 							},
 							"provider": {
 								"type": "string",
-								"enum": ["auto", "ddgs"],
-								"description": "Search provider hint"
+								"enum": ["auto", "ddgs", "wikipedia"],
+								"description": (
+									"Search provider: auto selects based on query type, "
+									"ddgs uses DuckDuckGo, wikipedia searches Wikipedia"
+								),
+							},
+							"date_range": {
+								"type": "string",
+								"enum": ["any", "day", "week", "month", "year"],
+								"description": "Filter results by recency: day=last 24 h, week=last 7 d, month=last 30 d, year=last 12 mo",
+							},
+							"domain_filter": {
+								"type": "string",
+								"maxLength": 200,
+								"description": "Comma-separated domains to restrict search to, e.g. sec.gov,reuters.com,ft.com",
+							},
+							"result_type": {
+								"type": "string",
+								"enum": ["snippets", "full"],
+								"description": (
+									"snippets returns search-result summaries; "
+									"full additionally fetches the top result's full page content"
+								),
+							},
+						},
+						"required": ["query"],
+					},
+				},
+			},
+			{
+				"type": "function",
+				"function": {
+					"name": "search_financial",
+					"description": (
+						"Search financial data sources: SEC EDGAR filings, Yahoo Finance, and "
+						"financial news (Reuters, Bloomberg, WSJ, FT, MarketWatch). "
+						"Use for company-specific SEC filings (10-K, 10-Q, 8-K), earnings data, "
+						"analyst ratings, and financial news. Prefer this over web_search for "
+						"equity research and SEC filing retrieval."
+					),
+					"parameters": {
+						"type": "object",
+						"properties": {
+							"query": {"type": "string", "minLength": 2, "maxLength": 200, "description": "Search query, e.g. company name or financial topic"},
+							"ticker": {
+								"type": "string",
+								"maxLength": 20,
+								"description": "Optional stock ticker symbol to narrow results (e.g. AAPL, MSFT)",
+							},
+							"source": {
+								"type": "string",
+								"enum": ["auto", "sec_edgar", "yahoo_finance", "financial_news"],
+								"description": (
+									"Data source: auto aggregates all sources, "
+									"sec_edgar searches SEC EDGAR full-text search, "
+									"yahoo_finance searches Yahoo Finance, "
+									"financial_news restricts to financial news outlets"
+								),
+							},
+							"form_type": {
+								"type": "string",
+								"maxLength": 10,
+								"description": "SEC form type filter, e.g. 10-K, 10-Q, 8-K (used when source includes sec_edgar)",
+							},
+							"max_results": {
+								"anyOf": [
+									{"type": "integer", "minimum": 1, "maximum": 10},
+									{"type": "string", "pattern": "^[0-9]{1,2}$"}
+								],
+								"description": "Max results to return",
 							},
 						},
 						"required": ["query"],
@@ -829,6 +1123,7 @@ class CFChatMessage(Document):
 			"get_portfolio_holdings": lambda: self._tool_get_portfolio_holdings(args, portfolio_doc),
 			"get_latest_security_news": lambda: self._tool_get_latest_security_news(args, security_doc),
 			"web_search": lambda: self._tool_web_search(args),
+			"search_financial": lambda: self._tool_search_financial(args),
 			"fetch_url_content": lambda: self._tool_fetch_url_content(args),
 		}
 
@@ -946,10 +1241,53 @@ class CFChatMessage(Document):
 			raise ValueError("query is required")
 
 		max_results = max(1, min(int(args.get("max_results", 5) or 5), 10))
-		results = self._search_web_results(query, num_results=max_results)
+		provider = (args.get("provider") or "auto").strip().lower()
+		date_range = (args.get("date_range") or "any").strip().lower()
+		domain_filter = (args.get("domain_filter") or "").strip()
+		result_type = (args.get("result_type") or "snippets").strip().lower()
+
+		providers = None
+		if provider in ("ddgs", "wikipedia"):
+			providers = [provider]
+
+		results = self._search_web_results(
+			query,
+			num_results=max_results,
+			providers=providers,
+			domain_filter=domain_filter or None,
+			result_type=result_type,
+			date_range=None if date_range in ("", "any") else date_range,
+		)
 		return {
 			"query": query,
 			"count": len(results),
+			"providers_used": sorted({r.get("source", "unknown") for r in results}),
+			"results": results,
+		}
+
+	def _tool_search_financial(self, args):
+		query = (args.get("query") or "").strip()
+		if not query:
+			raise ValueError("query is required")
+
+		ticker = (args.get("ticker") or "").strip() or None
+		source = (args.get("source") or "auto").strip().lower()
+		form_type = (args.get("form_type") or "").strip() or None
+		max_results = max(1, min(int(args.get("max_results", 5) or 5), 10))
+
+		results = self._search_financial_sources(
+			query=query,
+			ticker=ticker,
+			source=source,
+			form_type=form_type,
+			max_results=max_results,
+		)
+		return {
+			"query": query,
+			"ticker": ticker,
+			"source": source,
+			"count": len(results),
+			"providers_used": sorted({r.get("source", "unknown") for r in results}),
 			"results": results,
 		}
 
@@ -1708,28 +2046,97 @@ Search query:"""
 
 		return "\n".join(lines)
 
-	def _search_web_results(self, query, num_results=3):
-		"""Return normalized web search results with a minimal DDGS-only implementation."""
+	def _search_web_results(
+		self,
+		query,
+		num_results=3,
+		providers=None,
+		domain_filter=None,
+		result_type="snippets",
+		date_range=None,
+	):
+		"""Return normalized web search results from one or more providers.
+
+		Args:
+			query: Search query string.
+			num_results: Target number of results (after deduplication).
+			providers: List of provider names to use. None triggers auto-selection based on query type.
+				Supported values: 'ddgs' (DuckDuckGo), 'wikipedia'.
+			domain_filter: Comma-separated domains to restrict results to (e.g. 'sec.gov,reuters.com').
+			result_type: 'snippets' (default) returns summaries; 'full' additionally fetches the top result.
+			date_range: Recency filter – 'day', 'week', 'month', 'year', or None for no filter.
+		"""
+		if providers is None:
+			query_type = self._classify_query_type(query)
+			providers = ["ddgs"] if query_type == "financial" else ["ddgs", "wikipedia"]
+
+		all_results = []
+		per_provider = max(1, num_results)
+
+		for provider in providers:
+			try:
+				if provider == "ddgs":
+					results = self._search_ddgs(
+						query,
+						max_results=per_provider,
+						date_range=date_range,
+						domain_filter=domain_filter,
+					)
+				elif provider == "wikipedia":
+					results = self._search_wikipedia(query, max_results=min(3, per_provider))
+				else:
+					continue
+				all_results.extend(results)
+			except Exception as e:
+				frappe.log_error(f"Provider '{provider}' search error: {str(e)}", "Web Search Error")
+
+		deduped = self._deduplicate_results(all_results)[:num_results]
+
+		if result_type == "full" and deduped:
+			top = deduped[0]
+			try:
+				fetched = self._tool_fetch_url_content({"url": top["url"], "max_chars": DEFAULT_TOOL_RESULT_MAX_CHARS})
+				top["full_content"] = (fetched.get("content") or "")[:DEFAULT_TOOL_RESULT_MAX_CHARS]
+			except Exception:
+				pass
+
+		return deduped
+
+	def _search_ddgs(self, query, max_results=5, date_range=None, domain_filter=None):
+		"""Search using DuckDuckGo, optionally restricting by domain and recency."""
 		try:
 			from duckduckgo_search import DDGS
 		except ImportError:
 			frappe.log_error("duckduckgo_search package not installed", "Web Search Error")
 			return []
 
+		effective_query = query
+		if domain_filter:
+			domains = [d.strip() for d in domain_filter.split(",") if d.strip()][:3]
+			if domains:
+				site_clause = " OR ".join(f"site:{d}" for d in domains)
+				effective_query = f"({query}) ({site_clause})"
+
+		timelimit_map = {"day": "d", "week": "w", "month": "m", "year": "y"}
+		timelimit = timelimit_map.get(date_range) if date_range else None
+
 		try:
+			kwargs = {"max_results": max_results}
+			if timelimit:
+				kwargs["timelimit"] = timelimit
 			with DDGS() as ddgs:
-				raw_results = list(ddgs.text(query, max_results=num_results))
+				raw_results = list(ddgs.text(effective_query, **kwargs))
 		except Exception as e:
-			frappe.log_error(f"Web search error: {str(e)}", "Web Search Error")
+			frappe.log_error(f"DuckDuckGo search error for '{query}': {str(e)}", "Web Search Error")
 			return []
 
 		normalized = []
 		for result in raw_results or []:
 			if not isinstance(result, dict):
 				continue
-			title = (result.get('title') or '').strip()
-			url = (result.get('href') or '').strip()
-			snippet = (result.get('body') or '').strip()
+			title = (result.get("title") or "").strip()
+			url = (result.get("href") or "").strip()
+			snippet = (result.get("body") or "").strip()
 			if not url:
 				continue
 			if len(snippet) > 500:
@@ -1740,5 +2147,179 @@ Search query:"""
 				"snippet": snippet,
 				"source": "ddgs",
 			})
-
 		return normalized
+
+	def _search_wikipedia(self, query, max_results=3):
+		"""Search Wikipedia and return normalized result snippets."""
+		try:
+			import requests as req
+			from urllib.parse import quote_plus
+		except ImportError:
+			return []
+
+		try:
+			resp = req.get(
+				"https://en.wikipedia.org/w/api.php",
+				params={
+					"action": "query",
+					"list": "search",
+					"srsearch": query,
+					"srlimit": max_results,
+					"format": "json",
+					"srprop": "snippet",
+				},
+				timeout=10,
+				headers={"User-Agent": "CognitiveFolio/1.0 (financial research bot)"},
+			)
+			resp.raise_for_status()
+			search_items = resp.json().get("query", {}).get("search", [])
+		except Exception as e:
+			frappe.log_error(f"Wikipedia search error for '{query}': {str(e)}", "Web Search Error")
+			return []
+
+		normalized = []
+		for item in search_items:
+			title = (item.get("title") or "").strip()
+			if not title:
+				continue
+			from urllib.parse import quote as _quote
+			page_url = "https://en.wikipedia.org/wiki/" + _quote(title.replace(" ", "_"), safe="")
+			raw_snippet = item.get("snippet") or ""
+			snippet = re.sub(r"<[^>]+>", "", raw_snippet).strip()
+			if len(snippet) > 500:
+				snippet = snippet[:500] + "..."
+			normalized.append({
+				"title": title,
+				"url": page_url,
+				"snippet": snippet,
+				"source": "wikipedia",
+			})
+		return normalized
+
+	def _search_edgar(self, query, ticker=None, form_type=None, max_results=3):
+		"""Search SEC EDGAR full-text search API for financial filings."""
+		try:
+			import requests as req
+		except ImportError:
+			return []
+
+		try:
+			params = {
+				"q": f'"{query}"',
+				"dateRange": "custom",
+				"startdt": "2020-01-01",
+			}
+			if ticker:
+				params["entity"] = ticker.upper()
+			if form_type:
+				params["forms"] = form_type.upper()
+
+			resp = req.get(
+				"https://efts.sec.gov/LATEST/search-index",
+				params=params,
+				timeout=15,
+				headers={"User-Agent": "CognitiveFolio/1.0 research@example.com"},
+			)
+			resp.raise_for_status()
+			hits = (resp.json().get("hits") or {}).get("hits") or []
+		except Exception as e:
+			frappe.log_error(f"SEC EDGAR search error for '{query}': {str(e)}", "Web Search Error")
+			return []
+
+		normalized = []
+		for hit in hits[:max_results]:
+			src = hit.get("_source") or {}
+			entity_name = (src.get("entity_name") or "").strip()
+			if not entity_name:
+				continue
+			form = (src.get("form_type") or "").strip()
+			period = (src.get("period_of_report") or "").strip()
+			file_date = (src.get("file_date") or "").strip()
+			cik = (src.get("entity_id") or src.get("cik") or "").strip()
+			accession = (src.get("accession_no") or "").replace("-", "").strip()
+
+			if cik and accession:
+				filing_url = (
+					f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{accession}-index.htm"
+				)
+			elif cik:
+				filing_url = (
+					f"https://www.sec.gov/cgi-bin/browse-edgar"
+					f"?action=getcompany&CIK={cik}&type={form}&dateb=&owner=include&count=10"
+				)
+			else:
+				filing_url = "https://www.sec.gov/cgi-bin/srqsb"
+
+			title = f"{entity_name} — {form}" + (f" ({period})" if period else "")
+			snippet = (
+				f"{entity_name} filed {form} with the SEC. "
+				f"Period: {period or 'N/A'}. Filed: {file_date or 'N/A'}."
+			)
+			normalized.append({
+				"title": title,
+				"url": filing_url,
+				"snippet": snippet,
+				"source": "sec_edgar",
+				"metadata": {
+					"form_type": form,
+					"period": period,
+					"entity": entity_name,
+					"file_date": file_date,
+				},
+			})
+		return normalized
+
+	def _search_financial_sources(self, query, ticker=None, source="auto", form_type=None, max_results=5):
+		"""Aggregate financial searches: SEC EDGAR, Yahoo Finance, and financial news outlets."""
+		all_results = []
+		half = max(1, max_results // 2 + 1)
+
+		if source in ("auto", "sec_edgar"):
+			edgar_results = self._search_edgar(query, ticker=ticker, form_type=form_type, max_results=half)
+			all_results.extend(edgar_results)
+
+		if source in ("auto", "yahoo_finance"):
+			yf_query = f"{query} {ticker} site:finance.yahoo.com" if ticker else f"{query} site:finance.yahoo.com"
+			yf_results = self._search_ddgs(yf_query, max_results=half)
+			for r in yf_results:
+				r["source"] = "yahoo_finance"
+			all_results.extend(yf_results)
+
+		if source in ("auto", "financial_news"):
+			news_results = self._search_ddgs(
+				query,
+				max_results=half,
+				domain_filter="reuters.com,bloomberg.com,wsj.com,ft.com,marketwatch.com",
+			)
+			for r in news_results:
+				r["source"] = "financial_news"
+			all_results.extend(news_results)
+
+		return self._deduplicate_results(all_results)[:max_results]
+
+	def _classify_query_type(self, query):
+		"""Classify a search query as 'financial' or 'general' based on keyword matching."""
+		lowered = (query or "").lower()
+		return "financial" if any(kw in lowered for kw in FINANCIAL_QUERY_KEYWORDS) else "general"
+
+	def _deduplicate_results(self, results):
+		"""Remove duplicate search results by normalized URL, preserving insertion order."""
+		seen_urls: set = set()
+		deduped = []
+		for r in results:
+			url = (r.get("url") or "").strip().rstrip("/").lower()
+			if not url or url in seen_urls:
+				continue
+			seen_urls.add(url)
+			deduped.append(r)
+		return deduped
+
+	def _get_web_search_max_results(self, settings):
+		"""Return the configured maximum web search results per query."""
+		return max(1, self._read_int_setting(settings, "web_search_max_results", DEFAULT_WEB_SEARCH_MAX_RESULTS))
+
+	def _get_web_search_providers(self, settings):
+		"""Return the ordered list of configured web search providers."""
+		raw = (settings.get("web_search_providers") or DEFAULT_WEB_SEARCH_PROVIDERS).strip()
+		providers = [p.strip() for p in raw.split(",") if p.strip()]
+		return providers or [DEFAULT_WEB_SEARCH_PROVIDERS]
