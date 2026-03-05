@@ -559,6 +559,12 @@ class CFChatMessage(Document):
 			last_finish_reason = getattr(choice, "finish_reason", None)
 
 			if not tool_calls:
+				# deepseek-reasoner may emit DSML markup in content instead of
+				# structured tool_calls when tools are stripped on the last round.
+				# Discard the markup and fall through to the post-loop synthesis call.
+				if self._content_looks_like_dsml(assistant_content):
+					messages.append(self._build_assistant_message_dict("", reasoning_content, []))
+					break
 				messages.append(self._build_assistant_message_dict(assistant_content, reasoning_content, []))
 				return assistant_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
 
@@ -666,6 +672,14 @@ class CFChatMessage(Document):
 			if isinstance(m, dict) and m.get("role") == "assistant" and m.get("content")
 		)
 		return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+	# Sentinel used to detect deepseek-reasoner DSML fallback markup in content.
+	_DSML_SEP = "\uff5c"  # ｜ U+FF5C FULLWIDTH VERTICAL LINE
+
+	def _content_looks_like_dsml(self, content):
+		"""Return True if content contains deepseek-reasoner DSML function-call markup."""
+		sep = self._DSML_SEP
+		return bool(content) and f"<{sep}DSML{sep}" in content
 
 	def _build_assistant_message_dict(self, content, reasoning_content, tool_calls):
 		message = {
