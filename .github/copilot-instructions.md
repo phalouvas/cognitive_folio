@@ -24,11 +24,20 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 ### Chat Messages
 - `CF Chat Message.process()` enqueues `process_in_background` → calls `send()`.
 - `send()`: manages token budget (~60k) with `tiktoken`, replays previous messages newest‑first, streams response, updates document incrementally, publishes `cf_streaming_update` events.
-- Supports optional URL embedding (`fetch_urls`), PDF extraction, and web search (DuckDuckGo) via `extract_search_query` and `perform_web_search`.
+- Supports optional URL embedding (`fetch_urls`), PDF extraction.
+- **Agentic tool calls**: when `tool_calls_enabled` is set in `CF Settings`, `send()` routes through `_run_tool_call_chain` instead of direct streaming. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
+- **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`.
+- **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-reasoner` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
 
 ### Batch News Evaluation
 - Scheduled task `auto_evaluate_holdings_news` runs daily at 4 AM for portfolios with `auth_fetch_prices` enabled.
 - Calls `CF Portfolio.evaluate_holdings_news()` which queues a background job per holding.
+
+## Tool Call Chain & Thinking Mode
+- **`_run_tool_call_chain`**: core agentic loop. Sends completion requests, executes returned tool calls, appends results, repeats. A synthesis nudge is injected 2 rounds before `max_tool_rounds`; on the final round `tools` is omitted entirely to force a text response.
+- **DeepSeek-Reasoner DSML fallback**: if the model emits DSML markup (`<｜DSML｜…>`) in `content` instead of `tool_calls` (can happen when tools are absent on the last round), `_content_looks_like_dsml` detects it, the markup is discarded, and the post-loop forced synthesis call produces the real answer.
+- **Multi-turn thinking**: `reasoning_content` is included in assistant messages within the same tool-call chain (required by the DeepSeek API). Before a new user turn, `_clear_reasoning_content` strips it from history to save bandwidth and avoid a 400 error.
+- **Unsupported params**: `_strip_unsupported_request_params` dynamically removes parameters rejected by the endpoint (e.g. `temperature`, `top_p`, `seed`, `extra_body`) and retries automatically.
 
 ## Background Jobs & Queue Management
 - Always use `queue="long"` and `timeout=1800` (30 minutes) for AI operations.
@@ -59,7 +68,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 ## Dependencies & Configuration
 - **Python packages**: `yfinance`, `openai`, `edgartools`, `duckduckgo-search`, `tiktoken`. Installed automatically via `install.after_install`.
 - **Frappe hooks**: Scheduled tasks defined in `hooks.py` (`scheduler_events`).
-- **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key.
+- **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`tool_calls_enabled`, `max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
 - **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-chat"` if not set.
 
 ## Development Workflow

@@ -14,6 +14,7 @@ DEFAULT_CHAT_MAX_TOKENS = 4000
 DEFAULT_REASONER_MAX_TOKENS = 32000
 MAX_CHAT_MAX_TOKENS = 8000
 MAX_REASONER_MAX_TOKENS = 64000
+DEEPSEEK_CHAT_MAX_TOKENS_CAP = 8192
 MAX_OPENAI_RETRIES = 3
 RETRY_BACKOFF_BASE_SECONDS = 1.5
 STREAM_FLUSH_INTERVAL_SECONDS = 0.5
@@ -1296,13 +1297,11 @@ class CFChatMessage(Document):
 
 	def _is_reasoner_model(self, model_name, settings=None):
 		normalized_model = (model_name or "").strip().lower()
-		if normalized_model.startswith("deepseek-reasoner"):
-			return True
+		return normalized_model.startswith("deepseek-reasoner")
 
-		if settings and self._thinking_enabled_for_chat_models(settings) and normalized_model.startswith("deepseek-chat"):
-			return True
-
-		return False
+	def _is_deepseek_chat_model(self, model_name):
+		normalized_model = (model_name or "").strip().lower()
+		return normalized_model.startswith("deepseek-chat")
 
 	def _get_max_completion_tokens(self, settings, prompt_text=None):
 		if self._is_reasoner_model(self.model, settings):
@@ -1315,6 +1314,9 @@ class CFChatMessage(Document):
 
 		default_tokens = self._read_int_setting(settings, "chat_default_max_tokens", DEFAULT_CHAT_MAX_TOKENS)
 		max_cap = self._read_int_setting(settings, "chat_max_tokens_cap", MAX_CHAT_MAX_TOKENS)
+		if self._is_deepseek_chat_model(self.model):
+			# DeepSeek chat endpoints reject maxtokens above 8192.
+			max_cap = min(max_cap, DEEPSEEK_CHAT_MAX_TOKENS_CAP)
 		return max(1, min(default_tokens, max_cap))
 
 	def _get_max_context_tokens(self, settings):
@@ -1339,7 +1341,10 @@ class CFChatMessage(Document):
 		return bool(int(raw))
 
 	def _is_thinking_mode_active(self, settings):
-		return self._is_reasoner_model(self.model, settings)
+		if self._is_reasoner_model(self.model, settings):
+			return True
+
+		return self._is_deepseek_chat_model(self.model) and self._thinking_enabled_for_chat_models(settings)
 
 	def _get_thinking_type(self, settings):
 		value = (settings.get("thinking_type") or DEFAULT_THINKING_TYPE).strip().lower()

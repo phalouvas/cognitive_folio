@@ -10,6 +10,7 @@ from cognitive_folio.cognitive_folio.doctype.cf_chat_message.cf_chat_message imp
 	FINANCIAL_QUERY_KEYWORDS,
 	DEFAULT_WEB_SEARCH_MAX_RESULTS,
 	DEFAULT_WEB_SEARCH_PROVIDERS,
+	DEEPSEEK_CHAT_MAX_TOKENS_CAP,
 )
 
 
@@ -299,4 +300,67 @@ class TestCFChatMessageSearchHelpers(FrappeTestCase):
 	def test_financial_keywords_include_core_terms(self):
 		for term in ("stock", "earnings", "10-k", "sec", "edgar", "dividend"):
 			self.assertIn(term, FINANCIAL_QUERY_KEYWORDS)
+
+
+class TestCFChatMessageTokenAndThinkingModes(FrappeTestCase):
+	def test_deepseek_chat_with_thinking_uses_chat_token_limits(self):
+		doc = _make_doc()
+		doc.model = "deepseek-chat"
+
+		settings = MagicMock()
+
+		def fake_get(fieldname):
+			mapping = {
+				"thinking_enabled": "1",
+				"reasoner_default_max_tokens": "32000",
+				"reasoner_max_tokens_cap": "64000",
+				"chat_default_max_tokens": "7000",
+				"chat_max_tokens_cap": "8000",
+			}
+			return mapping.get(fieldname)
+
+		settings.get.side_effect = fake_get
+
+		tokens = doc._get_max_completion_tokens(settings, "quick question")
+
+		self.assertEqual(tokens, 7000)
+
+	def test_deepseek_chat_tokens_hard_clamped_to_provider_limit(self):
+		doc = _make_doc()
+		doc.model = "deepseek-chat"
+
+		settings = MagicMock()
+
+		def fake_get(fieldname):
+			mapping = {
+				"chat_default_max_tokens": "50000",
+				"chat_max_tokens_cap": "50000",
+			}
+			return mapping.get(fieldname)
+
+		settings.get.side_effect = fake_get
+
+		tokens = doc._get_max_completion_tokens(settings, "test")
+
+		self.assertEqual(tokens, DEEPSEEK_CHAT_MAX_TOKENS_CAP)
+
+	def test_thinking_mode_active_for_deepseek_chat_only_when_enabled(self):
+		doc = _make_doc()
+		doc.model = "deepseek-chat"
+
+		settings = MagicMock()
+		settings.get.return_value = "0"
+		self.assertFalse(doc._is_thinking_mode_active(settings))
+
+		settings.get.return_value = "1"
+		self.assertTrue(doc._is_thinking_mode_active(settings))
+
+	def test_thinking_mode_always_active_for_reasoner(self):
+		doc = _make_doc()
+		doc.model = "deepseek-reasoner"
+
+		settings = MagicMock()
+		settings.get.return_value = "0"
+
+		self.assertTrue(doc._is_thinking_mode_active(settings))
 
