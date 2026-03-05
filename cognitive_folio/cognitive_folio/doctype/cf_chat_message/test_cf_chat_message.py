@@ -2,6 +2,7 @@
 # See license.txt
 
 # import frappe
+import json
 from unittest.mock import MagicMock, patch
 from frappe.tests.utils import FrappeTestCase
 
@@ -314,12 +315,26 @@ def _dsml_close(tag):
 
 
 def _make_dsml_content(tool_name, params):
-	"""Build a minimal DSML function-call string."""
+	"""Build a Variant-A DSML string (no closing param tags, outer 'functioncalls')."""
 	lines = [_dsml("functioncalls"), _dsml(f'invoke name="{tool_name}"')]
 	for pname, pvalue in params.items():
 		lines.append(_dsml(f'parameter name="{pname}" string="true"') + str(pvalue))
 	lines.append(_dsml_close("invoke"))
 	lines.append(_dsml_close("functioncalls"))
+	return "\n".join(lines)
+
+
+def _make_dsml_content_v2(tool_name, params):
+	"""Build a Variant-B DSML string (closing param tags, outer 'function_calls')."""
+	lines = [_dsml("function_calls"), _dsml(f'invoke name="{tool_name}"')]
+	for pname, pvalue in params.items():
+		lines.append(
+			_dsml(f'parameter name="{pname}" string="true"')
+			+ str(pvalue)
+			+ _dsml_close("parameter")
+		)
+	lines.append(_dsml_close("invoke"))
+	lines.append(_dsml_close("function_calls"))
 	return "\n".join(lines)
 
 
@@ -477,3 +492,155 @@ class TestCFChatMessageDSML(FrappeTestCase):
 		content = "Before.\n" + _make_dsml_content("websearch", {"query": "q"}) + "\nAfter."
 		stripped = doc._strip_dsml_markup(content)
 		self.assertNotIn(_SEP, stripped)
+
+
+class TestCFChatMessageDSMLVariantB(FrappeTestCase):
+	"""Tests for Variant B DSML: 'function_calls' (underscore) outer tag + explicit closing </parameter> tags."""
+
+	# ------------------------------------------------------------------
+	# _has_dsml_tool_calls
+	# ------------------------------------------------------------------
+
+	def test_has_dsml_detects_function_calls_outer_tag(self):
+		"""Sentinel check must match the 'function_calls' outer wrapper."""
+		doc = _make_doc()
+		content = _make_dsml_content_v2("web_search", {"query": "hello"})
+		self.assertTrue(doc._has_dsml_tool_calls(content))
+
+	def test_has_dsml_returns_false_for_plain_text(self):
+		doc = _make_doc()
+		self.assertFalse(doc._has_dsml_tool_calls("Just a plain response."))
+
+	# ------------------------------------------------------------------
+	# _parse_dsml_tool_calls — Variant B structural tests
+	# ------------------------------------------------------------------
+
+	def test_parse_variant_b_returns_one_call(self):
+		doc = _make_doc()
+		content = _make_dsml_content_v2("web_search", {"query": "test query"})
+		calls = doc._parse_dsml_tool_calls(content)
+		self.assertEqual(len(calls), 1)
+
+	def test_parse_variant_b_maps_tool_name(self):
+		doc = _make_doc()
+		content = _make_dsml_content_v2("web_search", {"query": "ai news"})
+		calls = doc._parse_dsml_tool_calls(content)
+		self.assertEqual(calls[0].function.name, "web_search")
+
+	def test_parse_variant_b_strips_closing_parameter_tags_from_values(self):
+		"""Parameter values must NOT include the trailing </｜DSML｜parameter> tag."""
+		doc = _make_doc()
+		url = "https://en.wikipedia.org/wiki/Python_(programming_language)"
+		content = _make_dsml_content_v2("fetch_url_content", {"url": url, "max_chars": "5000"})
+		calls = doc._parse_dsml_tool_calls(content)
+		self.assertEqual(len(calls), 1)
+		args = json.loads(calls[0].function.arguments)
+		self.assertEqual(args["url"], url)
+		self.assertNotIn(_SEP, args["url"])
+		self.assertEqual(args["max_chars"], "5000")
+		self.assertNotIn(_SEP, args["max_chars"])
+
+	def test_parse_variant_b_multi_param(self):
+		"""Multiple params in Variant B should all parse cleanly."""
+		doc = _make_doc()
+		params = {"query": "oil prices", "provider": "ddgs", "max_results": "10"}
+		content = _make_dsml_content_v2("web_search", params)
+		calls = doc._parse_dsml_tool_calls(content)
+		args = json.loads(calls[0].function.arguments)
+		self.assertEqual(args["query"], "oil prices")
+		self.assertEqual(args["provider"], "ddgs")
+		self.assertEqual(args["max_results"], "10")
+
+	def test_parse_variant_b_assigns_unique_dsml_id(self):
+		doc = _make_doc()
+		content = _make_dsml_content_v2("web_search", {"query": "test"})
+		calls = doc._parse_dsml_tool_calls(content)
+		self.assertTrue(calls[0].id.startswith("dsml_"))
+
+	def test_parse_variant_b_exact_user_reported_format(self):
+		"""Reproduce the exact Variant B string the user reported from deepseek-reasoner."""
+		doc = _make_doc()
+		S = _SEP
+		content = (
+			f"<{S}DSML{S}function_calls>\n"
+			f"<{S}DSML{S}invoke name=\"fetch_url_content\">\n"
+			f"<{S}DSML{S}parameter name=\"url\" string=\"true\">"
+			f"https://en.wikipedia.org/wiki/Python_(programming_language)"
+			f"</{S}DSML{S}parameter>\n"
+			f"<{S}DSML{S}parameter name=\"max_chars\" string=\"true\">5000</{S}DSML{S}parameter>\n"
+			f"</{S}DSML{S}invoke>\n"
+			f"</{S}DSML{S}function_calls>"
+		)
+		calls = doc._parse_dsml_tool_calls(content)
+		self.assertEqual(len(calls), 1)
+		self.assertEqual(calls[0].function.name, "fetch_url_content")
+		args = json.loads(calls[0].function.arguments)
+		self.assertEqual(
+			args["url"],
+			"https://en.wikipedia.org/wiki/Python_(programming_language)",
+		)
+		self.assertEqual(args["max_chars"], "5000")
+
+	def test_parse_variant_b_multiple_invocations(self):
+		"""Two back-to-back Variant B invoke blocks should yield two tool calls."""
+		doc = _make_doc()
+		S = _SEP
+		content = (
+			f"<{S}DSML{S}function_calls>\n"
+			f"<{S}DSML{S}invoke name=\"web_search\">\n"
+			f"<{S}DSML{S}parameter name=\"query\" string=\"true\">first</{S}DSML{S}parameter>\n"
+			f"</{S}DSML{S}invoke>\n"
+			f"<{S}DSML{S}invoke name=\"web_search\">\n"
+			f"<{S}DSML{S}parameter name=\"query\" string=\"true\">second</{S}DSML{S}parameter>\n"
+			f"</{S}DSML{S}invoke>\n"
+			f"</{S}DSML{S}function_calls>"
+		)
+		calls = doc._parse_dsml_tool_calls(content)
+		self.assertEqual(len(calls), 2)
+		args0 = json.loads(calls[0].function.arguments)
+		args1 = json.loads(calls[1].function.arguments)
+		self.assertEqual(args0["query"], "first")
+		self.assertEqual(args1["query"], "second")
+
+	# ------------------------------------------------------------------
+	# _strip_dsml_markup — Variant B
+	# ------------------------------------------------------------------
+
+	def test_strip_variant_b_removes_all_dsml(self):
+		doc = _make_doc()
+		content = "Preamble.\n" + _make_dsml_content_v2("web_search", {"query": "x"})
+		stripped = doc._strip_dsml_markup(content)
+		self.assertNotIn(_SEP, stripped)
+
+	def test_strip_variant_b_preserves_surrounding_prose(self):
+		doc = _make_doc()
+		content = "Before.\n" + _make_dsml_content_v2("web_search", {"query": "x"}) + "\nAfter."
+		stripped = doc._strip_dsml_markup(content)
+		self.assertIn("Before.", stripped)
+		self.assertIn("After.", stripped)
+		self.assertNotIn(_SEP, stripped)
+
+	def test_strip_variant_b_plain_text_unchanged(self):
+		doc = _make_doc()
+		text = "No DSML here at all."
+		self.assertEqual(doc._strip_dsml_markup(text), text)
+
+	# ------------------------------------------------------------------
+	# Cross-variant equivalence
+	# ------------------------------------------------------------------
+
+	def test_both_variants_produce_same_canonical_result(self):
+		"""Parsing either variant for the same logical call yields identical output."""
+		doc = _make_doc()
+		params = {"query": "semiconductor stocks", "provider": "ddgs"}
+		v1 = _make_dsml_content("web_search", params)
+		v2 = _make_dsml_content_v2("web_search", params)
+		calls_v1 = doc._parse_dsml_tool_calls(v1)
+		calls_v2 = doc._parse_dsml_tool_calls(v2)
+		self.assertEqual(len(calls_v1), 1)
+		self.assertEqual(len(calls_v2), 1)
+		self.assertEqual(calls_v1[0].function.name, calls_v2[0].function.name)
+		self.assertEqual(
+			json.loads(calls_v1[0].function.arguments),
+			json.loads(calls_v2[0].function.arguments),
+		)

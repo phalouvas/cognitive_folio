@@ -705,28 +705,38 @@ class CFChatMessage(Document):
 		Returns a list of _DsmlToolCall instances compatible with the OpenAI
 		tool_calls duck-type used in _run_tool_call_chain.
 
-		Expected markup (closing tags are optional):
-		  <｜DSML｜functioncalls>
-		    <｜DSML｜invoke name="fetch_url_content">
-		      <｜DSML｜parameter name="url" string="true">https://...
-		      <｜DSML｜parameter name="max_chars" string="false">5000
-		    </｜DSML｜invoke>
-		  </｜DSML｜functioncalls>
+		Handles both tag variants emitted by different deepseek-reasoner versions:
+		  Variant A – no closing parameter tags, outer tag 'functioncalls':
+		    <｜DSML｜functioncalls>
+		      <｜DSML｜invoke name="fetch_url_content">
+		        <｜DSML｜parameter name="url" string="true">https://...
+		        <｜DSML｜parameter name="max_chars" string="false">5000
+		      </｜DSML｜invoke>
+		    </｜DSML｜functioncalls>
+
+		  Variant B – explicit closing parameter tags, outer tag 'function_calls':
+		    <｜DSML｜function_calls>
+		      <｜DSML｜invoke name="fetch_url_content">
+		        <｜DSML｜parameter name="url" string="true">https://...</｜DSML｜parameter>
+		        <｜DSML｜parameter name="max_chars" string="false">5000</｜DSML｜parameter>
+		      </｜DSML｜invoke>
+		    </｜DSML｜function_calls>
 		"""
 		import uuid
 		sep = re.escape(self._DSML_SEP)
 
 		# Match each <｜DSML｜invoke name="..."> … block.
-		# Terminate at the next invoke, at </｜DSML｜invoke>, at </｜DSML｜functioncalls>, or at end.
+		# Terminate at the next invoke, at </｜DSML｜invoke>, at </｜DSML｜function[_]calls>, or at end.
 		invoke_re = re.compile(
 			rf"<{sep}DSML{sep}invoke\s+name=[\"']([^\"']+)[\"']\s*>"
 			rf"(.*?)"
-			rf"(?=<{sep}DSML{sep}invoke[\s>]|</{sep}DSML{sep}(?:invoke|functioncalls)>|$)",
+			rf"(?=<{sep}DSML{sep}invoke[\s>]|</{sep}DSML{sep}(?:invoke|function_?calls)>|$)",
 			re.DOTALL | re.IGNORECASE,
 		)
-		# Match <｜DSML｜parameter name="...">value
+		# Match <｜DSML｜parameter name="...">value[</｜DSML｜parameter>]
+		# Stop at any DSML opening *or* closing tag so both variants are handled.
 		param_re = re.compile(
-			rf"<{sep}DSML{sep}parameter\s+name=[\"']([^\"']+)[\"'][^>]*>(.*?)(?=<{sep}DSML{sep}|$)",
+			rf"<{sep}DSML{sep}parameter\s+name=[\"']([^\"']+)[\"'][^>]*>(.*?)(?=</?{sep}DSML{sep}|$)",
 			re.DOTALL | re.IGNORECASE,
 		)
 
@@ -754,20 +764,23 @@ class CFChatMessage(Document):
 		return result
 
 	def _strip_dsml_markup(self, content):
-		"""Remove DSML function-call blocks from content, returning only prose text."""
+		"""Remove DSML function-call blocks from content, returning only prose text.
+
+		Handles both outer tag variants: 'functioncalls' and 'function_calls'.
+		"""
 		if not self._has_dsml_tool_calls(content):
 			return content
 		sep = re.escape(self._DSML_SEP)
-		# Remove the outer functioncalls wrapper + everything inside it
+		# Remove the outer function[_]calls wrapper + everything inside it
 		cleaned = re.sub(
-			rf"<{sep}DSML{sep}functioncalls>.*?(?:</{sep}DSML{sep}functioncalls>|$)",
+			rf"<{sep}DSML{sep}function_?calls>.*?(?:</{sep}DSML{sep}function_?calls>|$)",
 			"",
 			content,
 			flags=re.DOTALL | re.IGNORECASE,
 		).strip()
 		# Catch any isolated DSML tags that survived (e.g. no outer wrapper)
 		cleaned = re.sub(
-			rf"<{sep}DSML{sep}.*",
+			rf"</?{sep}DSML{sep}.*",
 			"",
 			cleaned,
 			flags=re.DOTALL | re.IGNORECASE,
