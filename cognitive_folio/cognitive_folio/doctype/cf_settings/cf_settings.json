@@ -8,6 +8,40 @@
   "open_ai_url",
   "open_ai_api_key",
   "system_content",
+  "section_break_ai_runtime",
+  "max_context_tokens",
+  "chat_default_max_tokens",
+  "reasoner_default_max_tokens",
+  "thinking_budget_tokens",
+  "thinking_enabled",
+  "thinking_type",
+  "column_break_gqks",
+  "chat_max_tokens_cap",
+  "reasoner_max_tokens_cap",
+  "json_mode_enabled",
+  "seed_value",
+  "top_p",
+  "frequency_penalty",
+  "presence_penalty",
+  "section_break_reliability",
+  "max_api_retries",
+  "retry_backoff_base_seconds",
+  "column_break_rpda",
+  "stream_flush_interval_seconds",
+  "stream_flush_min_char_delta",
+  "enable_conversation_summarization",
+  "section_break_tool_calls",
+  "tool_calls_enabled",
+  "max_tool_rounds",
+  "max_tool_calls_per_round",
+  "column_break_tools",
+  "tool_result_max_chars",
+  "section_break_web_search",
+  "web_search_providers",
+  "web_search_max_results",
+  "column_break_web_search",
+  "web_search_financial_domains",
+  "web_search_cache_enabled",
   "section_break_models",
   "default_ai_model",
   "ai_models"
@@ -23,6 +57,219 @@
    "fieldname": "open_ai_api_key",
    "fieldtype": "Password",
    "label": "Open AI API key"
+  },
+  {
+   "fieldname": "section_break_ai_runtime",
+   "fieldtype": "Section Break",
+   "label": "AI Runtime"
+  },
+  {
+   "default": "120000",
+   "description": "Context token budget for reconstructed conversation history (DeepSeek context is 128K).",
+   "fieldname": "max_context_tokens",
+   "fieldtype": "Int",
+   "label": "Max Context Tokens"
+  },
+  {
+   "default": "4000",
+   "description": "Default completion tokens for deepseek-chat.",
+   "fieldname": "chat_default_max_tokens",
+   "fieldtype": "Int",
+   "label": "Chat Default Max Tokens"
+  },
+  {
+   "default": "32000",
+   "description": "Default completion tokens for deepseek-reasoner.",
+   "fieldname": "reasoner_default_max_tokens",
+   "fieldtype": "Int",
+   "label": "Reasoner Default Max Tokens"
+  },
+  {
+   "default": "2048",
+   "description": "Thinking budget tokens sent via extra_body.thinking for supported DeepSeek models.",
+   "fieldname": "thinking_budget_tokens",
+   "fieldtype": "Int",
+   "label": "Thinking Budget Tokens"
+  },
+  {
+   "default": "0",
+   "description": "Enable thinking mode for deepseek-chat models (deepseek-reasoner already uses thinking behavior).",
+   "fieldname": "thinking_enabled",
+   "fieldtype": "Check",
+   "label": "Thinking Enabled"
+  },
+  {
+   "default": "reasoning",
+   "description": "Thinking type passed in extra_body.thinking.type.",
+   "fieldname": "thinking_type",
+   "fieldtype": "Data",
+   "label": "Thinking Type"
+  },
+  {
+   "fieldname": "column_break_gqks",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8000",
+   "description": "Maximum allowed completion tokens for deepseek-chat.",
+   "fieldname": "chat_max_tokens_cap",
+   "fieldtype": "Int",
+   "label": "Chat Max Tokens Cap"
+  },
+  {
+   "default": "64000",
+   "description": "Maximum allowed completion tokens for deepseek-reasoner.",
+   "fieldname": "reasoner_max_tokens_cap",
+   "fieldtype": "Int",
+   "label": "Reasoner Max Tokens Cap"
+  },
+  {
+   "default": "0",
+   "description": "Request JSON object outputs using response_format when supported.",
+   "fieldname": "json_mode_enabled",
+   "fieldtype": "Check",
+   "label": "JSON Mode Enabled"
+  },
+  {
+   "description": "Optional deterministic seed for non-thinking completions.",
+   "fieldname": "seed_value",
+   "fieldtype": "Int",
+   "label": "Seed Value"
+  },
+  {
+   "default": "1.0",
+   "description": "Sampling nucleus probability for non-thinking completions (0-1).",
+   "fieldname": "top_p",
+   "fieldtype": "Float",
+   "label": "Top P"
+  },
+  {
+   "default": "0.0",
+   "description": "Frequency penalty for non-thinking completions (-2 to 2).",
+   "fieldname": "frequency_penalty",
+   "fieldtype": "Float",
+   "label": "Frequency Penalty"
+  },
+  {
+   "default": "0.0",
+   "description": "Presence penalty for non-thinking completions (-2 to 2).",
+   "fieldname": "presence_penalty",
+   "fieldtype": "Float",
+   "label": "Presence Penalty"
+  },
+  {
+   "fieldname": "section_break_reliability",
+   "fieldtype": "Section Break",
+   "label": "Reliability & Streaming"
+  },
+  {
+   "default": "3",
+   "description": "Number of retry attempts for transient API errors (timeouts, rate limits, 5xx).",
+   "fieldname": "max_api_retries",
+   "fieldtype": "Int",
+   "label": "Max API Retries"
+  },
+  {
+   "default": "1.5",
+   "description": "Base delay in seconds for exponential retry backoff.",
+   "fieldname": "retry_backoff_base_seconds",
+   "fieldtype": "Float",
+   "label": "Retry Backoff Base Seconds"
+  },
+  {
+    "default": "0.5",
+   "description": "Maximum seconds between partial streaming saves/updates.",
+   "fieldname": "stream_flush_interval_seconds",
+   "fieldtype": "Float",
+   "label": "Stream Flush Interval Seconds"
+  },
+  {
+   "default": "120",
+   "description": "Minimum newly generated characters before forcing a partial stream save/update.",
+   "fieldname": "stream_flush_min_char_delta",
+   "fieldtype": "Int",
+   "label": "Stream Flush Min Char Delta"
+  },
+  {
+   "default": "0",
+   "description": "Summarize earlier chat turns when history exceeds context budget.",
+   "fieldname": "enable_conversation_summarization",
+   "fieldtype": "Check",
+   "label": "Enable Conversation Summarization"
+  },
+  {
+   "fieldname": "section_break_tool_calls",
+   "fieldtype": "Section Break",
+   "label": "Tool Calls"
+  },
+  {
+   "default": "1",
+   "description": "Enable model-driven function calling and multi-call chains.",
+   "fieldname": "tool_calls_enabled",
+   "fieldtype": "Check",
+   "label": "Enable Tool Calls"
+  },
+  {
+   "default": "8",
+   "description": "Maximum number of model-tool rounds per assistant response.",
+   "fieldname": "max_tool_rounds",
+   "fieldtype": "Int",
+   "label": "Max Tool Rounds"
+  },
+  {
+   "default": "8",
+   "description": "Maximum tool calls allowed in a single round.",
+   "fieldname": "max_tool_calls_per_round",
+   "fieldtype": "Int",
+   "label": "Max Tool Calls Per Round"
+  },
+  {
+   "fieldname": "column_break_tools",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "8000",
+   "description": "Maximum characters stored per tool result payload.",
+   "fieldname": "tool_result_max_chars",
+   "fieldtype": "Int",
+   "label": "Tool Result Max Chars"
+  },
+  {
+   "fieldname": "section_break_web_search",
+   "fieldtype": "Section Break",
+   "label": "Web Search"
+  },
+  {
+   "default": "ddgs",
+   "description": "Comma-separated ordered list of search providers used by tool-driven searches: ddgs (DuckDuckGo), wikipedia.",
+   "fieldname": "web_search_providers",
+   "fieldtype": "Data",
+   "label": "Web Search Providers"
+  },
+  {
+   "default": "5",
+   "description": "Maximum number of results returned per web search query.",
+   "fieldname": "web_search_max_results",
+   "fieldtype": "Int",
+   "label": "Web Search Max Results"
+  },
+  {
+   "fieldname": "column_break_web_search",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "sec.gov,finance.yahoo.com,reuters.com,bloomberg.com,wsj.com,ft.com,marketwatch.com,investor.gov",
+   "description": "Comma-separated financial domains used when the search_financial tool selects financial_news source.",
+   "fieldname": "web_search_financial_domains",
+   "fieldtype": "Small Text",
+   "label": "Financial Domain Priority List"
+  },
+  {
+   "default": "0",
+   "description": "Cache web search results within a request to avoid duplicate queries.",
+   "fieldname": "web_search_cache_enabled",
+   "fieldtype": "Check",
+   "label": "Cache Web Search Results"
   },
   {
    "fieldname": "section_break_models",
@@ -46,13 +293,17 @@
    "fieldname": "system_content",
    "fieldtype": "Markdown Editor",
    "label": "System Content"
+  },
+  {
+   "fieldname": "column_break_rpda",
+   "fieldtype": "Column Break"
   }
  ],
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "issingle": 1,
  "links": [],
- "modified": "2025-12-18 06:41:21.959027",
+ "modified": "2026-03-04 09:35:38.156034",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "CF Settings",

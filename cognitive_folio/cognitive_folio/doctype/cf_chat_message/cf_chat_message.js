@@ -4,6 +4,8 @@
 frappe.ui.form.on("CF Chat Message", {
     
     refresh(frm) {
+        set_model_options_from_settings(frm);
+
         frm.add_custom_button(__('Send'), function() {
             frm.call({
                 doc: frm.doc,
@@ -38,3 +40,29 @@ frappe.ui.form.on("CF Chat Message", {
         }
     }
 });
+
+function set_model_options_from_settings(frm) {
+    frappe.db.get_list('CF AI Model', {
+        fields: ['model_id'],
+        order_by: 'model_id asc',
+        limit: 500
+    }).then((rows) => {
+        const models = (rows || [])
+            .map((row) => row.model_id)
+            .filter((model) => !!model);
+
+        if (!models.length) {
+            return;
+        }
+
+        if (frm.doc.model && !models.includes(frm.doc.model)) {
+            models.unshift(frm.doc.model);
+        }
+
+        const modelOptions = [''].concat(models).join('\n');
+        frm.set_df_property('model', 'options', modelOptions);
+        frm.refresh_field('model');
+    }).catch(() => {
+        // Keep existing static options if model fetch fails
+    });
+}

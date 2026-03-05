@@ -3,6 +3,8 @@
 
 frappe.ui.form.on("CF Settings", {
     refresh(frm) {
+        ensure_runtime_defaults(frm);
+
         // Add button to check Open WebUI API connectivity
         frm.add_custom_button(__('Refresh AI Models'), function() {
             check_openwebui_connection(frm);
@@ -17,6 +19,52 @@ frappe.ui.form.on("CF Settings", {
         populate_default_ai_model_options(frm);
     }
 });
+
+function ensure_runtime_defaults(frm) {
+    const defaults = {
+        max_context_tokens: 120000,
+        chat_default_max_tokens: 4000,
+        reasoner_default_max_tokens: 32000,
+        chat_max_tokens_cap: 8000,
+        reasoner_max_tokens_cap: 64000,
+        max_api_retries: 3,
+        retry_backoff_base_seconds: 1.5,
+        stream_flush_interval_seconds: 1.0,
+        stream_flush_min_char_delta: 120,
+        tool_calls_enabled: 1,
+        max_tool_rounds: 8,
+        max_tool_calls_per_round: 8,
+        tool_result_max_chars: 8000,
+    };
+
+    const checkboxDefaults = ['tool_calls_enabled'];
+
+    let changed = false;
+
+    Object.keys(defaults).forEach((fieldname) => {
+        if (checkboxDefaults.includes(fieldname)) {
+            const currentValue = frm.doc[fieldname];
+            if (currentValue === undefined || currentValue === null || currentValue === '') {
+                frm.set_value(fieldname, defaults[fieldname]);
+                changed = true;
+            }
+            return;
+        }
+
+        const currentValue = Number(frm.doc[fieldname] || 0);
+        if (!(currentValue > 0)) {
+            frm.set_value(fieldname, defaults[fieldname]);
+            changed = true;
+        }
+    });
+
+    if (changed) {
+        frappe.show_alert({
+            message: __('Applied default AI runtime values. Please save settings.'),
+            indicator: 'blue'
+        });
+    }
+}
 
 function check_openwebui_connection(frm) {
     // Save the form first to ensure all values are up to date
