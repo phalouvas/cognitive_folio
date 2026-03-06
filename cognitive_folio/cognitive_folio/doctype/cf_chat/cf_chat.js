@@ -77,14 +77,10 @@ frappe.ui.form.on("CF Chat", {
 });
 
 function set_model_options_from_settings(frm) {
-    frappe.db.get_list('CF AI Model', {
-        fields: ['model_id'],
-        order_by: 'model_id asc',
-        limit: 500
-    }).then((rows) => {
-        const models = (rows || [])
-            .map((row) => row.model_id)
-            .filter((model) => !!model);
+    frappe.call({
+        method: 'cognitive_folio.cognitive_folio.doctype.cf_chat.cf_chat.get_available_ai_models'
+    }).then((r) => {
+        const models = (r.message || []).filter((model) => !!model);
 
         if (!models.length) {
             return;

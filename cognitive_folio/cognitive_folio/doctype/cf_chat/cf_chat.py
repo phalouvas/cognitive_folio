@@ -66,3 +66,29 @@ def export_chat_to_json(chat_name):
         "data": export_data,
         "filename": f"{chat_name}_export.json"
     }
+
+
+@frappe.whitelist()
+def get_available_ai_models():
+    """Return configured AI model IDs for chat model dropdown.
+
+    Uses server-side access to avoid client-side permission errors on
+    child-table DocTypes.
+    """
+    if not frappe.has_permission("CF Chat", "read"):
+        frappe.throw(frappe._("Not permitted"), frappe.PermissionError)
+
+    rows = frappe.get_all(
+        "CF AI Model",
+        fields=["model_id"],
+        order_by="model_id asc",
+    )
+
+    models = []
+    for row in rows:
+        model_id = (row.get("model_id") or "").strip()
+        if model_id:
+            models.append(model_id)
+
+    # Preserve order while removing duplicates.
+    return list(dict.fromkeys(models))
