@@ -3,6 +3,43 @@
 ## Overview
 This document outlines a step-by-step implementation plan for enhancing the `CFChatMessage` functionality in the Cognitive Folio application. The current implementation in `/workspace/development/v16/apps/cognitive_folio/cognitive_folio/cognitive_folio/doctype/cf_chat_message/cf_chat_message.py` is robust but has grown to ~2,200 lines with multiple responsibilities. This plan focuses on modularization, improved agent capabilities, and enhanced web search functionality.
 
+## Implementation Status (Updated: 2026-03-06)
+
+### Completed
+1. **Phase 1.1 (Base Service Classes)**
+	- `PromptProcessor` created
+	- `TokenManager` created
+	- `ToolOrchestrator` created
+	- `WebSearchService` created
+	- `SettingsManager` created
+2. **Phase 1.2 (Refactor CFChatMessage Class) - mostly complete**
+	- Core logic extracted/delegated to services
+	- Imports and wiring updated
+	- Legacy compatibility wrappers removed to reduce code
+3. **Phase 1.3 (Configuration Manager) - partial complete**
+	- Typed/validated settings access centralized in `SettingsManager`
+	- Runtime schema validation added
+4. **Web Search Path Simplification**
+	- Old non-tool web search path removed
+	- Search is now tool-only (`web_search` and `search_financial` tools)
+5. **Tool Mode Simplification**
+	- `Enable Tool Calls` setting removed from `CF Settings`
+	- Tool chain is now always enabled
+
+### Partially Completed
+1. **StreamingHandler usage**
+	- Service exists, but the direct streaming fallback path was removed in favor of tool-only execution.
+2. **Feature flags for gradual rollout**
+	- Foundation exists via `SettingsManager`, but broad rollout flagging is not fully implemented across all planned features.
+
+### Not Started
+1. **Phase 2, Phase 3, Phase 4, Phase 5, Phase 6**
+	- Agent planning, advanced memory, expanded provider ecosystem, circuit breakers, compliance, and monitoring/dashboard work remain pending.
+
+### Scope Decisions Applied
+1. **Backward compatibility is intentionally not preserved** for removed helper APIs and old fallback flows.
+2. **Single execution strategy**: tool-orchestrated response generation only.
+
 ## Current State Analysis
 The `CFChatMessage` class currently handles:
 - Prompt processing with variable replacement
@@ -31,17 +68,29 @@ Create new Python modules in `/workspace/development/v16/apps/cognitive_folio/co
 4. **WebSearchService** - Multi-provider search with fallback and quality filtering
 5. **StreamingHandler** - Real-time response streaming with database optimization
 
+Status: **Completed** (with later simplification to tool-only runtime path)
+
 ### Step 1.2: Refactor CFChatMessage Class
 1. Extract existing functionality into the new service classes
 2. Maintain backward compatibility with existing API
 3. Update imports and dependencies
 4. Add dependency injection for service classes
 
+Status: **Completed with scope change**
+
+Note: Item 2 is intentionally superseded. Backward compatibility wrappers were removed to reduce code size and maintenance overhead.
+
 ### Step 1.3: Create Configuration Manager
 1. **SettingsManager** - Centralize all configuration access with validation
 2. Add schema validation for all settings
 3. Implement feature flags for gradual rollouts
 4. Add environment-specific configuration support
+
+Status: **Partially Completed**
+
+Notes:
+1. Items 1 and 2 are implemented.
+2. Items 3 and 4 are only partially implemented and need follow-up.
 
 ## Phase 2: Enhanced Agent Capabilities (Week 2)
 
@@ -149,7 +198,7 @@ Create new Python modules in `/workspace/development/v16/apps/cognitive_folio/co
 5. **Logging** - Structured logging with appropriate log levels
 
 ### Migration Strategy
-1. **Backward Compatibility** - Ensure existing functionality continues to work
+1. **Backward Compatibility** - Not a current goal; removed where it increased code complexity
 2. **Feature Flags** - Use flags to control rollout of new features
 3. **Gradual Migration** - Migrate functionality piece by piece
 4. **Rollback Plan** - Have a clear plan to revert changes if needed
