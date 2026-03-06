@@ -25,7 +25,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - `CF Chat Message.process()` enqueues `process_in_background` → calls `send()`.
 - `send()`: manages token budget (~60k) with `tiktoken`, replays previous messages newest‑first, streams response, updates document incrementally, publishes `cf_streaming_update` events.
 - Supports optional URL embedding (`fetch_urls`), PDF extraction.
-- **Agentic tool calls**: when `tool_calls_enabled` is set in `CF Settings`, `send()` routes through `_run_tool_call_chain` instead of direct streaming. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
+- **Agentic tool calls**: `send()` always routes through the tool-call chain. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
 - **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`.
 - **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-reasoner` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
 
@@ -68,7 +68,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 ## Dependencies & Configuration
 - **Python packages**: `yfinance`, `openai`, `edgartools`, `duckduckgo-search`, `tiktoken`. Installed automatically via `install.after_install`.
 - **Frappe hooks**: Scheduled tasks defined in `hooks.py` (`scheduler_events`).
-- **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`tool_calls_enabled`, `max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
+- **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
 - **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-chat"` if not set.
 
 ## Development Workflow

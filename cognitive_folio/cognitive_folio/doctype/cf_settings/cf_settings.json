@@ -31,7 +31,6 @@
   "stream_flush_min_char_delta",
   "enable_conversation_summarization",
   "section_break_tool_calls",
-  "tool_calls_enabled",
   "max_tool_rounds",
   "max_tool_calls_per_round",
   "column_break_tools",
@@ -201,13 +200,6 @@
    "fieldname": "section_break_tool_calls",
    "fieldtype": "Section Break",
    "label": "Tool Calls"
-  },
-  {
-   "default": "1",
-   "description": "Enable model-driven function calling and multi-call chains.",
-   "fieldname": "tool_calls_enabled",
-   "fieldtype": "Check",
-   "label": "Enable Tool Calls"
   },
   {
    "default": "8",

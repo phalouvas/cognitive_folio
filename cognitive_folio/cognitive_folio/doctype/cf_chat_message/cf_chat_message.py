@@ -4,6 +4,13 @@ import re
 import time
 import json
 from functools import lru_cache
+from cognitive_folio.cognitive_folio.services import (
+	PromptProcessor,
+	SettingsManager,
+	TokenManager,
+	ToolOrchestrator,
+	WebSearchService,
+)
 from cognitive_folio.utils.markdown import safe_markdown_to_html
 from cognitive_folio.utils.helper import replace_variables, expand_financials_variable, expand_edgar_section_variable
 from cognitive_folio.utils.url_fetcher import fetch_and_embed_url_content
@@ -17,9 +24,6 @@ MAX_REASONER_MAX_TOKENS = 64000
 DEEPSEEK_CHAT_MAX_TOKENS_CAP = 8192
 MAX_OPENAI_RETRIES = 3
 RETRY_BACKOFF_BASE_SECONDS = 1.5
-STREAM_FLUSH_INTERVAL_SECONDS = 0.5
-STREAM_FLUSH_MIN_CHAR_DELTA = 120
-TOOL_CALLS_ENABLED_DEFAULT = 1
 DEFAULT_MAX_TOOL_ROUNDS = 8
 DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 8
 DEFAULT_TOOL_RESULT_MAX_CHARS = 8000
@@ -29,23 +33,30 @@ DEFAULT_TOP_P = 1.0
 DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
 
-# Web Search
-DEFAULT_WEB_SEARCH_MAX_RESULTS = 5
-DEFAULT_WEB_SEARCH_PROVIDERS = "ddgs"
-DEFAULT_FINANCIAL_DOMAINS = (
-	"sec.gov,finance.yahoo.com,reuters.com,bloomberg.com,"
-	"wsj.com,ft.com,marketwatch.com,investor.gov"
-)
-FINANCIAL_QUERY_KEYWORDS = frozenset([
-	"stock", "equity", "share", "dividend", "earnings", "revenue", "profit", "loss",
-	"market cap", "pe ratio", "p/e", "ebitda", "balance sheet", "cash flow",
-	"10-k", "10-q", "8-k", "sec filing", "annual report", "quarterly report",
-	"ticker", "isin", "bond", "yield", "interest rate", "fed",
-	"sec", "edgar", "ipo", "merger", "acquisition", "valuation", "analyst",
-	"price target", "buy rating", "sell rating", "hold rating",
-])
-
 class CFChatMessage(Document):
+
+	def _get_prompt_processor(self):
+		if not hasattr(self, "_prompt_processor"):
+			self._prompt_processor = PromptProcessor(self)
+		return self._prompt_processor
+
+	def _get_token_manager(self):
+		if not hasattr(self, "_token_manager"):
+			self._token_manager = TokenManager(self)
+		return self._token_manager
+
+	def _get_tool_orchestrator(self):
+		if not hasattr(self, "_tool_orchestrator"):
+			self._tool_orchestrator = ToolOrchestrator(self)
+		return self._tool_orchestrator
+
+	def _get_web_search_service(self):
+		if not hasattr(self, "_web_search_service"):
+			self._web_search_service = WebSearchService(self)
+		return self._web_search_service
+
+	def _get_settings_manager(self, settings):
+		return SettingsManager(settings)
 
 	def _publish_chat_realtime(self, event_name, payload):
 		"""Publish realtime updates to related doc rooms."""
@@ -182,6 +193,14 @@ class CFChatMessage(Document):
 			security.ai_modified = frappe.utils.now_datetime().strftime('%Y-%m-%d %H:%M:%S')
 			security.save()
 		settings = frappe.get_single("CF Settings")
+		settings_manager = self._get_settings_manager(settings)
+		validation = settings_manager.validate_chat_schema()
+		if not validation.get("valid"):
+			frappe.logger("cognitive_folio").warning(
+				"CF Settings validation issues for %s: %s",
+				self.name,
+				"; ".join(validation.get("errors", [])),
+			)
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 		runtime_audit = {
 			"model": self.model,
@@ -196,7 +215,7 @@ class CFChatMessage(Document):
 				"financial_searches": 0,
 			},
 			"tools": {
-				"enabled": self._tool_calls_enabled(settings),
+				"enabled": True,
 				"rounds": 0,
 				"calls": 0,
 				"names": [],
@@ -233,7 +252,7 @@ class CFChatMessage(Document):
 		original_prompt = self.prompt or ""
 
 		# Build runtime model prompt while preserving original user prompt
-		runtime_prompt = self._prepare_prompt_without_mutation(original_prompt, portfolio, security)
+		runtime_prompt = self._get_prompt_processor().prepare_prompt_without_mutation(original_prompt, portfolio, security)
 		if runtime_prompt != original_prompt:
 			runtime_audit["augmentations"].append("template_variables")
 
@@ -241,7 +260,7 @@ class CFChatMessage(Document):
 		if getattr(self, 'fetch_urls', False):
 			try:
 				before_prompt = runtime_prompt
-				runtime_prompt = fetch_and_embed_url_content(runtime_prompt, self)
+				runtime_prompt = self._get_prompt_processor().embed_url_content(runtime_prompt)
 				if runtime_prompt != before_prompt:
 					runtime_audit["augmentations"].append("url_content")
 			except Exception as e:
@@ -250,31 +269,13 @@ class CFChatMessage(Document):
 		# Extract PDF text and tables, convert to markdown if available
 		try:
 			before_prompt = runtime_prompt
-			runtime_prompt = self._extract_pdf_text_for_prompt(runtime_prompt)
+			runtime_prompt = self._get_prompt_processor().extract_pdf_text_for_prompt(runtime_prompt)
 			if runtime_prompt != before_prompt:
 				runtime_audit["augmentations"].append("pdf_extraction")
 		except Exception as e:
 			frappe.log_error(f"PDF extraction failed for message {self.name}: {str(e)}", "PDF Extraction Error")
 		
-		# NEW: Perform web search if checkbox is enabled
-		if getattr(self, 'web_search', False):  # Check if web_search field exists and is True
-			try:
-				# Use OpenAI to extract intelligent search query
-				search_query = self.extract_search_query(runtime_prompt)
-				if search_query:
-					runtime_audit["web_search"]["query"] = (search_query or "")[:200]
-					search_results = self.perform_web_search(search_query)
-					if search_results:
-						runtime_audit["web_search"]["results_count"] = self._count_markdown_search_results(search_results)
-						runtime_audit["web_search"]["fallback"] = "resolved"
-						# Prepend search results to the prompt only when useful content exists
-						runtime_prompt = f"{search_results}\n\n--- User Query ---\n{runtime_prompt}"
-						runtime_audit["augmentations"].append("web_search")
-					else:
-						runtime_audit["web_search"]["fallback"] = "no_results_all_providers"
-			except Exception as e:
-				frappe.log_error(f"Web search failed for message {self.name}: {str(e)}", "Web Search Error")
-				# Continue without web search if it fails
+		# Web search is tool-only. No pre-tool prompt augmentation path.
     
 		current_prompt_tokens = len(encoding.encode(runtime_prompt or ""))
 		available_tokens -= current_prompt_tokens
@@ -298,7 +299,7 @@ class CFChatMessage(Document):
 			used_tokens += message_tokens
 
 		if overflow_messages and self._conversation_summarization_enabled(settings):
-			summary = self._summarize_conversation(overflow_messages)
+			summary = self._get_token_manager().summarize_conversation(overflow_messages)
 			if summary:
 				messages.insert(1, {
 					"role": "system",
@@ -306,373 +307,65 @@ class CFChatMessage(Document):
 				})
 
 		# DeepSeek multi-turn guideline: clear prior reasoning content before a new user turn.
-		messages = self._clear_reasoning_content(messages)
+		messages = self._get_token_manager().clear_reasoning_content(messages)
 		
 		# Add current message
 		messages.append({"role": "user", "content": runtime_prompt})
 
-		if self._tool_calls_enabled(settings):
-			full_response, reasoning_content, finish_reason, usage_summary, tool_trace = self._run_tool_call_chain(
-				client=client,
-				messages=messages,
-				settings=settings,
-				chat=chat,
-				portfolio=portfolio,
-				security=security,
-			)
+		full_response, reasoning_content, finish_reason, usage_summary, tool_trace = self._get_tool_orchestrator().run_tool_call_chain(
+			client=client,
+			messages=messages,
+			settings=settings,
+			chat=chat,
+			portfolio=portfolio,
+			security=security,
+		)
 
-			self.response = full_response
-			self.response_html = safe_markdown_to_html(full_response)
-			self.reasoning = reasoning_content
-
-			total_duration_seconds = round(time.time() - request_started_at, 3)
-			response_tokens = len(encoding.encode(full_response or ""))
-			prompt_tokens = current_prompt_tokens + system_tokens + used_tokens
-			total_tokens = prompt_tokens + response_tokens
-
-			base_tokens = {
-				"prompt_tokens": prompt_tokens,
-				"completion_tokens": response_tokens,
-				"total_tokens": total_tokens,
-			}
-			if isinstance(usage_summary, dict):
-				base_tokens.update(usage_summary)
-
-			base_tokens.update({
-				"model": self.model,
-				"finish_reason": finish_reason,
-				"duration_seconds": total_duration_seconds,
-				"max_tokens": self._get_max_completion_tokens(settings),
-				"tool_calls_enabled": True,
-				"tool_calls_count": len(tool_trace),
-				"tool_calls_trace": tool_trace,
-			})
-
-			self.tokens = base_tokens
-			self.tokens["prompt_augmented"] = bool(runtime_prompt != original_prompt)
-			self.tokens["prompt_original_length"] = len(original_prompt or "")
-			self.tokens["prompt_runtime_length"] = len(runtime_prompt or "")
-			runtime_audit["tools"]["rounds"] = int((usage_summary or {}).get("tool_rounds", 0) or 0) if isinstance(usage_summary, dict) else 0
-			runtime_audit["tools"]["calls"] = len(tool_trace or [])
-			runtime_audit["tools"]["names"] = sorted({(item or {}).get("tool") for item in (tool_trace or []) if (item or {}).get("tool")})
-			runtime_audit["prompt_augmented"] = bool(runtime_prompt != original_prompt)
-			# Track tool-driven search provenance
-			search_tool_calls = [t for t in (tool_trace or []) if (t or {}).get("tool") in ("web_search", "search_financial")]
-			runtime_audit["web_search"]["search_iterations"] = len(search_tool_calls)
-			runtime_audit["web_search"]["financial_searches"] = sum(
-				1 for t in (tool_trace or []) if (t or {}).get("tool") == "search_financial"
-			)
-			self.runtime_audit = runtime_audit
-			self.db_update()
-			frappe.db.commit()
-			return
-	
-		response = self._create_streaming_completion_with_retry(client, messages, settings)
-	
-		# Initialize response variables
-		full_response = ""
-		reasoning_content = ""
-		finish_reason = None
-		last_saved_response_length = 0
-		last_saved_reasoning_length = 0
-		last_flush_at = time.time()
-		stream_flush_interval_seconds = self._get_stream_flush_interval_seconds(settings)
-		stream_flush_min_char_delta = self._get_stream_flush_min_char_delta(settings)
-		
-		# Process streaming chunks
-		for chunk in response:
-			if chunk.choices and len(chunk.choices) > 0:
-				choice = chunk.choices[0]
-				content_updated = False
-				if getattr(choice, "finish_reason", None):
-					finish_reason = choice.finish_reason
-				
-				# Handle reasoning content if available
-				if hasattr(choice.delta, 'reasoning_content') and choice.delta.reasoning_content:
-					reasoning_content += choice.delta.reasoning_content
-					content_updated = True
-				
-				# Handle message content
-				if hasattr(choice.delta, 'content') and choice.delta.content:
-					full_response += choice.delta.content
-					content_updated = True
-				
-				# Send update if either content or reasoning was updated
-				if content_updated:
-					now_ts = time.time()
-					response_delta = len(full_response) - last_saved_response_length
-					reasoning_delta = len(reasoning_content) - last_saved_reasoning_length
-					should_flush = (
-						response_delta >= stream_flush_min_char_delta
-						or reasoning_delta >= stream_flush_min_char_delta
-						or (now_ts - last_flush_at) >= stream_flush_interval_seconds
-					)
-
-					if should_flush:
-						# Update the document with the current partial response
-						self.response = full_response
-						self.response_html = safe_markdown_to_html(full_response)
-						self.reasoning = reasoning_content
-
-						# Save the partial response to database
-						self.db_update()
-						frappe.db.commit()
-
-						last_saved_response_length = len(full_response)
-						last_saved_reasoning_length = len(reasoning_content)
-						last_flush_at = now_ts
-
-						# Notify frontend to reload the frame
-						self._publish_chat_realtime(
-							event_name='cf_streaming_update',
-							payload={
-								'message_id': self.name,
-								'chat_id': self.chat,
-								'message': full_response,
-								'reasoning': reasoning_content,
-								'status': 'streaming'
-							}
-						)
-					
-		# Final update with complete response
 		self.response = full_response
 		self.response_html = safe_markdown_to_html(full_response)
 		self.reasoning = reasoning_content
-		
-		# Note: tokens might not be available in streaming mode
-		# You might need to calculate them manually or handle differently
+
 		total_duration_seconds = round(time.time() - request_started_at, 3)
-		try:
-			# Some streaming responses might still have usage info
-			if hasattr(response, 'usage'):
-				self.tokens = response.usage.to_json()
-		except:
-			# Calculate tokens manually if usage not available
-			response_tokens = len(encoding.encode(full_response))
-			prompt_tokens = current_prompt_tokens + system_tokens + used_tokens
-			total_tokens = prompt_tokens + response_tokens
-			
-			self.tokens = {
-				"prompt_tokens": prompt_tokens,
-				"completion_tokens": response_tokens,
-				"total_tokens": total_tokens
-			}
+		response_tokens = len(encoding.encode(full_response or ""))
+		prompt_tokens = current_prompt_tokens + system_tokens + used_tokens
+		total_tokens = prompt_tokens + response_tokens
 
-		if not isinstance(self.tokens, dict):
-			if isinstance(self.tokens, str):
-				try:
-					import json
-					self.tokens = json.loads(self.tokens)
-				except Exception:
-					self.tokens = {"raw_usage": self.tokens}
-			else:
-				self.tokens = {}
+		base_tokens = {
+			"prompt_tokens": prompt_tokens,
+			"completion_tokens": response_tokens,
+			"total_tokens": total_tokens,
+		}
+		if isinstance(usage_summary, dict):
+			base_tokens.update(usage_summary)
 
-		self.tokens.update({
+		base_tokens.update({
 			"model": self.model,
 			"finish_reason": finish_reason,
 			"duration_seconds": total_duration_seconds,
-			"max_tokens": self._get_max_completion_tokens(settings, runtime_prompt),
-			"tool_calls_enabled": False,
+			"max_tokens": self._get_max_completion_tokens(settings),
+			"tool_calls_enabled": True,
+			"tool_calls_count": len(tool_trace),
+			"tool_calls_trace": tool_trace,
 			"prompt_augmented": bool(runtime_prompt != original_prompt),
 			"prompt_original_length": len(original_prompt or ""),
 			"prompt_runtime_length": len(runtime_prompt or ""),
 		})
+
+		self.tokens = base_tokens
+		runtime_audit["tools"]["rounds"] = int((usage_summary or {}).get("tool_rounds", 0) or 0) if isinstance(usage_summary, dict) else 0
+		runtime_audit["tools"]["calls"] = len(tool_trace or [])
+		runtime_audit["tools"]["names"] = sorted({(item or {}).get("tool") for item in (tool_trace or []) if (item or {}).get("tool")})
 		runtime_audit["prompt_augmented"] = bool(runtime_prompt != original_prompt)
+		# Track tool-driven search provenance
+		search_tool_calls = [t for t in (tool_trace or []) if (t or {}).get("tool") in ("web_search", "search_financial")]
+		runtime_audit["web_search"]["search_iterations"] = len(search_tool_calls)
+		runtime_audit["web_search"]["financial_searches"] = sum(
+			1 for t in (tool_trace or []) if (t or {}).get("tool") == "search_financial"
+		)
 		self.runtime_audit = runtime_audit
-
-	def _count_markdown_search_results(self, search_results_markdown):
-		if not search_results_markdown:
-			return 0
-		return len(re.findall(r"^\d+\.\s", search_results_markdown, flags=re.MULTILINE))
-
-	def _prepare_prompt_without_mutation(self, prompt_text, portfolio, security):
-		original_prompt = self.prompt
-		try:
-			self.prompt = prompt_text
-			return self.prepare_prompt(portfolio, security)
-		finally:
-			self.prompt = original_prompt
-
-	def _extract_pdf_text_for_prompt(self, prompt_text):
-		original_prompt = self.prompt
-		try:
-			self.prompt = prompt_text
-			return self.extract_pdf_text()
-		finally:
-			self.prompt = original_prompt
-
-	def _run_tool_call_chain(self, client, messages, settings, chat, portfolio, security):
-		tools = self._get_tool_definitions()
-		max_rounds = self._get_max_tool_rounds(settings)
-		max_tool_calls_per_round = self._get_max_tool_calls_per_round(settings)
-		tool_result_max_chars = self._get_tool_result_max_chars(settings)
-
-		all_reasoning_parts = []
-		tool_trace = []
-		last_finish_reason = None
-		aggregate_usage = {
-			"tool_rounds": 0,
-			"prompt_tokens": 0,
-			"completion_tokens": 0,
-			"total_tokens": 0,
-		}
-		synthesis_nudge_sent = False
-
-		for round_index in range(1, max_rounds + 1):
-			# Two rounds before hitting the ceiling, inject a synthesis instruction so
-			# the model stops chaining tool calls and produces a final text answer.
-			if not synthesis_nudge_sent and (max_rounds - round_index) < 2:
-				messages.append({
-					"role": "system",
-					"content": (
-						"You have used several research rounds. "
-						"Stop calling tools now and write your final, complete answer "
-						"based on everything you have gathered so far."
-					),
-				})
-				synthesis_nudge_sent = True
-
-			# On the very last round, remove tools entirely so the model cannot
-			# make further tool calls and must respond with text.
-			active_tools = None if round_index == max_rounds else tools
-
-			response = self._create_non_stream_completion_with_retry(
-				client=client,
-				messages=messages,
-				settings=settings,
-				tools=active_tools,
-			)
-			aggregate_usage["tool_rounds"] = round_index
-			self._accumulate_usage(aggregate_usage, getattr(response, "usage", None))
-
-			if not response.choices:
-				raise RuntimeError("Tool-chain completion returned no choices")
-
-			choice = response.choices[0]
-			message = choice.message
-			assistant_content = getattr(message, "content", None) or ""
-			reasoning_content = getattr(message, "reasoning_content", None) or ""
-			if reasoning_content:
-				all_reasoning_parts.append(reasoning_content)
-
-			tool_calls = list(getattr(message, "tool_calls", None) or [])
-			last_finish_reason = getattr(choice, "finish_reason", None)
-
-			if not tool_calls:
-				# deepseek-reasoner may emit DSML markup in content instead of
-				# structured tool_calls when tools are stripped on the last round.
-				# Discard the markup and fall through to the post-loop synthesis call.
-				if self._content_looks_like_dsml(assistant_content):
-					messages.append(self._build_assistant_message_dict("", reasoning_content, []))
-					break
-				messages.append(self._build_assistant_message_dict(assistant_content, reasoning_content, []))
-				return assistant_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
-
-			assistant_tool_calls = []
-			for tc in tool_calls[:max_tool_calls_per_round]:
-				call_id = getattr(tc, "id", None)
-				function_obj = getattr(tc, "function", None)
-				function_name = getattr(function_obj, "name", "") if function_obj else ""
-				arguments_raw = getattr(function_obj, "arguments", "{}") if function_obj else "{}"
-				assistant_tool_calls.append({
-					"id": call_id,
-					"type": "function",
-					"function": {
-						"name": function_name,
-						"arguments": arguments_raw,
-					},
-				})
-
-			messages.append(self._build_assistant_message_dict(assistant_content, reasoning_content, assistant_tool_calls))
-
-			for tc in tool_calls[:max_tool_calls_per_round]:
-				call_started = time.time()
-				call_id = getattr(tc, "id", None)
-				function_obj = getattr(tc, "function", None)
-				function_name = getattr(function_obj, "name", "") if function_obj else ""
-				arguments_raw = getattr(function_obj, "arguments", "{}") if function_obj else "{}"
-
-				tool_result = self._execute_tool_call(
-					function_name=function_name,
-					arguments_raw=arguments_raw,
-					chat=chat,
-					portfolio=portfolio,
-					security=security,
-				)
-
-				result_content = json.dumps(tool_result, ensure_ascii=False, default=str)
-				if len(result_content) > tool_result_max_chars:
-					result_content = result_content[:tool_result_max_chars] + "..."
-
-				messages.append({
-					"role": "tool",
-					"tool_call_id": call_id,
-					"name": function_name,
-					"content": result_content,
-				})
-
-				tool_trace.append({
-					"round": round_index,
-					"tool": function_name,
-					"call_id": call_id,
-					"ok": bool(tool_result.get("ok", False)),
-					"duration_ms": round((time.time() - call_started) * 1000, 2),
-					"args": tool_result.get("args", {}),
-					"error_code": tool_result.get("error_code"),
-					"error": tool_result.get("error"),
-				})
-
-				self._publish_chat_realtime(
-					event_name='cf_streaming_update',
-					payload={
-						'message_id': self.name,
-						'chat_id': self.chat,
-						'message': f"[Tool] {function_name} executed",
-						'reasoning': "\n\n".join(all_reasoning_parts),
-						'status': 'streaming'
-					}
-				)
-
-		# All rounds exhausted with tool calls still pending.
-		# Do one final tool-free call so the user always gets a text response.
-		frappe.logger("cognitive_folio").warning(
-			"Tool-call chain reached max rounds (%s) for message %s; forcing final synthesis.",
-			max_rounds,
-			self.name,
-		)
-		if not synthesis_nudge_sent:
-			messages.append({
-				"role": "system",
-				"content": (
-					"You have used the maximum number of research rounds. "
-					"Write your final, complete answer now based on what you have gathered."
-				),
-			})
-		final_response = self._create_non_stream_completion_with_retry(
-			client=client,
-			messages=messages,
-			settings=settings,
-			tools=None,
-		)
-		self._accumulate_usage(aggregate_usage, getattr(final_response, "usage", None))
-		if final_response.choices:
-			final_choice = final_response.choices[0]
-			final_message = final_choice.message
-			final_content = getattr(final_message, "content", None) or ""
-			final_reasoning = getattr(final_message, "reasoning_content", None) or ""
-			if final_reasoning:
-				all_reasoning_parts.append(final_reasoning)
-			last_finish_reason = getattr(final_choice, "finish_reason", None)
-			return final_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
-
-		# Absolute last resort: return whatever text has accumulated.
-		accumulated = " ".join(
-			m.get("content", "")
-			for m in messages
-			if isinstance(m, dict) and m.get("role") == "assistant" and m.get("content")
-		)
-		return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+		self.db_update()
+		frappe.db.commit()
+		return
 
 	# Sentinel used to detect deepseek-reasoner DSML fallback markup in content.
 	_DSML_SEP = "\uff5c"  # ｜ U+FF5C FULLWIDTH VERTICAL LINE
@@ -732,12 +425,6 @@ class CFChatMessage(Document):
 				aggregate_usage[key] += int(getattr(usage_obj, key, 0) or 0)
 			except Exception:
 				continue
-
-	def _tool_calls_enabled(self, settings):
-		raw = settings.get("tool_calls_enabled")
-		if raw is None:
-			return bool(TOOL_CALLS_ENABLED_DEFAULT)
-		return bool(int(raw))
 
 	def _get_max_tool_rounds(self, settings):
 		return max(1, self._read_int_setting(settings, "max_tool_rounds", DEFAULT_MAX_TOOL_ROUNDS))
@@ -1127,7 +814,7 @@ class CFChatMessage(Document):
 		if provider in ("ddgs", "wikipedia"):
 			providers = [provider]
 
-		results = self._search_web_results(
+		results = self._get_web_search_service().search_web_results(
 			query,
 			num_results=max_results,
 			providers=providers,
@@ -1152,7 +839,7 @@ class CFChatMessage(Document):
 		form_type = (args.get("form_type") or "").strip() or None
 		max_results = max(1, min(int(args.get("max_results", 5) or 5), 10))
 
-		results = self._search_financial_sources(
+		results = self._get_web_search_service().search_financial_sources(
 			query=query,
 			ticker=ticker,
 			source=source,
@@ -1254,47 +941,6 @@ class CFChatMessage(Document):
 		except Exception:
 			return default
 
-	def _build_chat_completion_params(self, messages, settings):
-		params = {
-			"model": self.model,
-			"messages": messages,
-			"stream": True,
-			"max_tokens": self._get_max_completion_tokens(settings, self._extract_latest_user_message(messages)),
-		}
-		params.update(self._build_optional_completion_params(settings))
-		thinking_config = self._get_thinking_config(settings)
-		if thinking_config:
-			params["extra_body"] = thinking_config
-
-		return params
-
-	def _create_streaming_completion_with_retry(self, client, messages, settings):
-		params = self._build_chat_completion_params(messages, settings)
-		max_retries = self._get_max_api_retries(settings)
-		retry_backoff_base_seconds = self._get_retry_backoff_base_seconds(settings)
-
-		for attempt in range(1, max_retries + 1):
-			try:
-				return client.chat.completions.create(**params)
-			except Exception as exc:
-				if self._strip_unsupported_request_params(params, exc):
-					continue
-
-				if attempt >= max_retries or not self._is_retryable_error(exc):
-					raise
-
-				sleep_seconds = retry_backoff_base_seconds * (2 ** (attempt - 1))
-				frappe.logger("cognitive_folio").warning(
-					"Transient chat API error for %s (attempt %s/%s): %s",
-					self.name,
-					attempt,
-					max_retries,
-					str(exc),
-				)
-				time.sleep(sleep_seconds)
-
-		raise RuntimeError("Failed to create streaming chat completion")
-
 	def _is_reasoner_model(self, model_name, settings=None):
 		normalized_model = (model_name or "").strip().lower()
 		return normalized_model.startswith("deepseek-reasoner")
@@ -1307,7 +953,7 @@ class CFChatMessage(Document):
 		if self._is_reasoner_model(self.model, settings):
 			default_tokens = self._read_int_setting(settings, "reasoner_default_max_tokens", DEFAULT_REASONER_MAX_TOKENS)
 			max_cap = self._read_int_setting(settings, "reasoner_max_tokens_cap", MAX_REASONER_MAX_TOKENS)
-			if self._is_complex_query(prompt_text):
+			if self._get_token_manager().is_complex_query(prompt_text):
 				adaptive_tokens = int(default_tokens * 1.25)
 				default_tokens = max(default_tokens, adaptive_tokens)
 			return max(1, min(default_tokens, max_cap))
@@ -1328,17 +974,9 @@ class CFChatMessage(Document):
 	def _get_retry_backoff_base_seconds(self, settings):
 		return max(0.1, self._read_float_setting(settings, "retry_backoff_base_seconds", RETRY_BACKOFF_BASE_SECONDS))
 
-	def _get_stream_flush_interval_seconds(self, settings):
-		return max(0.1, self._read_float_setting(settings, "stream_flush_interval_seconds", STREAM_FLUSH_INTERVAL_SECONDS))
-
-	def _get_stream_flush_min_char_delta(self, settings):
-		return max(1, self._read_int_setting(settings, "stream_flush_min_char_delta", STREAM_FLUSH_MIN_CHAR_DELTA))
-
 	def _thinking_enabled_for_chat_models(self, settings):
-		raw = settings.get("thinking_enabled")
-		if raw is None:
-			return False
-		return bool(int(raw))
+		manager = self._get_settings_manager(settings)
+		return manager.get_feature_flag("thinking_enabled", default=False)
 
 	def _is_thinking_mode_active(self, settings):
 		if self._is_reasoner_model(self.model, settings):
@@ -1367,10 +1005,8 @@ class CFChatMessage(Document):
 		}
 
 	def _json_mode_enabled(self, settings):
-		raw = settings.get("json_mode_enabled")
-		if raw is None:
-			return False
-		return bool(int(raw))
+		manager = self._get_settings_manager(settings)
+		return manager.get_feature_flag("json_mode_enabled", default=False)
 
 	def _get_seed_value(self, settings):
 		seed_raw = settings.get("seed_value")
@@ -1455,89 +1091,21 @@ class CFChatMessage(Document):
 				return message.get("content") or ""
 		return ""
 
-	def _clear_reasoning_content(self, messages):
-		cleaned_messages = []
-		for message in messages or []:
-			if not isinstance(message, dict):
-				cleaned_messages.append(message)
-				continue
-
-			cloned = dict(message)
-			if cloned.get("role") == "assistant" and "reasoning_content" in cloned:
-				cloned.pop("reasoning_content", None)
-			cleaned_messages.append(cloned)
-
-		return cleaned_messages
-
 	def _conversation_summarization_enabled(self, settings):
-		raw = settings.get("enable_conversation_summarization")
-		if raw is None:
-			return False
-		return bool(int(raw))
-
-	def _summarize_conversation(self, overflow_messages):
-		if not overflow_messages:
-			return ""
-
-		lines = []
-		for item in reversed(overflow_messages[-8:]):
-			user_text = (item.get("prompt") or "").strip()
-			assistant_text = (item.get("response") or "").strip()
-			if user_text:
-				lines.append(f"User: {user_text[:240]}")
-			if assistant_text:
-				lines.append(f"Assistant: {assistant_text[:320]}")
-
-		summary = "\n".join(lines)
-		if len(summary) > 2400:
-			summary = summary[:2400] + "..."
-		return summary
-
-	def _is_complex_query(self, prompt_text):
-		prompt_text = (prompt_text or "").strip()
-		if not prompt_text:
-			return False
-
-		if len(prompt_text) >= 1200:
-			return True
-
-		complex_markers = [
-			"analyze",
-			"compare",
-			"valuation",
-			"scenario",
-			"sensitivity",
-			"portfolio",
-			"risk",
-			"forecast",
-		]
-		lowered = prompt_text.lower()
-		matches = sum(1 for marker in complex_markers if marker in lowered)
-		return matches >= 2
+		manager = self._get_settings_manager(settings)
+		return manager.get_feature_flag("enable_conversation_summarization", default=False)
 
 	def _read_int_setting(self, settings, fieldname, default_value):
-		try:
-			value = int(settings.get(fieldname))
-			if value <= 0:
-				return default_value
-			return value
-		except (TypeError, ValueError):
-			return default_value
+		manager = self._get_settings_manager(settings)
+		return manager.get_int(fieldname, default_value, minimum=1)
 
 	def _read_float_setting(self, settings, fieldname, default_value):
-		try:
-			value = float(settings.get(fieldname))
-			if value <= 0:
-				return default_value
-			return value
-		except (TypeError, ValueError):
-			return default_value
+		manager = self._get_settings_manager(settings)
+		return manager.get_float(fieldname, default_value, minimum=0.000001)
 
 	def _read_signed_float_setting(self, settings, fieldname, default_value):
-		try:
-			return float(settings.get(fieldname))
-		except (TypeError, ValueError):
-			return default_value
+		manager = self._get_settings_manager(settings)
+		return manager.get_float(fieldname, default_value)
 
 	def _is_retryable_error(self, exc):
 		status_code = getattr(exc, "status_code", None)
@@ -1853,354 +1421,3 @@ class CFChatMessage(Document):
 			lines.append("| " + " | ".join(row) + " |")
 		
 		return "\n".join(lines)
-
-	def extract_search_query(self, prompt_text=None):
-		"""Use OpenAI to intelligently extract search query from prompt"""
-		try:
-			from openai import OpenAI
-			
-			settings = frappe.get_single("CF Settings")
-			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
-			
-			# Create a focused prompt for search query extraction
-			extraction_prompt = f"""
-You are a search query extraction assistant. Your job is to analyze user prompts and extract the most relevant search terms for a web search.
-
-Rules:
-1. Extract 1-3 key search terms or phrases that would be most useful for web search
-2. Focus on specific topics, companies, concepts, or current events mentioned
-3. Ignore generic words like "tell me about" or "what do you think"
-4. If the prompt is about financial analysis, include relevant financial terms
-5. Return only the search query, nothing else
-6. If no clear search terms can be identified, return the main topic in 2-3 words
-
-User prompt: "{(prompt_text if prompt_text is not None else self.prompt)[:500]}"
-
-Search query:"""
-
-			response = client.chat.completions.create(
-				model="deepseek-chat",
-				messages=[{"role": "user", "content": extraction_prompt}],
-				max_tokens=50,
-				temperature=0.1  # Low temperature for consistent extraction
-			)
-			
-			search_query = response.choices[0].message.content.strip()
-			
-			# Clean up the response (remove quotes, extra punctuation)
-			search_query = search_query.strip('"\'.,!?')
-			
-			# Fallback if extraction failed
-			if not search_query or len(search_query) < 3:
-				source_prompt = prompt_text if prompt_text is not None else self.prompt
-				return (source_prompt or "")[:50].strip()
-				
-			return search_query
-			
-		except Exception as e:
-			frappe.log_error(f"Search query extraction error: {str(e)}", "Search Query Extraction")
-			# Fallback to simple extraction
-			source_prompt = prompt_text if prompt_text is not None else self.prompt
-			return (source_prompt or "")[:50].strip()
-
-	def perform_web_search(self, query, num_results=3):
-		"""Perform web search and return snippets-only context for the model prompt."""
-		results = self._search_web_results(query, num_results=num_results)
-		if not results:
-			return ""
-
-		snippets = []
-		for result in results:
-			snippet = (result.get('snippet') or '').strip()
-			if not snippet:
-				continue
-			if len(snippet) > 240:
-				snippet = snippet[:240] + "..."
-			snippets.append(snippet)
-
-		if not snippets:
-			return ""
-
-		lines = ["Web snippets:"]
-		for i, snippet in enumerate(snippets, 1):
-			lines.append(f"{i}. {snippet}")
-
-		return "\n".join(lines)
-
-	def _search_web_results(
-		self,
-		query,
-		num_results=3,
-		providers=None,
-		domain_filter=None,
-		result_type="snippets",
-		date_range=None,
-	):
-		"""Return normalized web search results from one or more providers.
-
-		Args:
-			query: Search query string.
-			num_results: Target number of results (after deduplication).
-			providers: List of provider names to use. None triggers auto-selection based on query type.
-				Supported values: 'ddgs' (DuckDuckGo), 'wikipedia'.
-			domain_filter: Comma-separated domains to restrict results to (e.g. 'sec.gov,reuters.com').
-			result_type: 'snippets' (default) returns summaries; 'full' additionally fetches the top result.
-			date_range: Recency filter – 'day', 'week', 'month', 'year', or None for no filter.
-		"""
-		if providers is None:
-			query_type = self._classify_query_type(query)
-			providers = ["ddgs"] if query_type == "financial" else ["ddgs", "wikipedia"]
-
-		all_results = []
-		per_provider = max(1, num_results)
-
-		for provider in providers:
-			try:
-				if provider == "ddgs":
-					results = self._search_ddgs(
-						query,
-						max_results=per_provider,
-						date_range=date_range,
-						domain_filter=domain_filter,
-					)
-				elif provider == "wikipedia":
-					results = self._search_wikipedia(query, max_results=min(3, per_provider))
-				else:
-					continue
-				all_results.extend(results)
-			except Exception as e:
-				frappe.log_error(f"Provider '{provider}' search error: {str(e)}", "Web Search Error")
-
-		deduped = self._deduplicate_results(all_results)[:num_results]
-
-		if result_type == "full" and deduped:
-			top = deduped[0]
-			try:
-				fetched = self._tool_fetch_url_content({"url": top["url"], "max_chars": DEFAULT_TOOL_RESULT_MAX_CHARS})
-				top["full_content"] = (fetched.get("content") or "")[:DEFAULT_TOOL_RESULT_MAX_CHARS]
-			except Exception:
-				pass
-
-		return deduped
-
-	def _search_ddgs(self, query, max_results=5, date_range=None, domain_filter=None):
-		"""Search using DuckDuckGo, optionally restricting by domain and recency."""
-		try:
-			from duckduckgo_search import DDGS
-		except ImportError:
-			frappe.log_error("duckduckgo_search package not installed", "Web Search Error")
-			return []
-
-		effective_query = query
-		if domain_filter:
-			domains = [d.strip() for d in domain_filter.split(",") if d.strip()][:3]
-			if domains:
-				site_clause = " OR ".join(f"site:{d}" for d in domains)
-				effective_query = f"({query}) ({site_clause})"
-
-		timelimit_map = {"day": "d", "week": "w", "month": "m", "year": "y"}
-		timelimit = timelimit_map.get(date_range) if date_range else None
-
-		try:
-			kwargs = {"max_results": max_results}
-			if timelimit:
-				kwargs["timelimit"] = timelimit
-			with DDGS() as ddgs:
-				raw_results = list(ddgs.text(effective_query, **kwargs))
-		except Exception as e:
-			frappe.log_error(f"DuckDuckGo search error for '{query}': {str(e)}", "Web Search Error")
-			return []
-
-		normalized = []
-		for result in raw_results or []:
-			if not isinstance(result, dict):
-				continue
-			title = (result.get("title") or "").strip()
-			url = (result.get("href") or "").strip()
-			snippet = (result.get("body") or "").strip()
-			if not url:
-				continue
-			if len(snippet) > 500:
-				snippet = snippet[:500] + "..."
-			normalized.append({
-				"title": title or "Untitled",
-				"url": url,
-				"snippet": snippet,
-				"source": "ddgs",
-			})
-		return normalized
-
-	def _search_wikipedia(self, query, max_results=3):
-		"""Search Wikipedia and return normalized result snippets."""
-		try:
-			import requests as req
-			from urllib.parse import quote_plus
-		except ImportError:
-			return []
-
-		try:
-			resp = req.get(
-				"https://en.wikipedia.org/w/api.php",
-				params={
-					"action": "query",
-					"list": "search",
-					"srsearch": query,
-					"srlimit": max_results,
-					"format": "json",
-					"srprop": "snippet",
-				},
-				timeout=10,
-				headers={"User-Agent": "CognitiveFolio/1.0 (financial research bot)"},
-			)
-			resp.raise_for_status()
-			search_items = resp.json().get("query", {}).get("search", [])
-		except Exception as e:
-			frappe.log_error(f"Wikipedia search error for '{query}': {str(e)}", "Web Search Error")
-			return []
-
-		normalized = []
-		for item in search_items:
-			title = (item.get("title") or "").strip()
-			if not title:
-				continue
-			from urllib.parse import quote as _quote
-			page_url = "https://en.wikipedia.org/wiki/" + _quote(title.replace(" ", "_"), safe="")
-			raw_snippet = item.get("snippet") or ""
-			snippet = re.sub(r"<[^>]+>", "", raw_snippet).strip()
-			if len(snippet) > 500:
-				snippet = snippet[:500] + "..."
-			normalized.append({
-				"title": title,
-				"url": page_url,
-				"snippet": snippet,
-				"source": "wikipedia",
-			})
-		return normalized
-
-	def _search_edgar(self, query, ticker=None, form_type=None, max_results=3):
-		"""Search SEC EDGAR full-text search API for financial filings."""
-		try:
-			import requests as req
-		except ImportError:
-			return []
-
-		try:
-			params = {
-				"q": f'"{query}"',
-				"dateRange": "custom",
-				"startdt": "2020-01-01",
-			}
-			if ticker:
-				params["entity"] = ticker.upper()
-			if form_type:
-				params["forms"] = form_type.upper()
-
-			resp = req.get(
-				"https://efts.sec.gov/LATEST/search-index",
-				params=params,
-				timeout=15,
-				headers={"User-Agent": "CognitiveFolio/1.0 research@example.com"},
-			)
-			resp.raise_for_status()
-			hits = (resp.json().get("hits") or {}).get("hits") or []
-		except Exception as e:
-			frappe.log_error(f"SEC EDGAR search error for '{query}': {str(e)}", "Web Search Error")
-			return []
-
-		normalized = []
-		for hit in hits[:max_results]:
-			src = hit.get("_source") or {}
-			entity_name = (src.get("entity_name") or "").strip()
-			if not entity_name:
-				continue
-			form = (src.get("form_type") or "").strip()
-			period = (src.get("period_of_report") or "").strip()
-			file_date = (src.get("file_date") or "").strip()
-			cik = (src.get("entity_id") or src.get("cik") or "").strip()
-			accession = (src.get("accession_no") or "").replace("-", "").strip()
-
-			if cik and accession:
-				filing_url = (
-					f"https://www.sec.gov/Archives/edgar/data/{cik}/{accession}/{accession}-index.htm"
-				)
-			elif cik:
-				filing_url = (
-					f"https://www.sec.gov/cgi-bin/browse-edgar"
-					f"?action=getcompany&CIK={cik}&type={form}&dateb=&owner=include&count=10"
-				)
-			else:
-				filing_url = "https://www.sec.gov/cgi-bin/srqsb"
-
-			title = f"{entity_name} — {form}" + (f" ({period})" if period else "")
-			snippet = (
-				f"{entity_name} filed {form} with the SEC. "
-				f"Period: {period or 'N/A'}. Filed: {file_date or 'N/A'}."
-			)
-			normalized.append({
-				"title": title,
-				"url": filing_url,
-				"snippet": snippet,
-				"source": "sec_edgar",
-				"metadata": {
-					"form_type": form,
-					"period": period,
-					"entity": entity_name,
-					"file_date": file_date,
-				},
-			})
-		return normalized
-
-	def _search_financial_sources(self, query, ticker=None, source="auto", form_type=None, max_results=5):
-		"""Aggregate financial searches: SEC EDGAR, Yahoo Finance, and financial news outlets."""
-		all_results = []
-		half = max(1, max_results // 2 + 1)
-
-		if source in ("auto", "sec_edgar"):
-			edgar_results = self._search_edgar(query, ticker=ticker, form_type=form_type, max_results=half)
-			all_results.extend(edgar_results)
-
-		if source in ("auto", "yahoo_finance"):
-			yf_query = f"{query} {ticker} site:finance.yahoo.com" if ticker else f"{query} site:finance.yahoo.com"
-			yf_results = self._search_ddgs(yf_query, max_results=half)
-			for r in yf_results:
-				r["source"] = "yahoo_finance"
-			all_results.extend(yf_results)
-
-		if source in ("auto", "financial_news"):
-			news_results = self._search_ddgs(
-				query,
-				max_results=half,
-				domain_filter="reuters.com,bloomberg.com,wsj.com,ft.com,marketwatch.com",
-			)
-			for r in news_results:
-				r["source"] = "financial_news"
-			all_results.extend(news_results)
-
-		return self._deduplicate_results(all_results)[:max_results]
-
-	def _classify_query_type(self, query):
-		"""Classify a search query as 'financial' or 'general' based on keyword matching."""
-		lowered = (query or "").lower()
-		return "financial" if any(kw in lowered for kw in FINANCIAL_QUERY_KEYWORDS) else "general"
-
-	def _deduplicate_results(self, results):
-		"""Remove duplicate search results by normalized URL, preserving insertion order."""
-		seen_urls: set = set()
-		deduped = []
-		for r in results:
-			url = (r.get("url") or "").strip().rstrip("/").lower()
-			if not url or url in seen_urls:
-				continue
-			seen_urls.add(url)
-			deduped.append(r)
-		return deduped
-
-	def _get_web_search_max_results(self, settings):
-		"""Return the configured maximum web search results per query."""
-		return max(1, self._read_int_setting(settings, "web_search_max_results", DEFAULT_WEB_SEARCH_MAX_RESULTS))
-
-	def _get_web_search_providers(self, settings):
-		"""Return the ordered list of configured web search providers."""
-		raw = (settings.get("web_search_providers") or DEFAULT_WEB_SEARCH_PROVIDERS).strip()
-		providers = [p.strip() for p in raw.split(",") if p.strip()]
-		return providers or [DEFAULT_WEB_SEARCH_PROVIDERS]
