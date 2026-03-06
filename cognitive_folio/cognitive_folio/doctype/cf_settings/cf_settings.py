@@ -9,6 +9,19 @@ import json
 
 class CFSettings(Document):
 	def validate(self):
+		self.deployment_environment = (self.deployment_environment or "production").strip().lower()
+		if self.deployment_environment == "":
+			self.deployment_environment = "production"
+
+		if self.feature_flags_json not in (None, ""):
+			try:
+				parsed_flags = json.loads(self.feature_flags_json)
+			except Exception:
+				frappe.throw("Feature Flags JSON must be valid JSON.")
+
+			if not isinstance(parsed_flags, dict):
+				frappe.throw("Feature Flags JSON must be a JSON object.")
+
 		self.max_context_tokens = self._coerce_int(self.max_context_tokens, 120000, 1, 200000)
 		self.chat_default_max_tokens = self._coerce_int(self.chat_default_max_tokens, 4000, 1, 64000)
 		self.reasoner_default_max_tokens = self._coerce_int(self.reasoner_default_max_tokens, 32000, 1, 128000)

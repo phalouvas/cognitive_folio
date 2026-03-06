@@ -9,6 +9,8 @@
   "open_ai_api_key",
   "system_content",
   "section_break_ai_runtime",
+  "deployment_environment",
+  "feature_flags_json",
   "max_context_tokens",
   "chat_default_max_tokens",
   "reasoner_default_max_tokens",
@@ -61,6 +63,19 @@
    "fieldname": "section_break_ai_runtime",
    "fieldtype": "Section Break",
    "label": "AI Runtime"
+  },
+  {
+   "default": "production",
+   "description": "Environment label used for environment-specific configuration overrides (e.g. production, staging, development).",
+   "fieldname": "deployment_environment",
+   "fieldtype": "Data",
+   "label": "Deployment Environment"
+  },
+  {
+   "description": "Optional JSON object of feature flags. Example: {\"use_experimental_planner\": true}",
+   "fieldname": "feature_flags_json",
+   "fieldtype": "Small Text",
+   "label": "Feature Flags JSON"
   },
   {
    "default": "120000",

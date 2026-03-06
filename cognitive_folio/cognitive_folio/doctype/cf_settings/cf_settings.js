@@ -21,6 +21,10 @@ frappe.ui.form.on("CF Settings", {
 });
 
 function ensure_runtime_defaults(frm) {
+    if (!frm.doc.deployment_environment) {
+        frm.set_value('deployment_environment', 'production');
+    }
+
     const defaults = {
         max_context_tokens: 120000,
         chat_default_max_tokens: 4000,

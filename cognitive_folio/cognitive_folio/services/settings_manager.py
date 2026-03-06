@@ -1,4 +1,5 @@
 import os
+import json
 
 
 class SettingsManager:
@@ -6,25 +7,16 @@ class SettingsManager:
 
     def __init__(self, settings):
         self.settings = settings
+        self._feature_flags_cache = None
 
-    def environment(self):
-        env = os.getenv("COGNITIVE_FOLIO_ENV")
-        if env:
-            return env.strip().lower()
-
-        configured = None
+    def _get_setting_value(self, fieldname, default=None):
         try:
-            configured = self.settings.get("deployment_environment")
+            value = self.settings.get(fieldname)
         except Exception:
-            configured = None
+            value = None
+        return default if value is None else value
 
-        return (configured or "production").strip().lower()
-
-    def get_feature_flag(self, fieldname, default=False):
-        return self.get_bool(fieldname, default=default)
-
-    def get_bool(self, fieldname, default=False):
-        raw = self.settings.get(fieldname)
+    def _coerce_bool(self, raw, default=False):
         if raw is None:
             return bool(default)
 
@@ -42,9 +34,96 @@ class SettingsManager:
 
         return bool(default)
 
-    def get_int(self, fieldname, default, minimum=None, maximum=None):
+    def _coerce_json_object(self, raw, default=None):
+        if default is None:
+            default = {}
+
+        if raw in (None, ""):
+            return dict(default)
+
+        if isinstance(raw, dict):
+            return raw
+
         try:
-            value = int(self.settings.get(fieldname))
+            parsed = json.loads(raw)
+            if isinstance(parsed, dict):
+                return parsed
+        except Exception:
+            pass
+
+        return dict(default)
+
+    def _parse_json_object_strict(self, raw):
+        if raw in (None, ""):
+            return {}, None
+        if isinstance(raw, dict):
+            return raw, None
+
+        try:
+            parsed = json.loads(raw)
+        except Exception:
+            return None, "must be valid JSON"
+
+        if not isinstance(parsed, dict):
+            return None, "must be a JSON object"
+
+        return parsed, None
+
+    def _environment_variable_candidates(self, fieldname):
+        normalized_field = str(fieldname or "").strip().upper().replace("-", "_")
+        current_env = self.environment().upper()
+        return [
+            f"COGNITIVE_FOLIO_{current_env}_{normalized_field}",
+            f"COGNITIVE_FOLIO_{normalized_field}",
+        ]
+
+    def _get_environment_override(self, fieldname):
+        for key in self._environment_variable_candidates(fieldname):
+            value = os.getenv(key)
+            if value not in (None, ""):
+                return value
+        return None
+
+    def environment(self):
+        env = os.getenv("COGNITIVE_FOLIO_ENV")
+        if env:
+            return env.strip().lower()
+
+        configured = self._get_setting_value("deployment_environment")
+
+        return (configured or "production").strip().lower()
+
+    def feature_flags(self):
+        if self._feature_flags_cache is not None:
+            return self._feature_flags_cache
+
+        settings_flags = self._coerce_json_object(self._get_setting_value("feature_flags_json"), default={})
+        env_flags = self._coerce_json_object(os.getenv("COGNITIVE_FOLIO_FEATURE_FLAGS"), default={})
+
+        merged = dict(settings_flags)
+        merged.update(env_flags)
+        self._feature_flags_cache = merged
+        return merged
+
+    def get_feature_flag(self, fieldname, default=False):
+        flags = self.feature_flags()
+        if fieldname in flags:
+            return self._coerce_bool(flags.get(fieldname), default=default)
+
+        return self.get_bool(fieldname, default=default)
+
+    def get_bool(self, fieldname, default=False):
+        override = self._get_environment_override(fieldname)
+        if override not in (None, ""):
+            return self._coerce_bool(override, default=default)
+
+        raw = self._get_setting_value(fieldname)
+        return self._coerce_bool(raw, default=default)
+
+    def get_int(self, fieldname, default, minimum=None, maximum=None):
+        override = self._get_environment_override(fieldname)
+        try:
+            value = int(override if override not in (None, "") else self._get_setting_value(fieldname))
         except (TypeError, ValueError):
             value = int(default)
 
@@ -55,8 +134,9 @@ class SettingsManager:
         return value
 
     def get_float(self, fieldname, default, minimum=None, maximum=None):
+        override = self._get_environment_override(fieldname)
         try:
-            value = float(self.settings.get(fieldname))
+            value = float(override if override not in (None, "") else self._get_setting_value(fieldname))
         except (TypeError, ValueError):
             value = float(default)
 
@@ -85,7 +165,7 @@ class SettingsManager:
         ]
 
         for fieldname, min_value, max_value in checks:
-            raw = self.settings.get(fieldname)
+            raw = self._get_setting_value(fieldname)
             if raw in (None, ""):
                 continue
             try:
@@ -96,6 +176,11 @@ class SettingsManager:
 
             if value < min_value or value > max_value:
                 errors.append(f"{fieldname} must be between {min_value} and {max_value}")
+
+        feature_flags_raw = self._get_setting_value("feature_flags_json")
+        _, parse_error = self._parse_json_object_strict(feature_flags_raw)
+        if parse_error:
+            errors.append(f"feature_flags_json {parse_error}")
 
         return {
             "valid": len(errors) == 0,

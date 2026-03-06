@@ -16,9 +16,11 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 	- Core logic extracted/delegated to services
 	- Imports and wiring updated
 	- Legacy compatibility wrappers removed to reduce code
-3. **Phase 1.3 (Configuration Manager) - partial complete**
+3. **Phase 1.3 (Configuration Manager) - completed**
 	- Typed/validated settings access centralized in `SettingsManager`
 	- Runtime schema validation added
+	- Environment-specific overrides implemented
+	- Feature flags JSON support implemented
 4. **Web Search Path Simplification**
 	- Old non-tool web search path removed
 	- Search is now tool-only (`web_search` and `search_financial` tools)
@@ -29,8 +31,6 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 ### Partially Completed
 1. **StreamingHandler usage**
 	- Service exists, but the direct streaming fallback path was removed in favor of tool-only execution.
-2. **Feature flags for gradual rollout**
-	- Foundation exists via `SettingsManager`, but broad rollout flagging is not fully implemented across all planned features.
 
 ### Not Started
 1. **Phase 2, Phase 3, Phase 4, Phase 5, Phase 6**
@@ -86,11 +86,11 @@ Note: Item 2 is intentionally superseded. Backward compatibility wrappers were r
 3. Implement feature flags for gradual rollouts
 4. Add environment-specific configuration support
 
-Status: **Partially Completed**
+Status: **Completed**
 
 Notes:
-1. Items 1 and 2 are implemented.
-2. Items 3 and 4 are only partially implemented and need follow-up.
+1. `SettingsManager` now supports typed access, schema validation, feature flags JSON, and environment-aware overrides.
+2. `CF Settings` includes explicit `deployment_environment` and `feature_flags_json` fields.
 
 ## Phase 2: Enhanced Agent Capabilities (Week 2)
 
