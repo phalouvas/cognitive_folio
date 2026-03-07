@@ -1,9 +1,8 @@
 # Copyright (c) 2025, KAINOTOMO PH LTD and Contributors
 # See license.txt
 
+import unittest
 from unittest.mock import MagicMock, patch
-
-from frappe.tests.utils import FrappeTestCase
 
 from cognitive_folio.cognitive_folio.doctype.cf_chat_message.cf_chat_message import (
     CFChatMessage,
@@ -28,7 +27,7 @@ def _make_doc():
     return doc
 
 
-class TestCFChatMessageSearchHelpers(FrappeTestCase):
+class TestCFChatMessageSearchHelpers(unittest.TestCase):
     """Unit tests for pure logic helper services and tool methods."""
 
     def test_count_markdown_results(self):
@@ -83,36 +82,44 @@ class TestCFChatMessageSearchHelpers(FrappeTestCase):
 
     def test_search_web_results_auto_provider_selection(self):
         service = WebSearchService(_make_doc())
+        service.prefetching.enabled = False
 
-        with patch.object(service, "search_ddgs", return_value=[]) as mock_ddgs, patch.object(service, "search_wikipedia", return_value=[]) as mock_wiki:
+        with patch.object(service.provider_registry, "resolve_chain", return_value=["ddgs", "wikipedia"]) as mock_resolve, patch.object(service, "_execute_provider_search", return_value=[]) as mock_exec:
             service.search_web_results("history of the Roman Empire")
-        mock_ddgs.assert_called_once()
-        mock_wiki.assert_called_once()
+        mock_resolve.assert_called_once_with(provider_hint="auto", query_type="general")
+        providers = [call.kwargs.get("provider") for call in mock_exec.call_args_list]
+        self.assertEqual(providers, ["ddgs", "wikipedia"])
 
-        with patch.object(service, "search_ddgs", return_value=[]) as mock_ddgs, patch.object(service, "search_wikipedia", return_value=[]) as mock_wiki:
+        with patch.object(service.provider_registry, "resolve_chain", return_value=["ddgs", "sec_edgar"]) as mock_resolve, patch.object(service, "_execute_provider_search", return_value=[]) as mock_exec:
             service.search_web_results("Apple AAPL stock earnings 10-K")
-        mock_ddgs.assert_called_once()
-        mock_wiki.assert_not_called()
+        mock_resolve.assert_called_once_with(provider_hint="auto", query_type="financial")
+        providers = [call.kwargs.get("provider") for call in mock_exec.call_args_list]
+        self.assertEqual(providers, ["ddgs", "sec_edgar"])
 
     def test_search_financial_sources_routing(self):
         service = WebSearchService(_make_doc())
+        service.prefetching.enabled = False
 
-        with patch.object(service, "search_edgar", return_value=[]) as mock_edgar, patch.object(service, "search_ddgs", return_value=[]) as mock_ddgs:
+        with patch.object(service.provider_registry, "resolve_chain", return_value=["ddgs", "sec_edgar", "financial_news"]) as mock_resolve, patch.object(service, "_execute_provider_search", return_value=[]) as mock_exec:
             service.search_financial_sources("Apple revenue", source="auto")
-        mock_edgar.assert_called_once()
-        self.assertEqual(mock_ddgs.call_count, 2)
+        mock_resolve.assert_called_once_with(provider_hint="auto", query_type="financial")
+        providers = [call.kwargs.get("provider") for call in mock_exec.call_args_list]
+        self.assertEqual(providers, ["ddgs", "sec_edgar", "financial_news"])
 
-        with patch.object(service, "search_edgar", return_value=[]) as mock_edgar, patch.object(service, "search_ddgs", return_value=[]) as mock_ddgs:
+        service = WebSearchService(_make_doc())
+        service.prefetching.enabled = False
+        with patch.object(service.provider_registry, "resolve_chain", return_value=["sec_edgar"]) as mock_resolve, patch.object(service, "_execute_provider_search", return_value=[]) as mock_exec:
             service.search_financial_sources("10-K", source="sec_edgar")
-        mock_edgar.assert_called_once()
-        mock_ddgs.assert_not_called()
+        mock_resolve.assert_called_once_with(provider_hint="sec_edgar", query_type="financial")
+        providers = [call.kwargs.get("provider") for call in mock_exec.call_args_list]
+        self.assertEqual(providers, ["sec_edgar"])
 
     def test_financial_keywords_constant(self):
         self.assertIsInstance(FINANCIAL_QUERY_KEYWORDS, frozenset)
         for term in ("stock", "earnings", "10-k", "sec", "edgar", "dividend"):
             self.assertIn(term, FINANCIAL_QUERY_KEYWORDS)
 
-class TestCFChatMessageTokenAndThinkingModes(FrappeTestCase):
+class TestCFChatMessageTokenAndThinkingModes(unittest.TestCase):
     def test_deepseek_chat_with_thinking_uses_chat_token_limits(self):
         doc = _make_doc()
         doc.model = "deepseek-chat"

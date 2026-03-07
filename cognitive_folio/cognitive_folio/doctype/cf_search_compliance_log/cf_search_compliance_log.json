@@ -1,0 +1,50 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-07 06:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "log_date",
+  "query_fingerprint",
+  "query_redacted",
+  "query_type",
+  "providers",
+  "result_count",
+  "violation_count",
+  "violations_json",
+  "metadata_json",
+  "user",
+  "chat",
+  "chat_message"
+ ],
+ "fields": [
+  {"fieldname": "log_date", "fieldtype": "Date", "in_list_view": 1, "in_standard_filter": 1, "label": "Log Date", "reqd": 1},
+  {"fieldname": "query_fingerprint", "fieldtype": "Data", "in_list_view": 1, "label": "Query Fingerprint", "reqd": 1},
+  {"fieldname": "query_redacted", "fieldtype": "Small Text", "label": "Query Redacted"},
+  {"fieldname": "query_type", "fieldtype": "Data", "label": "Query Type"},
+  {"fieldname": "providers", "fieldtype": "Data", "label": "Providers"},
+  {"default": "0", "fieldname": "result_count", "fieldtype": "Int", "label": "Result Count"},
+  {"default": "0", "fieldname": "violation_count", "fieldtype": "Int", "in_list_view": 1, "label": "Violation Count"},
+  {"fieldname": "violations_json", "fieldtype": "JSON", "label": "Violations JSON"},
+  {"fieldname": "metadata_json", "fieldtype": "JSON", "label": "Metadata JSON"},
+  {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User"},
+  {"fieldname": "chat", "fieldtype": "Link", "label": "Chat", "options": "CF Chat"},
+  {"fieldname": "chat_message", "fieldtype": "Link", "label": "Chat Message", "options": "CF Chat Message"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-07 06:00:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Search Compliance Log",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"read": 1, "report": 1, "role": "Portfolio Manager"}
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

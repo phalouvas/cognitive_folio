@@ -1,0 +1,38 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-07 06:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "feedback_date",
+  "chat",
+  "chat_message",
+  "rating",
+  "feedback_text",
+  "user"
+ ],
+ "fields": [
+  {"fieldname": "feedback_date", "fieldtype": "Date", "in_list_view": 1, "label": "Feedback Date", "reqd": 1},
+  {"fieldname": "chat", "fieldtype": "Link", "in_list_view": 1, "label": "Chat", "options": "CF Chat", "reqd": 1},
+  {"fieldname": "chat_message", "fieldtype": "Link", "in_list_view": 1, "label": "Chat Message", "options": "CF Chat Message", "reqd": 1},
+  {"fieldname": "rating", "fieldtype": "Int", "in_list_view": 1, "label": "Rating", "reqd": 1},
+  {"fieldname": "feedback_text", "fieldtype": "Small Text", "label": "Feedback Text"},
+  {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-07 06:00:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF User Feedback",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"create": 1, "read": 1, "report": 1, "role": "Portfolio Manager"}
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

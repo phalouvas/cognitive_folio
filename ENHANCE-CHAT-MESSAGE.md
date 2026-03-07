@@ -35,6 +35,12 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 	- Step 4.1 caching stack completed (search result cache, content summarization cache, tool result cache, predictive prefetch)
 	- Step 4.2 resilience stack completed (circuit breaker, rate limiter, graceful provider fallback behavior, health snapshot)
 	- Step 4.3 DB optimization stack completed (batch writer integration, connection/index/query optimization utilities, scheduled index maintenance)
+8. **Phase 5 (Security & Compliance) - completed (feature-flagged)**
+	- Added content sanitization, privacy redaction, access controls, audit logging, compliance search tracking, retention policy, and compliance export APIs
+	- Added persistence doctypes for compliance/audit workflows and operational retention jobs
+9. **Phase 6 (Monitoring & Evaluation) - completed (feature-flagged)**
+	- Added answer quality scoring, cost optimization, user-feedback API integration, A/B experiment services, statistical rollout evaluation, alerts, and usage analytics
+	- Added quality/experiment/alert observability reports and dashboard charts
 
 ### Partially Completed
 1. **StreamingHandler usage**
@@ -45,9 +51,7 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 	- Follow-up needed: calibration of intent heuristics and broader integration tests in environments without third-party preload regressions.
 
 ### Not Started
-1. **Phase 5, Phase 6**
-	- Security/compliance and monitoring/dashboard phases remain pending.
-2. **Remaining Phase 2 completion work**
+1. **Remaining Phase 2 completion work**
 	- Phase 2.1 planner calibration in broader environments and Phase 2.3 memory-system completion beyond MVP.
 
 ### Scope Decisions Applied
@@ -288,11 +292,27 @@ Notes:
 3. **AccessControl** - Implement fine-grained permissions for different features
 4. **AuditLogger** - Enhanced logging for security and compliance
 
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `services/compliance/ContentSanitizer`, `PrivacyPreserver`, `AccessControl`, and `AuditLogger`.
+2. Integrated compliance controls into `WebSearchService` and `CFChatMessage.send()` for query anonymization, result sanitization, access-denied behavior, and runtime audit events.
+3. Added persistent audit/compliance doctypes: `CF Search Compliance Log` and `CF Access Audit`.
+4. Added compliance export API (`tasks.export_compliance_logs`) for CSV-based regulatory workflows.
+
 ### Step 5.2: Financial Compliance
 1. **SearchComplianceTracker** - Log searches for regulatory requirements
 2. **DataRetentionPolicy** - Implement proper data retention and deletion
 3. **ExportCapabilities** - Enhanced data export for compliance reporting
 4. **AccessAudit** - Track who accessed what information and when
+
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `SearchComplianceTracker` and integrated per-search compliance logging with violation signals and provider metadata.
+2. Added `DataRetentionPolicy` with scheduled cleanup task (`cleanup_phase56_retention_data`) and configurable retention windows.
+3. Added script report `Compliance Logs Trends` for compliance review.
+4. Added dashboard chart `Compliance Violations Trend`.
 
 ## Phase 6: Monitoring & Evaluation (Week 6)
 
@@ -302,17 +322,41 @@ Notes:
 3. **CostOptimizer** - Balance between tool calls and direct answering
 4. **UserFeedbackSystem** - Collect and incorporate user feedback
 
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `AnswerQualityScorer`, `CostOptimizer`, and `MetricsCollector` and integrated runtime scoring/persistence into `CFChatMessage.send()`.
+2. Added `CF Quality Metric` doctype for daily quality/cost rollups.
+3. Added feedback API endpoint `services/monitoring/feedback_api.submit_user_feedback` and `CF User Feedback` doctype.
+4. Added script report `Quality Metrics Trends` and charts `Quality Score Trend`, `Estimated Cost Trend`.
+
 ### Step 6.2: Add A/B Testing Framework
 1. **ExperimentManager** - Coordinate different agent configurations
 2. **MetricsCollector** - Gather performance data for experiments
 3. **StatisticalAnalyzer** - Determine significant differences between approaches
 4. **RolloutController** - Gradually deploy successful experiments
 
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `ExperimentManager`, `StatisticalAnalyzer`, and `RolloutController` services.
+2. Added experiment doctypes `CF Experiment` and `CF Experiment Metric`.
+3. Integrated deterministic variant assignment in chat runtime and per-message experiment metric persistence.
+4. Added scheduled evaluation task `evaluate_ab_experiment_rollouts` to compute and store winner variants.
+
 ### Step 6.3: Create Monitoring Dashboard
 1. **RealTimeMetrics** - Live monitoring of system performance
 2. **AlertingSystem** - Notify administrators of issues
 3. **PerformanceTrends** - Track system performance over time
 4. **UsageAnalytics** - Understand how features are being used
+
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `RealTimeMetrics`, `AlertingSystem`, and `UsageAnalytics` services.
+2. Added `CF Monitoring Alert` doctype and report `Monitoring Alerts Trends`.
+3. Added usage snapshot scheduler task `capture_phase6_usage_snapshot` and alert chart `Monitoring Alerts Trend`.
+4. Updated workspace report/chart metadata with new Phase 5/6 observability artifacts.
 
 ## Implementation Guidelines
 

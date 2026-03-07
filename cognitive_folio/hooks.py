@@ -169,6 +169,15 @@ scheduler_events = {
 		],
 		"30 5 * * 0": [
 			"cognitive_folio.tasks.run_phase4_index_maintenance"
+		],
+		"0 6 * * *": [
+			"cognitive_folio.tasks.cleanup_phase56_retention_data"
+		],
+		"15 6 * * *": [
+			"cognitive_folio.tasks.capture_phase6_usage_snapshot"
+		],
+		"45 6 * * 0": [
+			"cognitive_folio.tasks.evaluate_ab_experiment_rollouts"
 		]
 	}
 }

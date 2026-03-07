@@ -5,10 +5,20 @@ import time
 import json
 from functools import lru_cache
 from cognitive_folio.cognitive_folio.services import (
+	AccessControl,
+	AlertingSystem,
+	AnswerQualityScorer,
+	AuditLogger,
 	MemoryManager,
 	BatchDatabaseWriter,
+	CostOptimizer,
 	ContentSummarizationCache,
+	ContentSanitizer,
+	ExperimentManager,
+	MetricsCollector,
+	PrivacyPreserver,
 	PromptProcessor,
+	RealTimeMetrics,
 	SettingsManager,
 	TokenManager,
 	ToolResultCache,
@@ -112,6 +122,64 @@ class CFChatMessage(Document):
 		if not hasattr(self, "_content_summarization_cache"):
 			self._content_summarization_cache = ContentSummarizationCache(config=self._get_performance_config())
 		return self._content_summarization_cache
+
+	def _get_compliance_monitoring_config(self, settings=None):
+		if hasattr(self, "_compliance_monitoring_config"):
+			return self._compliance_monitoring_config
+
+		settings_doc = settings or frappe.get_cached_doc("CF Settings")
+		self._compliance_monitoring_config = self._get_settings_manager(settings_doc).get_compliance_monitoring_config()
+		return self._compliance_monitoring_config
+
+	def _get_access_control(self):
+		if not hasattr(self, "_access_control"):
+			self._access_control = AccessControl()
+		return self._access_control
+
+	def _get_audit_logger(self):
+		if not hasattr(self, "_audit_logger"):
+			self._audit_logger = AuditLogger()
+		return self._audit_logger
+
+	def _get_content_sanitizer(self):
+		if not hasattr(self, "_content_sanitizer"):
+			self._content_sanitizer = ContentSanitizer()
+		return self._content_sanitizer
+
+	def _get_privacy_preserver(self):
+		if not hasattr(self, "_privacy_preserver"):
+			self._privacy_preserver = PrivacyPreserver()
+		return self._privacy_preserver
+
+	def _get_quality_scorer(self):
+		if not hasattr(self, "_quality_scorer"):
+			self._quality_scorer = AnswerQualityScorer()
+		return self._quality_scorer
+
+	def _get_cost_optimizer(self):
+		if not hasattr(self, "_cost_optimizer"):
+			self._cost_optimizer = CostOptimizer()
+		return self._cost_optimizer
+
+	def _get_metrics_collector(self):
+		if not hasattr(self, "_metrics_collector"):
+			self._metrics_collector = MetricsCollector()
+		return self._metrics_collector
+
+	def _get_experiment_manager(self):
+		if not hasattr(self, "_experiment_manager"):
+			self._experiment_manager = ExperimentManager()
+		return self._experiment_manager
+
+	def _get_alerting_system(self):
+		if not hasattr(self, "_alerting_system"):
+			self._alerting_system = AlertingSystem()
+		return self._alerting_system
+
+	def _get_realtime_metrics(self):
+		if not hasattr(self, "_realtime_metrics"):
+			self._realtime_metrics = RealTimeMetrics()
+		return self._realtime_metrics
 
 	def _publish_chat_realtime(self, event_name, payload):
 		"""Publish realtime updates to related doc rooms."""
@@ -261,6 +329,7 @@ class CFChatMessage(Document):
 			security.save()
 		settings = frappe.get_single("CF Settings")
 		settings_manager = self._get_settings_manager(settings)
+		compliance_monitoring_config = self._get_compliance_monitoring_config(settings)
 		validation = settings_manager.validate_chat_schema()
 		if not validation.get("valid"):
 			frappe.logger("cognitive_folio").warning(
@@ -269,6 +338,14 @@ class CFChatMessage(Document):
 				"; ".join(validation.get("errors", [])),
 			)
 		client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
+		if compliance_monitoring_config.get("audit_logging_enabled", True):
+			self._get_audit_logger().log(
+				event_name="chat_send_started",
+				status="success",
+				details={"model": self.model},
+				chat=self.chat,
+				message=self.name,
+			)
 		runtime_audit = {
 			"model": self.model,
 			"augmentations": [],
@@ -294,6 +371,10 @@ class CFChatMessage(Document):
 				"names": [],
 			},
 		}
+		experiment_assignment = {"experiment": None, "variant": "control"}
+		if compliance_monitoring_config.get("ab_testing_enabled", True):
+			experiment_assignment = self._get_experiment_manager().assign_variant(chat.name)
+		runtime_audit["experiment"] = experiment_assignment
 	
 		# Initialize tokenizer for the model
 		try:
@@ -326,6 +407,8 @@ class CFChatMessage(Document):
 
 		# Build runtime model prompt while preserving original user prompt
 		runtime_prompt = self._get_prompt_processor().prepare_prompt_without_mutation(original_prompt, portfolio, security)
+		if compliance_monitoring_config.get("privacy_preserver_enabled", True):
+			runtime_prompt = self._get_privacy_preserver().anonymize_query(runtime_prompt)
 		if runtime_prompt != original_prompt:
 			runtime_audit["augmentations"].append("template_variables")
 
@@ -348,6 +431,9 @@ class CFChatMessage(Document):
 		except Exception as e:
 			frappe.log_error(f"PDF extraction failed for message {self.name}: {str(e)}", "PDF Extraction Error")
 		
+		if compliance_monitoring_config.get("content_sanitizer_enabled", True):
+			runtime_prompt = self._get_content_sanitizer().sanitize_text(runtime_prompt)
+
 		# Web search is tool-only. No pre-tool prompt augmentation path.
     
 		current_prompt_tokens = len(encoding.encode(runtime_prompt or ""))
@@ -413,6 +499,9 @@ class CFChatMessage(Document):
 			security=security,
 		)
 
+		if compliance_monitoring_config.get("content_sanitizer_enabled", True):
+			full_response = self._get_content_sanitizer().sanitize_text(full_response)
+
 		self.response = full_response
 		self.response_html = safe_markdown_to_html(full_response)
 		self.reasoning = reasoning_content
@@ -472,9 +561,82 @@ class CFChatMessage(Document):
 		runtime_audit["memory"]["recorded"] = bool((memory_record_result or {}).get("stored"))
 		runtime_audit["memory"]["record"] = memory_record_result
 
+		quality_scores = {"quality_score": 0.0, "relevance_score": 0.0, "completeness_score": 0.0, "grounding_score": 0.0}
+		if compliance_monitoring_config.get("quality_scoring_enabled", True):
+			quality_scores = self._get_quality_scorer().score(original_prompt, full_response, tool_trace=tool_trace)
+
+		cost_metrics = {"estimated_cost_usd": 0.0, "tool_calls": len(tool_trace or []), "recommendation": "n/a"}
+		if compliance_monitoring_config.get("cost_optimizer_enabled", True):
+			cost_metrics = self._get_cost_optimizer().estimate(base_tokens, tool_trace=tool_trace)
+
+		quality_metric_payload = {
+			"metric_date": frappe.utils.nowdate(),
+			"model": self.model,
+			"messages": 1,
+			"quality_score": quality_scores.get("quality_score", 0.0),
+			"relevance_score": quality_scores.get("relevance_score", 0.0),
+			"completeness_score": quality_scores.get("completeness_score", 0.0),
+			"grounding_score": quality_scores.get("grounding_score", 0.0),
+			"estimated_cost_usd": cost_metrics.get("estimated_cost_usd", 0.0),
+			"prompt_tokens": base_tokens.get("prompt_tokens", 0),
+			"completion_tokens": base_tokens.get("completion_tokens", 0),
+			"chat": self.chat,
+			"message": self.name,
+		}
+		collector_result = self._get_metrics_collector().persist_quality_metric(quality_metric_payload)
+
+		runtime_audit["monitoring"] = {
+			"quality_scores": quality_scores,
+			"cost_metrics": cost_metrics,
+			"quality_metric_persist": collector_result,
+		}
+
+		if experiment_assignment.get("experiment"):
+			experiment_metric_result = self._get_metrics_collector().persist_experiment_metric(
+				{
+					"metric_date": frappe.utils.nowdate(),
+					"experiment": experiment_assignment.get("experiment"),
+					"variant": experiment_assignment.get("variant"),
+					"quality_score": quality_scores.get("quality_score", 0.0),
+					"estimated_cost_usd": cost_metrics.get("estimated_cost_usd", 0.0),
+					"response_time_ms": round(total_duration_seconds * 1000.0, 2),
+					"chat": self.chat,
+					"chat_message": self.name,
+				}
+			)
+			runtime_audit["monitoring"]["experiment_metric_persist"] = experiment_metric_result
+
+		if compliance_monitoring_config.get("alerting_enabled", True):
+			alert_result = self._get_alerting_system().evaluate_and_create(
+				quality_metric_payload,
+				config=compliance_monitoring_config,
+			)
+			runtime_audit["monitoring"]["alerts"] = alert_result
+
+		self._get_realtime_metrics().publish(
+			self,
+			payload={
+				"quality_score": quality_scores.get("quality_score", 0.0),
+				"estimated_cost_usd": cost_metrics.get("estimated_cost_usd", 0.0),
+				"experiment": experiment_assignment,
+			},
+		)
+
 		self.runtime_audit = runtime_audit
 		self.db_update()
 		frappe.db.commit()
+
+		if compliance_monitoring_config.get("audit_logging_enabled", True):
+			self._get_audit_logger().log(
+				event_name="chat_send_completed",
+				status="success",
+				details={
+					"quality_score": quality_scores.get("quality_score", 0.0),
+					"estimated_cost_usd": cost_metrics.get("estimated_cost_usd", 0.0),
+				},
+				chat=self.chat,
+				message=self.name,
+			)
 		return
 
 	# Sentinel used to detect deepseek-reasoner DSML fallback markup in content.

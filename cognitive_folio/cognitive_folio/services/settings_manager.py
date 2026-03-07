@@ -261,6 +261,31 @@ class SettingsManager:
             "health_dashboard_enabled": self.get_feature_flag("health_dashboard_enabled", default=True),
         }
 
+    def get_compliance_monitoring_config(self):
+        return {
+            "content_sanitizer_enabled": self.get_feature_flag("content_sanitizer_enabled", default=True),
+            "privacy_preserver_enabled": self.get_feature_flag("privacy_preserver_enabled", default=True),
+            "search_compliance_tracking_enabled": self.get_feature_flag("search_compliance_tracking_enabled", default=True),
+            "audit_logging_enabled": self.get_feature_flag("audit_logging_enabled", default=True),
+            "access_control_enabled": self.get_feature_flag("access_control_enabled", default=True),
+            "compliance_export_enabled": self.get_feature_flag("compliance_export_enabled", default=True),
+            "data_retention_enabled": self.get_feature_flag("data_retention_enabled", default=True),
+            "compliance_retention_days": self.get_int_config("compliance_retention_days", default=365, minimum=7, maximum=3650),
+            "audit_retention_days": self.get_int_config("audit_retention_days", default=365, minimum=7, maximum=3650),
+            "quality_retention_days": self.get_int_config("quality_retention_days", default=365, minimum=7, maximum=3650),
+            "feedback_retention_days": self.get_int_config("feedback_retention_days", default=365, minimum=7, maximum=3650),
+            "alert_retention_days": self.get_int_config("alert_retention_days", default=365, minimum=7, maximum=3650),
+            "experiment_metric_retention_days": self.get_int_config("experiment_metric_retention_days", default=365, minimum=7, maximum=3650),
+            "quality_scoring_enabled": self.get_feature_flag("quality_scoring_enabled", default=True),
+            "cost_optimizer_enabled": self.get_feature_flag("cost_optimizer_enabled", default=True),
+            "user_feedback_enabled": self.get_feature_flag("user_feedback_enabled", default=True),
+            "ab_testing_enabled": self.get_feature_flag("ab_testing_enabled", default=True),
+            "monitoring_dashboard_enabled": self.get_feature_flag("monitoring_dashboard_enabled", default=True),
+            "alerting_enabled": self.get_feature_flag("alerting_enabled", default=True),
+            "quality_alert_threshold": self.get_float_config("quality_alert_threshold", default=0.45, minimum=0.0, maximum=1.0),
+            "cost_alert_threshold": self.get_float_config("cost_alert_threshold", default=0.015, minimum=0.0, maximum=5.0),
+        }
+
     def get_search_provider_config(self):
         general_chain_raw = (
             self._get_environment_override("search_general_provider_chain")
@@ -474,6 +499,12 @@ class SettingsManager:
             errors.append("search_cache_ttl_realtime_seconds should be less than or equal to search_cache_ttl_general_seconds")
         if performance_config["search_cache_ttl_financial_seconds"] > performance_config["search_cache_ttl_general_seconds"]:
             errors.append("search_cache_ttl_financial_seconds should be less than or equal to search_cache_ttl_general_seconds")
+
+        compliance_monitoring = self.get_compliance_monitoring_config()
+        if compliance_monitoring["quality_alert_threshold"] <= 0:
+            errors.append("quality_alert_threshold must be greater than 0")
+        if compliance_monitoring["cost_alert_threshold"] < 0:
+            errors.append("cost_alert_threshold must be greater than or equal to 0")
 
         return {
             "valid": len(errors) == 0,

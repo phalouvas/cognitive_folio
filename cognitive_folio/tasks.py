@@ -4,7 +4,9 @@
 import frappe
 from frappe import _
 
+from cognitive_folio.cognitive_folio.services.compliance import DataRetentionPolicy, ExportCapabilities
 from cognitive_folio.cognitive_folio.services.memory import CleanupMetricsStore, VectorMemory
+from cognitive_folio.cognitive_folio.services.monitoring import RolloutController, StatisticalAnalyzer, UsageAnalytics
 from cognitive_folio.cognitive_folio.services.performance import IndexManagement
 from cognitive_folio.cognitive_folio.services.settings_manager import SettingsManager
 from cognitive_folio.cognitive_folio.services.web_search_service import WebSearchService
@@ -206,3 +208,96 @@ def run_phase4_index_maintenance():
 			"Phase 4 Index Maintenance Error"
 		)
 		return {"ran": False, "reason": "task_failed"}
+
+
+@frappe.whitelist()
+def cleanup_phase56_retention_data():
+	"""Apply data-retention policy for compliance and monitoring doctypes."""
+	try:
+		settings_doc = frappe.get_cached_doc("CF Settings")
+		settings_manager = SettingsManager(settings_doc)
+		config = settings_manager.get_compliance_monitoring_config()
+		if not config.get("data_retention_enabled", True):
+			return {"cleaned": False, "reason": "disabled"}
+
+		result = DataRetentionPolicy().cleanup(config=config)
+		frappe.logger().info("Phase 5/6 retention cleanup result: %s", frappe.as_json(result))
+		return {"cleaned": True, "result": result}
+	except Exception as e:
+		frappe.log_error(
+			f"Error in cleanup_phase56_retention_data: {str(e)}",
+			"Phase 5/6 Retention Cleanup Error"
+		)
+		return {"cleaned": False, "reason": "task_failed"}
+
+
+@frappe.whitelist()
+def evaluate_ab_experiment_rollouts():
+	"""Run statistical comparison and write winner variant for active experiments."""
+	try:
+		if not frappe.db.exists("DocType", "CF Experiment Metric"):
+			return {"evaluated": False, "reason": "doctype_missing"}
+
+		rows = frappe.get_all(
+			"CF Experiment Metric",
+			fields=["experiment", "variant", "quality_score"],
+			order_by="creation desc",
+			limit_page_length=5000,
+		)
+
+		summary = StatisticalAnalyzer().compare_variants(rows)
+		decisions = RolloutController().determine_winner(summary)
+
+		updated = 0
+		for decision in decisions:
+			experiment = decision.get("experiment")
+			winner = decision.get("winner_variant")
+			if not experiment or not winner:
+				continue
+			try:
+				frappe.db.set_value("CF Experiment", experiment, "winner_variant", winner, update_modified=False)
+				updated += 1
+			except Exception:
+				continue
+
+		if updated:
+			frappe.db.commit()
+
+		result = {"evaluated": True, "experiments_updated": updated, "decisions": decisions}
+		frappe.logger().info("A/B rollout evaluation result: %s", frappe.as_json(result))
+		return result
+	except Exception as e:
+		frappe.log_error(
+			f"Error in evaluate_ab_experiment_rollouts: {str(e)}",
+			"A/B Rollout Evaluation Error"
+		)
+		return {"evaluated": False, "reason": "task_failed"}
+
+
+@frappe.whitelist()
+def capture_phase6_usage_snapshot():
+	"""Capture usage analytics snapshot and persist to logs for monitoring visibility."""
+	try:
+		snapshot = UsageAnalytics().summarize_last_days(days=30)
+		frappe.logger().info("Phase 6 usage snapshot: %s", frappe.as_json(snapshot))
+		return {"captured": True, "rows": len(snapshot.get("rows") or [])}
+	except Exception as e:
+		frappe.log_error(
+			f"Error in capture_phase6_usage_snapshot: {str(e)}",
+			"Phase 6 Usage Snapshot Error"
+		)
+		return {"captured": False, "reason": "task_failed"}
+
+
+@frappe.whitelist()
+def export_compliance_logs(from_date=None, to_date=None):
+	"""Export compliance logs to CSV for regulatory/audit workflows."""
+	try:
+		csv_text = ExportCapabilities().export_compliance_logs_csv(from_date=from_date, to_date=to_date)
+		return {"ok": True, "csv": csv_text}
+	except Exception as e:
+		frappe.log_error(
+			f"Error in export_compliance_logs: {str(e)}",
+			"Compliance Export Error"
+		)
+		return {"ok": False, "reason": "task_failed"}

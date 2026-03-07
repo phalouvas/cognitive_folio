@@ -3,6 +3,7 @@ from urllib.parse import urlparse
 
 import frappe
 
+from .compliance import AccessControl, AuditLogger, ContentSanitizer, PrivacyPreserver, SearchComplianceTracker
 from .performance import (
     CircuitBreakerManager,
     HealthDashboard,
@@ -38,10 +39,16 @@ class WebSearchService:
         self.provider_registry.register("yahoo_finance", self._provider_yahoo_finance)
         self._search_provider_config = self._get_search_provider_config()
         self._performance_config = self._with_runtime_namespaces(self._get_performance_config())
+        self._compliance_config = self._get_compliance_monitoring_config()
         self._apply_registry_chains(self._search_provider_config)
         self.query_refiner = QueryRefiner(enable_llm=bool((self._search_provider_config or {}).get("query_refiner_llm_enabled")))
         self.result_reranker = ResultReranker()
         self.search_session_tracker = SearchSessionTracker()
+        self.access_control = AccessControl()
+        self.audit_logger = AuditLogger()
+        self.content_sanitizer = ContentSanitizer()
+        self.privacy_preserver = PrivacyPreserver()
+        self.search_compliance_tracker = SearchComplianceTracker()
         self.search_cache = SearchResultCache(config=self._performance_config)
         self.prefetching = PredictivePrefetching(config=self._performance_config)
         self.circuit_breaker = CircuitBreakerManager(config=self._performance_config)
@@ -152,6 +159,29 @@ class WebSearchService:
             "health_dashboard_enabled": True,
         }
 
+    def _get_compliance_monitoring_config(self):
+        try:
+            settings_doc = frappe.get_single("CF Settings")
+            if hasattr(self.chat_message, "_get_settings_manager"):
+                manager = self.chat_message._get_settings_manager(settings_doc)
+            else:
+                from .settings_manager import SettingsManager
+
+                manager = SettingsManager(settings_doc)
+
+            if hasattr(manager, "get_compliance_monitoring_config"):
+                return manager.get_compliance_monitoring_config() or {}
+        except Exception:
+            pass
+
+        return {
+            "content_sanitizer_enabled": True,
+            "privacy_preserver_enabled": True,
+            "search_compliance_tracking_enabled": True,
+            "audit_logging_enabled": True,
+            "access_control_enabled": True,
+        }
+
     def _apply_registry_chains(self, config):
         config = config or {}
         general_chain = [str(item).strip().lower() for item in (config.get("general_chain") or []) if str(item).strip()]
@@ -233,6 +263,20 @@ Search query:"""
         return "\n".join(lines)
 
     def search_web_results(self, query, num_results=3, providers=None, domain_filter=None, result_type="snippets", date_range=None, is_prefetch=False):
+        if self._compliance_config.get("access_control_enabled", True) and not self.access_control.has_access("search"):
+            if self._compliance_config.get("audit_logging_enabled", True):
+                self.audit_logger.log(
+                    event_name="search_access_denied",
+                    status="denied",
+                    details={"query_type": "web"},
+                    chat=getattr(self.chat_message, "chat", None),
+                    message=getattr(self.chat_message, "name", None),
+                )
+            return []
+
+        if self._compliance_config.get("privacy_preserver_enabled", True):
+            query = self.privacy_preserver.anonymize_query(query)
+
         query_type = self.classify_query_type(query)
         search_query = self._prepare_search_query(query=query, query_type=query_type)
         provider_hint = providers[0] if isinstance(providers, list) and len(providers) == 1 else "auto"
@@ -273,6 +317,8 @@ Search query:"""
                 break
 
         deduped = self.deduplicate_results(all_results)
+        if self._compliance_config.get("content_sanitizer_enabled", True):
+            deduped = self.content_sanitizer.sanitize_result_items(deduped)
         reranked = self._rerank_results(query=search_query, query_type=query_type, results=deduped)
         final_results = reranked[:num_results]
 
@@ -291,6 +337,19 @@ Search query:"""
                 providers=resolved_providers,
                 results=final_results,
             )
+
+            if self._compliance_config.get("search_compliance_tracking_enabled", True):
+                self.search_compliance_tracker.record_search(
+                    query=search_query,
+                    query_type=query_type,
+                    providers=resolved_providers,
+                    result_count=len(final_results),
+                    metadata={
+                        "chat": getattr(self.chat_message, "chat", None),
+                        "message": getattr(self.chat_message, "name", None),
+                        "mode": "web",
+                    },
+                )
 
         self.search_cache.set(
             operation="search_web_results",
@@ -539,6 +598,20 @@ Search query:"""
         return normalized
 
     def search_financial_sources(self, query, ticker=None, source="auto", form_type=None, max_results=5, is_prefetch=False):
+        if self._compliance_config.get("access_control_enabled", True) and not self.access_control.has_access("search"):
+            if self._compliance_config.get("audit_logging_enabled", True):
+                self.audit_logger.log(
+                    event_name="search_access_denied",
+                    status="denied",
+                    details={"query_type": "financial"},
+                    chat=getattr(self.chat_message, "chat", None),
+                    message=getattr(self.chat_message, "name", None),
+                )
+            return []
+
+        if self._compliance_config.get("privacy_preserver_enabled", True):
+            query = self.privacy_preserver.anonymize_query(query)
+
         search_query = self._prepare_search_query(query=query, query_type="financial", ticker=ticker)
         cache_payload = {
             "query": search_query,
@@ -572,6 +645,8 @@ Search query:"""
                 break
 
         deduped = self.deduplicate_results(all_results)
+        if self._compliance_config.get("content_sanitizer_enabled", True):
+            deduped = self.content_sanitizer.sanitize_result_items(deduped)
         reranked = self._rerank_results(query=search_query, query_type="financial", results=deduped, ticker=ticker)
         final_results = reranked[:max_results]
         if not is_prefetch:
@@ -581,6 +656,21 @@ Search query:"""
                 providers=resolved_providers,
                 results=final_results,
             )
+
+            if self._compliance_config.get("search_compliance_tracking_enabled", True):
+                self.search_compliance_tracker.record_search(
+                    query=search_query,
+                    query_type="financial",
+                    providers=resolved_providers,
+                    result_count=len(final_results),
+                    metadata={
+                        "chat": getattr(self.chat_message, "chat", None),
+                        "message": getattr(self.chat_message, "name", None),
+                        "mode": "financial",
+                        "ticker": ticker,
+                        "source": source,
+                    },
+                )
 
         self.search_cache.set(
             operation="search_financial_sources",

@@ -228,3 +228,57 @@ class TestSettingsManager(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertTrue(any("search_cache_ttl_financial_seconds" in err for err in result["errors"]))
         self.assertTrue(any("search_cache_ttl_realtime_seconds" in err for err in result["errors"]))
+
+    def test_get_compliance_monitoring_config_uses_feature_flags(self):
+        settings = self._make_settings(
+            {
+                "feature_flags_json": (
+                    '{"content_sanitizer_enabled": true, '
+                    '"privacy_preserver_enabled": true, '
+                    '"search_compliance_tracking_enabled": true, '
+                    '"audit_logging_enabled": true, '
+                    '"access_control_enabled": true, '
+                    '"compliance_export_enabled": true, '
+                    '"data_retention_enabled": true, '
+                    '"compliance_retention_days": 500, '
+                    '"audit_retention_days": 550, '
+                    '"quality_retention_days": 600, '
+                    '"feedback_retention_days": 610, '
+                    '"alert_retention_days": 620, '
+                    '"experiment_metric_retention_days": 630, '
+                    '"quality_scoring_enabled": true, '
+                    '"cost_optimizer_enabled": true, '
+                    '"user_feedback_enabled": true, '
+                    '"ab_testing_enabled": true, '
+                    '"monitoring_dashboard_enabled": true, '
+                    '"alerting_enabled": true, '
+                    '"quality_alert_threshold": 0.5, '
+                    '"cost_alert_threshold": 0.02}'
+                )
+            }
+        )
+        manager = SettingsManager(settings)
+
+        config = manager.get_compliance_monitoring_config()
+
+        self.assertTrue(config["content_sanitizer_enabled"])
+        self.assertTrue(config["privacy_preserver_enabled"])
+        self.assertTrue(config["search_compliance_tracking_enabled"])
+        self.assertTrue(config["audit_logging_enabled"])
+        self.assertTrue(config["access_control_enabled"])
+        self.assertTrue(config["compliance_export_enabled"])
+        self.assertTrue(config["data_retention_enabled"])
+        self.assertEqual(config["compliance_retention_days"], 500)
+        self.assertEqual(config["audit_retention_days"], 550)
+        self.assertEqual(config["quality_retention_days"], 600)
+        self.assertEqual(config["feedback_retention_days"], 610)
+        self.assertEqual(config["alert_retention_days"], 620)
+        self.assertEqual(config["experiment_metric_retention_days"], 630)
+        self.assertTrue(config["quality_scoring_enabled"])
+        self.assertTrue(config["cost_optimizer_enabled"])
+        self.assertTrue(config["user_feedback_enabled"])
+        self.assertTrue(config["ab_testing_enabled"])
+        self.assertTrue(config["monitoring_dashboard_enabled"])
+        self.assertTrue(config["alerting_enabled"])
+        self.assertEqual(config["quality_alert_threshold"], 0.5)
+        self.assertEqual(config["cost_alert_threshold"], 0.02)
