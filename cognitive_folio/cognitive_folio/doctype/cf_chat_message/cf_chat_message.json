@@ -16,6 +16,8 @@
   "template_prompt",
   "section_break_nyal",
   "prompt",
+  "rendered_prompt_section",
+  "rendered_prompt_preview",
   "response_html",
   "response",
   "reasoning",
@@ -41,6 +43,19 @@
    "in_list_view": 1,
    "label": "Prompt",
    "reqd": 1
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "rendered_prompt_section",
+   "fieldtype": "Section Break",
+   "label": "Rendered Prompt Preview"
+  },
+  {
+   "description": "Preview of prompt after template variable substitution. Raw Prompt remains unchanged.",
+   "fieldname": "rendered_prompt_preview",
+   "fieldtype": "Markdown Editor",
+   "label": "Rendered Prompt",
+   "read_only": 1
   },
   {
    "fieldname": "response",

@@ -386,6 +386,27 @@ class CFChatMessage(Document):
 			if chat.system_prompt:
 				self.system_prompt = chat.system_prompt
 
+		self._update_rendered_prompt_preview()
+
+	def _update_rendered_prompt_preview(self):
+		"""Populate a read-only rendered prompt preview without mutating raw prompt."""
+		raw_prompt = self.prompt or ""
+		rendered_prompt = raw_prompt
+
+		if raw_prompt and getattr(self, "chat", None):
+			try:
+				chat = frappe.get_doc("CF Chat", self.chat)
+				portfolio = frappe.get_doc("CF Portfolio", chat.portfolio) if getattr(chat, "portfolio", None) else None
+				security = frappe.get_doc("CF Security", chat.security) if getattr(chat, "security", None) else None
+				rendered_prompt = self._get_prompt_processor().prepare_prompt_without_mutation(raw_prompt, portfolio, security)
+			except Exception as exc:
+				frappe.log_error(
+					title=f"Rendered prompt preview failed: {getattr(self, 'name', 'new-chat-message')}",
+					message=str(exc),
+				)
+
+		self.rendered_prompt_preview = rendered_prompt
+
 	@frappe.whitelist()
 	def process(self):
 		# Skip processing if this is a duplicated message

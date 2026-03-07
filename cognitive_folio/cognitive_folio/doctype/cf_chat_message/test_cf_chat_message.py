@@ -209,6 +209,54 @@ class TestCFChatMessagePromptSensitivity(unittest.TestCase):
         self.assertFalse(doc._is_time_sensitive_prompt("Explain portfolio diversification principles."))
 
 
+class TestCFChatMessageRenderedPromptPreview(unittest.TestCase):
+    def test_validate_populates_rendered_prompt_preview(self):
+        doc = _make_doc()
+        doc.prompt = "Analyze {{symbol}}"
+        doc.system_prompt = ""
+
+        chat_doc = SimpleNamespace(system_prompt="SYS", portfolio=None, security="SEC-AAPL")
+        security_doc = SimpleNamespace(name="SEC-AAPL", symbol="AAPL")
+
+        original_get_doc = frappe.get_doc
+
+        def _fake_get_doc(doctype, *args, **kwargs):
+            if doctype == "CF Chat":
+                return chat_doc
+            if doctype == "CF Security":
+                return security_doc
+            return original_get_doc(doctype, *args, **kwargs)
+
+        with patch("frappe.get_doc", side_effect=_fake_get_doc):
+            doc._get_prompt_processor = MagicMock(
+                return_value=SimpleNamespace(
+                    prepare_prompt_without_mutation=lambda _prompt, _portfolio, _security: "Analyze AAPL"
+                )
+            )
+            doc.validate()
+
+        self.assertEqual(doc.system_prompt, "SYS")
+        self.assertEqual(doc.prompt, "Analyze {{symbol}}")
+        self.assertEqual(doc.rendered_prompt_preview, "Analyze AAPL")
+
+    def test_validate_preview_falls_back_to_raw_prompt_on_error(self):
+        doc = _make_doc()
+        doc.prompt = "Analyze {{symbol}}"
+        doc.system_prompt = ""
+
+        chat_doc = SimpleNamespace(system_prompt="SYS", portfolio=None, security="SEC-AAPL")
+
+        def _fake_get_doc(doctype, *args, **kwargs):
+            if doctype == "CF Chat":
+                return chat_doc
+            raise RuntimeError("boom")
+
+        with patch("frappe.get_doc", side_effect=_fake_get_doc), patch("frappe.log_error"):
+            doc.validate()
+
+        self.assertEqual(doc.rendered_prompt_preview, "Analyze {{symbol}}")
+
+
 class _FakeEncoding:
     def encode(self, text):
         return list(str(text or ""))
