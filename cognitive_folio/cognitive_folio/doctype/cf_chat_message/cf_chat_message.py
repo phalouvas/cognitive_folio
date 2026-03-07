@@ -49,19 +49,40 @@ DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
 
 class CFChatMessage(Document):
+	def _detach_noncritical_links(self):
+		"""Detach analytics links that should not block message lifecycle actions."""
+		link_targets = [
+			("CF Tool Metric", "last_message"),
+			("CF Quality Metric", "last_message"),
+			("CF Experiment Metric", "chat_message"),
+			("CF Monitoring Alert", "chat_message"),
+			("CF Access Audit", "chat_message"),
+			("CF Search Compliance Log", "chat_message"),
+		]
+		for doctype, fieldname in link_targets:
+			if not frappe.db.exists("DocType", doctype):
+				continue
+			frappe.db.set_value(
+				doctype,
+				{fieldname: self.name},
+				fieldname,
+				None,
+				update_modified=False,
+			)
 
 	def on_trash(self):
 		"""Detach non-critical analytics links so message deletion succeeds."""
 		try:
-			frappe.db.set_value(
-				"CF Tool Metric",
-				{"last_message": self.name},
-				"last_message",
-				None,
-				update_modified=False,
-			)
+			self._detach_noncritical_links()
 		except Exception:
 			frappe.log_error(title="CFChatMessage on_trash cleanup failed", message=frappe.get_traceback())
+
+	def on_cancel(self):
+		"""Detach non-critical analytics links so message cancellation succeeds."""
+		try:
+			self._detach_noncritical_links()
+		except Exception:
+			frappe.log_error(title="CFChatMessage on_cancel cleanup failed", message=frappe.get_traceback())
 
 	def _get_prompt_processor(self):
 		if not hasattr(self, "_prompt_processor"):

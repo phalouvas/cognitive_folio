@@ -31,8 +31,8 @@
   {"default": "0", "fieldname": "prompt_tokens", "fieldtype": "Int", "label": "Prompt Tokens"},
   {"default": "0", "fieldname": "completion_tokens", "fieldtype": "Int", "label": "Completion Tokens"},
   {"default": "0", "fieldname": "user_feedback_avg", "fieldtype": "Float", "label": "User Feedback Avg"},
-  {"fieldname": "last_chat", "fieldtype": "Link", "label": "Last Chat", "options": "CF Chat"},
-  {"fieldname": "last_message", "fieldtype": "Link", "label": "Last Message", "options": "CF Chat Message"}
+    {"fieldname": "last_chat", "fieldtype": "Link", "label": "Last Chat", "on_delete": "Set Null", "options": "CF Chat"},
+    {"fieldname": "last_message", "fieldtype": "Link", "label": "Last Message", "on_delete": "Set Null", "options": "CF Chat Message"}
  ],
  "index_web_pages_for_search": 1,
  "links": [],

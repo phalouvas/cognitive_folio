@@ -29,8 +29,8 @@
   {"fieldname": "violations_json", "fieldtype": "JSON", "label": "Violations JSON"},
   {"fieldname": "metadata_json", "fieldtype": "JSON", "label": "Metadata JSON"},
   {"fieldname": "user", "fieldtype": "Link", "label": "User", "options": "User"},
-  {"fieldname": "chat", "fieldtype": "Link", "label": "Chat", "options": "CF Chat"},
-  {"fieldname": "chat_message", "fieldtype": "Link", "label": "Chat Message", "options": "CF Chat Message"}
+    {"fieldname": "chat", "fieldtype": "Link", "label": "Chat", "on_delete": "Set Null", "options": "CF Chat"},
+    {"fieldname": "chat_message", "fieldtype": "Link", "label": "Chat Message", "on_delete": "Set Null", "options": "CF Chat Message"}
  ],
  "index_web_pages_for_search": 1,
  "links": [],

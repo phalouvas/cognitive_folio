@@ -21,8 +21,8 @@
   {"fieldname": "message", "fieldtype": "Small Text", "label": "Message"},
   {"fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "Open\nAcknowledged\nResolved", "reqd": 1},
   {"fieldname": "model", "fieldtype": "Data", "label": "Model"},
-  {"fieldname": "chat", "fieldtype": "Link", "label": "Chat", "options": "CF Chat"},
-  {"fieldname": "chat_message", "fieldtype": "Link", "label": "Chat Message", "options": "CF Chat Message"}
+    {"fieldname": "chat", "fieldtype": "Link", "label": "Chat", "on_delete": "Set Null", "options": "CF Chat"},
+    {"fieldname": "chat_message", "fieldtype": "Link", "label": "Chat Message", "on_delete": "Set Null", "options": "CF Chat Message"}
  ],
  "index_web_pages_for_search": 1,
  "links": [],
