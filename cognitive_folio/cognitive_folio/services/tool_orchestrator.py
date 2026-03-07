@@ -15,6 +15,25 @@ from cognitive_folio.cognitive_folio.services.tooling import ToolComposer, ToolE
 class ToolOrchestrator:
     """Coordinates iterative tool-calling loops for chat completions."""
 
+    REALTIME_WEB_MARKERS = (
+        "weather",
+        "temperature",
+        "forecast",
+        "rain",
+        "wind",
+        "humidity",
+        "air quality",
+    )
+    CURRENT_TIME_MARKERS = (
+        "now",
+        "current",
+        "currently",
+        "right now",
+        "today",
+        "live",
+        "latest",
+    )
+
     def __init__(self, chat_message):
         self.chat_message = chat_message
         self.query_analyzer = QueryAnalyzer()
@@ -40,6 +59,7 @@ class ToolOrchestrator:
             "latest_user_message": "",
         }
 
+        analysis = {}
         plan = None
         recommendation = {"recommended_tools": []}
         if planner_config.get("enabled", True):
@@ -77,6 +97,7 @@ class ToolOrchestrator:
                 "self_correction_enabled": bool(tool_execution_config.get("self_correction_enabled", True)),
                 "dynamic_registration_enabled": bool(tool_execution_config.get("dynamic_registration_enabled", True)),
                 "max_corrections_per_call": int(tool_execution_config.get("max_corrections_per_call", 1)),
+                "forced_realtime_web_search": False,
             },
         }
         synthesis_nudge_sent = False
@@ -117,6 +138,29 @@ class ToolOrchestrator:
             last_finish_reason = getattr(choice, "finish_reason", None)
 
             if not tool_calls:
+                latest_user_message = composition_context.get("latest_user_message") or self._latest_user_message(messages)
+                if self._should_force_realtime_web_search(
+                    latest_user_message=latest_user_message,
+                    analysis=analysis,
+                    recommendation=recommendation,
+                    tool_trace=tool_trace,
+                    round_index=round_index,
+                    max_rounds=max_rounds,
+                ):
+                    self._inject_forced_web_search_context(
+                        messages=messages,
+                        latest_user_message=latest_user_message,
+                        tool_result_max_chars=tool_result_max_chars,
+                        chat=chat,
+                        portfolio=portfolio,
+                        security=security,
+                        round_index=round_index,
+                        tool_trace=tool_trace,
+                        effectiveness_tracker=effectiveness_tracker,
+                    )
+                    aggregate_usage["tool_execution"]["forced_realtime_web_search"] = True
+                    continue
+
                 if self.chat_message._content_looks_like_dsml(assistant_content):
                     messages.append(self.chat_message._build_assistant_message_dict("", reasoning_content, []))
                     break
@@ -280,6 +324,121 @@ class ToolOrchestrator:
         aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
         aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
         return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+    def _latest_user_message(self, messages):
+        for message in reversed(messages or []):
+            if isinstance(message, dict) and message.get("role") == "user":
+                return (message.get("content") or "").strip()
+        return ""
+
+    def _is_realtime_external_query(self, latest_user_message):
+        lowered = str(latest_user_message or "").lower()
+        if not lowered:
+            return False
+
+        has_realtime = any(marker in lowered for marker in self.CURRENT_TIME_MARKERS)
+        has_weather = any(marker in lowered for marker in self.REALTIME_WEB_MARKERS)
+        return has_weather and (has_realtime or "weather" in lowered)
+
+    def _should_force_realtime_web_search(self, latest_user_message, analysis, recommendation, tool_trace, round_index, max_rounds):
+        if not bool(getattr(self.chat_message, "web_search", False)):
+            return False
+        if tool_trace:
+            return False
+        if round_index >= max_rounds:
+            return False
+
+        lowered = str(latest_user_message or "").lower()
+        if not lowered:
+            return False
+
+        if self._is_realtime_external_query(lowered):
+            return True
+
+        intent = (analysis or {}).get("intent") or ""
+        recommended_tools = set((recommendation or {}).get("recommended_tools") or [])
+        looks_realtime = any(marker in lowered for marker in self.CURRENT_TIME_MARKERS)
+        return intent == "general_research" and looks_realtime and "web_search" in recommended_tools
+
+    def _inject_forced_web_search_context(
+        self,
+        messages,
+        latest_user_message,
+        tool_result_max_chars,
+        chat,
+        portfolio,
+        security,
+        round_index,
+        tool_trace,
+        effectiveness_tracker,
+    ):
+        call_started = time.time()
+        forced_args = {
+            "query": latest_user_message,
+            "max_results": 5,
+            "provider": "auto",
+            "date_range": "day",
+            "result_type": "snippets",
+        }
+
+        tool_result = self.chat_message._execute_tool_call(
+            function_name="web_search",
+            arguments_raw=json.dumps(forced_args, ensure_ascii=False, default=str),
+            chat=chat,
+            portfolio=portfolio,
+            security=security,
+            dynamic_registration_enabled=True,
+        )
+
+        result_content = json.dumps(tool_result, ensure_ascii=False, default=str)
+        if len(result_content) > tool_result_max_chars:
+            result_content = result_content[:tool_result_max_chars] + "..."
+
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Realtime search fallback was executed for the latest user query. "
+                    "Use these results directly and do not claim you lack realtime lookup capability.\n"
+                    f"{result_content}"
+                ),
+            }
+        )
+
+        ok = bool((tool_result or {}).get("ok", False))
+        duration_ms = round((time.time() - call_started) * 1000, 2)
+        tool_trace.append(
+            {
+                "round": round_index,
+                "tool": "web_search",
+                "call_id": f"forced_web_search_round_{round_index}",
+                "ok": ok,
+                "duration_ms": duration_ms,
+                "retried": False,
+                "forced": True,
+                "args": forced_args,
+                "error_code": (tool_result or {}).get("error_code"),
+                "error": (tool_result or {}).get("error"),
+            }
+        )
+
+        effectiveness_tracker.record(
+            tool_name="web_search",
+            ok=ok,
+            duration_ms=duration_ms,
+            retried=False,
+        )
+
+        self.chat_message._publish_chat_realtime(
+            event_name="cf_streaming_update",
+            payload={
+                "message_id": self.chat_message.name,
+                "chat_id": self.chat_message.chat,
+                "message": "[Tool] web_search executed (forced realtime fallback)",
+                "reasoning": "",
+                "status": "streaming",
+            },
+        )
 
     def _persist_tool_metrics(self, aggregate_usage):
         metrics = (aggregate_usage or {}).get("tool_metrics") or {}
