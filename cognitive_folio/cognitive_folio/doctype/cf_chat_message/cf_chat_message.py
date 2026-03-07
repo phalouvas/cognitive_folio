@@ -49,6 +49,13 @@ DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
 
 class CFChatMessage(Document):
+	_IMPLICIT_CONTEXT_TOKEN_PATTERNS = (
+		r"\(\([\w\.]+\)\)",
+		r"\{\{[^}]+\}\}",
+		r"\[\[[^\]]+\]\]",
+		r"\*\*\*HOLDINGS\*\*\*",
+	)
+
 	def _detach_noncritical_links(self):
 		"""Detach analytics links that should not block message lifecycle actions."""
 		link_targets = [
@@ -259,6 +266,120 @@ class CFChatMessage(Document):
 		has_weather = "weather" in lowered
 		return (has_time and has_geopolitical) or has_weather
 
+	def _prompt_has_explicit_context_tokens(self, prompt_text):
+		text = str(prompt_text or "")
+		if not text:
+			return False
+		return any(re.search(pattern, text, re.IGNORECASE) for pattern in self._IMPLICIT_CONTEXT_TOKEN_PATTERNS)
+
+	def _build_implicit_context_block(self, portfolio, security, max_chars):
+		lines = []
+		fields_used = []
+
+		if security:
+			security_parts = []
+			symbol = (getattr(security, "symbol", None) or "").strip()
+			security_name = (getattr(security, "security_name", None) or getattr(security, "name", None) or "").strip()
+			security_type = (getattr(security, "security_type", None) or "").strip()
+			currency = (getattr(security, "currency", None) or "").strip()
+			if symbol:
+				security_parts.append(f"symbol={symbol}")
+				fields_used.append("security.symbol")
+			if security_name:
+				security_parts.append(f"name={security_name}")
+				fields_used.append("security.security_name")
+			if security_type:
+				security_parts.append(f"type={security_type}")
+				fields_used.append("security.security_type")
+			if currency:
+				security_parts.append(f"currency={currency}")
+				fields_used.append("security.currency")
+			if security_parts:
+				lines.append("Active security: " + ", ".join(security_parts))
+
+		if portfolio:
+			portfolio_parts = []
+			portfolio_name = (getattr(portfolio, "portfolio_name", None) or getattr(portfolio, "name", None) or "").strip()
+			base_currency = (getattr(portfolio, "base_currency", None) or getattr(portfolio, "currency", None) or "").strip()
+			risk_profile = (getattr(portfolio, "risk_profile", None) or "").strip()
+			if portfolio_name:
+				portfolio_parts.append(f"name={portfolio_name}")
+				fields_used.append("portfolio.name")
+			if base_currency:
+				portfolio_parts.append(f"base_currency={base_currency}")
+				fields_used.append("portfolio.base_currency")
+			if risk_profile:
+				portfolio_parts.append(f"risk_profile={risk_profile}")
+				fields_used.append("portfolio.risk_profile")
+			if portfolio_parts:
+				lines.append("Active portfolio: " + ", ".join(portfolio_parts))
+
+		if not lines:
+			return "", []
+
+		context_block = "Context:\n- " + "\n- ".join(lines)
+		max_chars = max(120, min(int(max_chars or 320), 1200))
+		if len(context_block) > max_chars:
+			context_block = context_block[: max_chars - 3].rstrip() + "..."
+
+		return context_block, fields_used
+
+	def _inject_implicit_chat_context_if_needed(self, prompt_text, original_prompt, settings_manager, portfolio, security):
+		checkbox_value = getattr(self, "implicit_chat_context", None)
+		if checkbox_value in (None, ""):
+			enabled = bool(settings_manager.get_feature_flag("implicit_chat_context_enabled", default=False))
+			enabled_source = "feature_flag"
+		else:
+			enabled = str(checkbox_value).strip().lower() in {"1", "true", "yes", "y", "on"}
+			enabled_source = "message_checkbox"
+		metadata = {
+			"enabled": enabled,
+			"enabled_source": enabled_source,
+			"applied": False,
+			"fields_used": [],
+			"chars_added": 0,
+			"reason": "disabled" if not enabled else None,
+		}
+
+		if not enabled:
+			return prompt_text, metadata
+
+		if not (portfolio or security):
+			metadata["reason"] = "no_linked_context"
+			return prompt_text, metadata
+
+		if self._prompt_has_explicit_context_tokens(original_prompt):
+			metadata["reason"] = "explicit_template_tokens_present"
+			return prompt_text, metadata
+
+		max_chars = settings_manager.get_int_config(
+			"implicit_chat_context_max_chars",
+			default=320,
+			minimum=120,
+			maximum=1200,
+		)
+		context_block, fields_used = self._build_implicit_context_block(portfolio, security, max_chars=max_chars)
+		if not context_block:
+			metadata["reason"] = "no_context_fields_available"
+			return prompt_text, metadata
+
+		augmented_prompt = f"{context_block}\n\nUser request:\n{prompt_text}"
+		metadata.update(
+			{
+				"applied": True,
+				"fields_used": fields_used,
+				"chars_added": max(0, len(augmented_prompt) - len(prompt_text or "")),
+				"reason": "applied",
+				"augmentation": "implicit_chat_context",
+			}
+		)
+		if security and not portfolio:
+			metadata["augmentation"] = "implicit_security_context"
+		elif portfolio and not security:
+			metadata["augmentation"] = "implicit_portfolio_context"
+
+		return augmented_prompt, metadata
+
 	def validate(self):
 		if not self.system_prompt:
 			chat = frappe.get_doc("CF Chat", self.chat)
@@ -406,6 +527,12 @@ class CFChatMessage(Document):
 		runtime_audit = {
 			"model": self.model,
 			"augmentations": [],
+			"context_injection": {
+				"enabled": False,
+				"applied": False,
+				"fields_used": [],
+				"chars_added": 0,
+			},
 			"memory": {
 				"enabled": False,
 				"used": False,
@@ -464,6 +591,16 @@ class CFChatMessage(Document):
 
 		# Build runtime model prompt while preserving original user prompt
 		runtime_prompt = self._get_prompt_processor().prepare_prompt_without_mutation(original_prompt, portfolio, security)
+		runtime_prompt, context_injection = self._inject_implicit_chat_context_if_needed(
+			prompt_text=runtime_prompt,
+			original_prompt=original_prompt,
+			settings_manager=settings_manager,
+			portfolio=portfolio,
+			security=security,
+		)
+		runtime_audit["context_injection"] = context_injection
+		if context_injection.get("applied"):
+			runtime_audit["augmentations"].append(context_injection.get("augmentation") or "implicit_chat_context")
 		if compliance_monitoring_config.get("privacy_preserver_enabled", True):
 			runtime_prompt = self._get_privacy_preserver().anonymize_query(runtime_prompt)
 		if runtime_prompt != original_prompt:

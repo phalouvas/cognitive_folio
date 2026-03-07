@@ -10,6 +10,7 @@
   "model",
   "web_search",
   "fetch_urls",
+  "implicit_chat_context",
   "column_break_cbjh",
   "system_prompt",
   "template_prompt",
@@ -131,6 +132,13 @@
    "fieldname": "fetch_urls",
    "fieldtype": "Check",
    "label": "Fetch URLs"
+  },
+  {
+   "default": "0",
+   "description": "Inject connected security/portfolio context into plain prompts",
+   "fieldname": "implicit_chat_context",
+   "fieldtype": "Check",
+   "label": "Use Connected Context"
   }
  ],
  "grid_page_length": 50,
