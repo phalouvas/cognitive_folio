@@ -12,19 +12,6 @@ This roadmap is designed for a **single-user personal portfolio management syste
 
 ## **Phased Implementation Roadmap**
 
-### **Phase 1: Core Workflow Automation (Weeks 1-4)**
-**Objective**: Solve the "6-prompt evaluation problem" and establish basic personal data management.
-
-**Key Deliverables:**
-1. **One-Click Analysis Engine** - Single button that executes your preferred prompt sequence
-2. **Personal Prompt Templates** - Save and manage analysis templates
-3. **Unified Report Generator** - Compile multiple AI responses into cohesive reports
-4. **Manual Data Override System** - Update stale or missing data manually
-
-**Dependencies**: Existing CF Chat, CF Chat Message, CF Prompt doctypes
-**Estimated Complexity**: Medium (requires UI changes and new backend logic)
-**Integration Points**: Extend `cf_chat.py`, `cf_chat_message.py`, create new `CFAnalysisTemplate` doctype
-
 ### **Phase 2: Enhanced Data Management (Weeks 5-8)**
 **Objective**: Improve data quality and handle your proprietary research materials.
 
