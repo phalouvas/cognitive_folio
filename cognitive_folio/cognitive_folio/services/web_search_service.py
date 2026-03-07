@@ -299,6 +299,12 @@ Search query:"""
             return cached[:num_results]
 
         all_results = []
+        weather_results = []
+        if self._is_weather_query(search_query):
+            weather_results = self._search_weather_now(search_query)
+            if weather_results:
+                all_results.extend(weather_results)
+
         configured_max = int((self._search_provider_config or {}).get("max_results", 5) or 5)
         per_provider = max(1, min(num_results, configured_max))
 
@@ -363,6 +369,91 @@ Search query:"""
             self._prefetch_follow_ups(query=search_query, query_type=query_type, ticker=None)
 
         return final_results
+
+    def _is_weather_query(self, query):
+        lowered = str(query or "").lower()
+        if not lowered:
+            return False
+        weather_markers = ("weather", "temperature", "forecast", "humidity", "wind", "rain")
+        return any(marker in lowered for marker in weather_markers)
+
+    def _extract_weather_location(self, query):
+        text = str(query or "").strip()
+        if not text:
+            return ""
+
+        lowered = text.lower()
+        if " in " in lowered:
+            return text[lowered.rfind(" in ") + 4 :].strip(" ?.,")
+
+        cleaned = re.sub(r"\b(what|is|the|weather|now|current|currently|today|temperature|forecast|in)\b", " ", lowered)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" ?.,")
+        return cleaned or text.strip(" ?.,")
+
+    def _search_weather_now(self, query):
+        location = self._extract_weather_location(query)
+        if not location:
+            return []
+
+        try:
+            import requests as req
+            from urllib.parse import quote_plus
+
+            encoded = quote_plus(location)
+            url = f"https://wttr.in/{encoded}?format=j1"
+            response = req.get(url, timeout=10, headers={"User-Agent": "CognitiveFolio/1.0 weather lookup"})
+            response.raise_for_status()
+            payload = response.json() if response.content else {}
+            current = (payload.get("current_condition") or [{}])[0] if isinstance(payload, dict) else {}
+            if not current:
+                return []
+
+            desc = ""
+            weather_desc = current.get("weatherDesc") or []
+            if weather_desc and isinstance(weather_desc, list):
+                desc = str((weather_desc[0] or {}).get("value") or "").strip()
+
+            temp_c = str(current.get("temp_C") or "").strip()
+            feels_c = str(current.get("FeelsLikeC") or "").strip()
+            humidity = str(current.get("humidity") or "").strip()
+            wind_kmph = str(current.get("windspeedKmph") or "").strip()
+            observed = str(current.get("localObsDateTime") or current.get("observation_time") or "").strip()
+
+            title = f"Current weather in {location}"
+            snippet_parts = []
+            if temp_c:
+                snippet_parts.append(f"Temperature: {temp_c}C")
+            if feels_c:
+                snippet_parts.append(f"Feels like: {feels_c}C")
+            if humidity:
+                snippet_parts.append(f"Humidity: {humidity}%")
+            if wind_kmph:
+                snippet_parts.append(f"Wind: {wind_kmph} km/h")
+            if desc:
+                snippet_parts.append(f"Conditions: {desc}")
+            if observed:
+                snippet_parts.append(f"Observed: {observed}")
+
+            snippet = ". ".join(snippet_parts)[:500]
+            return [
+                {
+                    "title": title,
+                    "url": f"https://wttr.in/{encoded}",
+                    "snippet": snippet,
+                    "source": "wttr.in",
+                    "metadata": {
+                        "location": location,
+                        "temp_c": temp_c,
+                        "feels_like_c": feels_c,
+                        "humidity": humidity,
+                        "wind_kmph": wind_kmph,
+                        "conditions": desc,
+                        "observed": observed,
+                    },
+                }
+            ]
+        except Exception:
+            return []
 
     def search_ddgs(self, query, max_results=5, date_range=None, domain_filter=None):
         try:

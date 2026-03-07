@@ -272,7 +272,7 @@ class CFChatMessage(Document):
 			
 			# Update status to success and save the response
 			if batch_writer:
-				batch_writer.add_set_value("CF Chat Message", message_doc.name, "status", "Success", update_modified=False)
+				message_doc.status = "Success"
 				batch_writer.add_doc_update(message_doc)
 				batch_writer.flush(commit=True)
 			else:

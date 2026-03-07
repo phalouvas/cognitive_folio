@@ -366,3 +366,24 @@ class TestWebSearchServiceProviderRouting(unittest.TestCase):
 
         self.assertEqual(len(results), 1)
         self.assertEqual(results[0]["source"], "wikipedia")
+
+    def test_web_search_includes_weather_fallback_result(self):
+        service = self._make_service()
+        service._search_provider_config["query_refiner_enabled"] = False
+        service._search_provider_config["result_reranker_enabled"] = False
+        service.provider_registry.set_chain("general", ["ddgs"])
+        service.provider_registry.register("ddgs", lambda **_: [])
+
+        service._search_weather_now = lambda _query: [
+            {
+                "title": "Current weather in Larnaka Cyprus",
+                "url": "https://wttr.in/Larnaka+Cyprus",
+                "snippet": "Temperature: 21C. Conditions: Clear.",
+                "source": "wttr.in",
+            }
+        ]
+
+        results = service.search_web_results("What is the weather now in Larnaka Cyprus?", num_results=3)
+
+        self.assertGreaterEqual(len(results), 1)
+        self.assertEqual(results[0]["source"], "wttr.in")
