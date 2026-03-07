@@ -1,11 +1,10 @@
 from unittest.mock import MagicMock, patch
-
-from frappe.tests.utils import FrappeTestCase
+import unittest
 
 from cognitive_folio.cognitive_folio.services.settings_manager import SettingsManager
 
 
-class TestSettingsManager(FrappeTestCase):
+class TestSettingsManager(unittest.TestCase):
     def _make_settings(self, values=None):
         values = values or {}
         settings = MagicMock()
@@ -59,3 +58,103 @@ class TestSettingsManager(FrappeTestCase):
         result = manager.validate_chat_schema()
         self.assertFalse(result["valid"])
         self.assertTrue(any("feature_flags_json" in err for err in result["errors"]))
+
+    def test_get_planner_config_uses_feature_flags(self):
+        settings = self._make_settings({
+            "feature_flags_json": '{"planner_max_plan_steps": 5, "planner_financial_markers": ["yield", "dividend"]}',
+        })
+        manager = SettingsManager(settings)
+        planner = manager.get_planner_config()
+        self.assertEqual(planner["max_plan_steps"], 5)
+        self.assertIn("yield", planner["financial_markers"])
+
+    def test_validate_chat_schema_rejects_inverted_planner_thresholds(self):
+        settings = self._make_settings({
+            "feature_flags_json": '{"planner_complexity_high_threshold": 2, "planner_complexity_medium_threshold": 2}',
+        })
+        manager = SettingsManager(settings)
+        result = manager.validate_chat_schema()
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("planner_complexity_medium_threshold" in err for err in result["errors"]))
+
+    def test_get_search_provider_config_uses_settings_and_flags(self):
+        settings = self._make_settings(
+            {
+                "web_search_providers": "ddgs,wikipedia",
+                "web_search_financial_domains": "reuters.com,ft.com",
+                "web_search_max_results": 6,
+                "feature_flags_json": (
+                    '{"search_serpapi_enabled": true, '
+                    '"search_sec_realtime_enabled": true, '
+                    '"search_sec_user_agent": "CognitiveFolio/1.0 test@example.com", '
+                    '"search_financial_provider_chain": ["serpapi", "sec_edgar"], '
+                    '"search_query_refiner_enabled": true, '
+                    '"search_result_reranker_enabled": true, '
+                    '"search_result_reranker_top_k": 4, '
+                    '"search_freshness_weighting_enabled": true, '
+                    '"search_freshness_half_life_days": 28, '
+                    '"search_cross_source_verifier_enabled": true, '
+                    '"search_cross_source_min_sources": 2, '
+                    '"search_cross_source_contradiction_penalty": 0.35, '
+                    '"search_cross_source_confidence_boost": 0.25, '
+                    '"search_domain_authority_enabled": true, '
+                    '"search_domain_authority_default_weight": 0.15, '
+                    '"search_domain_authority_weights": {"sec.gov": 1.1, "example.com": 0.4}, '
+                    '"search_session_tracker_enabled": true, '
+                    '"search_session_max_entries": 40, '
+                    '"search_session_context_max_items": 4, '
+                    '"search_session_context_max_chars": 220, '
+                    '"search_session_followup_expand_enabled": true, '
+                    '"search_semantic_search_enabled": true, '
+                    '"search_semantic_embedding_dims": 128, '
+                    '"search_semantic_score_weight": 0.85, '
+                    '"search_trend_detector_enabled": true, '
+                    '"search_trend_min_frequency": 3, '
+                    '"search_trend_score_weight": 0.55, '
+                    '"search_personalized_search_enabled": true, '
+                    '"search_personalized_score_weight": 0.65, '
+                    '"search_personalized_history_items": 7, '
+                    '"search_preferred_sources": ["financial_news", "sec_edgar"], '
+                    '"search_preferred_domains": ["reuters.com", "sec.gov"]}'
+                ),
+            }
+        )
+        manager = SettingsManager(settings)
+
+        config = manager.get_search_provider_config()
+
+        self.assertEqual(config["general_chain"], ["ddgs", "wikipedia"])
+        self.assertEqual(config["financial_chain"], ["serpapi", "sec_edgar"])
+        self.assertEqual(config["financial_domains"], ["reuters.com", "ft.com"])
+        self.assertEqual(config["max_results"], 6)
+        self.assertTrue(config["serpapi_enabled"])
+        self.assertTrue(config["sec_realtime_enabled"])
+        self.assertEqual(config["sec_user_agent"], "CognitiveFolio/1.0 test@example.com")
+        self.assertTrue(config["query_refiner_enabled"])
+        self.assertTrue(config["result_reranker_enabled"])
+        self.assertEqual(config["result_reranker_top_k"], 4)
+        self.assertTrue(config["freshness_weighting_enabled"])
+        self.assertEqual(config["freshness_half_life_days"], 28)
+        self.assertTrue(config["cross_source_verifier_enabled"])
+        self.assertEqual(config["cross_source_min_sources"], 2)
+        self.assertEqual(config["cross_source_contradiction_penalty"], 0.35)
+        self.assertEqual(config["cross_source_confidence_boost"], 0.25)
+        self.assertTrue(config["domain_authority_enabled"])
+        self.assertEqual(config["domain_authority_default_weight"], 0.15)
+        self.assertEqual(config["domain_authority_weights"], {"sec.gov": 1.1, "example.com": 0.4})
+        self.assertTrue(config["session_tracker_enabled"])
+        self.assertEqual(config["session_max_entries"], 40)
+        self.assertEqual(config["session_context_max_items"], 4)
+        self.assertEqual(config["session_context_max_chars"], 220)
+        self.assertTrue(config["session_followup_expand_enabled"])
+        self.assertTrue(config["semantic_search_enabled"])
+        self.assertEqual(config["semantic_embedding_dims"], 128)
+        self.assertEqual(config["semantic_score_weight"], 0.85)
+        self.assertTrue(config["trend_detector_enabled"])
+        self.assertEqual(config["trend_min_frequency"], 3)
+        self.assertEqual(config["trend_score_weight"], 0.55)
+        self.assertTrue(config["personalized_search_enabled"])
+        self.assertEqual(config["personalized_score_weight"], 0.65)
+        self.assertEqual(config["personalized_history_items"], 7)
+        self.assertEqual(config["preferred_sources"], ["financial_news", "sec_edgar"])
+        self.assertEqual(config["preferred_domains"], ["reuters.com", "sec.gov"])

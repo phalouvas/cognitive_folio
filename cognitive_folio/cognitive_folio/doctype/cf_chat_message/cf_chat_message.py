@@ -5,9 +5,11 @@ import time
 import json
 from functools import lru_cache
 from cognitive_folio.cognitive_folio.services import (
+	MemoryManager,
 	PromptProcessor,
 	SettingsManager,
 	TokenManager,
+	ToolRegistry,
 	ToolOrchestrator,
 	WebSearchService,
 )
@@ -35,6 +37,19 @@ DEFAULT_PRESENCE_PENALTY = 0.0
 
 class CFChatMessage(Document):
 
+	def on_trash(self):
+		"""Detach non-critical analytics links so message deletion succeeds."""
+		try:
+			frappe.db.set_value(
+				"CF Tool Metric",
+				{"last_message": self.name},
+				"last_message",
+				None,
+				update_modified=False,
+			)
+		except Exception:
+			frappe.log_error(title="CFChatMessage on_trash cleanup failed", message=frappe.get_traceback())
+
 	def _get_prompt_processor(self):
 		if not hasattr(self, "_prompt_processor"):
 			self._prompt_processor = PromptProcessor(self)
@@ -55,8 +70,18 @@ class CFChatMessage(Document):
 			self._web_search_service = WebSearchService(self)
 		return self._web_search_service
 
+	def _get_tool_registry(self):
+		if not hasattr(self, "_tool_registry"):
+			self._tool_registry = ToolRegistry(self)
+		return self._tool_registry
+
 	def _get_settings_manager(self, settings):
 		return SettingsManager(settings)
+
+	def _get_memory_manager(self):
+		if not hasattr(self, "_memory_manager"):
+			self._memory_manager = MemoryManager(self)
+		return self._memory_manager
 
 	def _publish_chat_realtime(self, event_name, payload):
 		"""Publish realtime updates to related doc rooms."""
@@ -205,6 +230,12 @@ class CFChatMessage(Document):
 		runtime_audit = {
 			"model": self.model,
 			"augmentations": [],
+			"memory": {
+				"enabled": False,
+				"used": False,
+				"context_chars": 0,
+				"recorded": False,
+			},
 			"web_search": {
 				"enabled": bool(getattr(self, "web_search", False)),
 				"query": None,
@@ -306,6 +337,25 @@ class CFChatMessage(Document):
 					"content": f"Summary of earlier conversation context:\n{summary}",
 				})
 
+		memory_manager = self._get_memory_manager()
+		memory_context = memory_manager.get_context_for_prompt(
+			chat_name=chat.name,
+			settings_manager=settings_manager,
+			current_prompt=runtime_prompt,
+			context={
+				"portfolio": getattr(portfolio, "name", None) if portfolio else None,
+				"security": getattr(security, "name", None) if security else None,
+			},
+		)
+		runtime_audit["memory"]["enabled"] = bool(settings_manager.get_memory_config().get("enabled", True))
+		if memory_context:
+			messages.insert(1, {
+				"role": "system",
+				"content": f"Conversation memory:\n{memory_context}",
+			})
+			runtime_audit["memory"]["used"] = True
+			runtime_audit["memory"]["context_chars"] = len(memory_context)
+
 		# DeepSeek multi-turn guideline: clear prior reasoning content before a new user turn.
 		messages = self._get_token_manager().clear_reasoning_content(messages)
 		
@@ -355,6 +405,10 @@ class CFChatMessage(Document):
 		runtime_audit["tools"]["rounds"] = int((usage_summary or {}).get("tool_rounds", 0) or 0) if isinstance(usage_summary, dict) else 0
 		runtime_audit["tools"]["calls"] = len(tool_trace or [])
 		runtime_audit["tools"]["names"] = sorted({(item or {}).get("tool") for item in (tool_trace or []) if (item or {}).get("tool")})
+		runtime_audit["tools"]["plan"] = (usage_summary or {}).get("plan") if isinstance(usage_summary, dict) else None
+		runtime_audit["tools"]["metrics"] = (usage_summary or {}).get("tool_metrics") if isinstance(usage_summary, dict) else None
+		runtime_audit["tools"]["metrics_store"] = (usage_summary or {}).get("tool_metrics_store") if isinstance(usage_summary, dict) else None
+		runtime_audit["tools"]["execution"] = (usage_summary or {}).get("tool_execution") if isinstance(usage_summary, dict) else None
 		runtime_audit["prompt_augmented"] = bool(runtime_prompt != original_prompt)
 		# Track tool-driven search provenance
 		search_tool_calls = [t for t in (tool_trace or []) if (t or {}).get("tool") in ("web_search", "search_financial")]
@@ -362,6 +416,20 @@ class CFChatMessage(Document):
 		runtime_audit["web_search"]["financial_searches"] = sum(
 			1 for t in (tool_trace or []) if (t or {}).get("tool") == "search_financial"
 		)
+
+		memory_record_result = memory_manager.record_turn(
+			chat_name=chat.name,
+			prompt=original_prompt,
+			response=full_response,
+			settings_manager=settings_manager,
+			context={
+				"portfolio": getattr(portfolio, "name", None) if portfolio else None,
+				"security": getattr(security, "name", None) if security else None,
+			},
+		)
+		runtime_audit["memory"]["recorded"] = bool((memory_record_result or {}).get("stored"))
+		runtime_audit["memory"]["record"] = memory_record_result
+
 		self.runtime_audit = runtime_audit
 		self.db_update()
 		frappe.db.commit()
@@ -435,8 +503,8 @@ class CFChatMessage(Document):
 	def _get_tool_result_max_chars(self, settings):
 		return max(500, self._read_int_setting(settings, "tool_result_max_chars", DEFAULT_TOOL_RESULT_MAX_CHARS))
 
-	def _get_tool_definitions(self):
-		return [
+	def _get_tool_definitions(self, settings=None):
+		base_tools = [
 			{
 				"type": "function",
 				"function": {
@@ -530,7 +598,7 @@ class CFChatMessage(Document):
 					"name": "web_search",
 					"description": (
 						"Search the web and return top textual snippets. "
-						"Supports multi-provider search (DuckDuckGo, Wikipedia) with optional "
+						"Supports multi-provider search (DuckDuckGo, Wikipedia, SerpAPI) with optional "
 						"domain restriction and date-range filtering."
 					),
 					"parameters": {
@@ -546,10 +614,10 @@ class CFChatMessage(Document):
 							},
 							"provider": {
 								"type": "string",
-								"enum": ["auto", "ddgs", "wikipedia"],
+								"enum": ["auto", "ddgs", "wikipedia", "serpapi"],
 								"description": (
 									"Search provider: auto selects based on query type, "
-									"ddgs uses DuckDuckGo, wikipedia searches Wikipedia"
+									"ddgs uses DuckDuckGo, wikipedia searches Wikipedia, serpapi uses SerpAPI"
 								),
 							},
 							"date_range": {
@@ -597,12 +665,13 @@ class CFChatMessage(Document):
 							},
 							"source": {
 								"type": "string",
-								"enum": ["auto", "sec_edgar", "yahoo_finance", "financial_news"],
+								"enum": ["auto", "sec_edgar", "yahoo_finance", "financial_news", "serpapi"],
 								"description": (
 									"Data source: auto aggregates all sources, "
 									"sec_edgar searches SEC EDGAR full-text search, "
 									"yahoo_finance searches Yahoo Finance, "
-									"financial_news restricts to financial news outlets"
+									"financial_news restricts to financial news outlets, "
+									"serpapi uses SerpAPI web results"
 								),
 							},
 							"form_type": {
@@ -650,7 +719,14 @@ class CFChatMessage(Document):
 			},
 		]
 
-	def _execute_tool_call(self, function_name, arguments_raw, chat, portfolio, security):
+		if settings is not None:
+			settings_manager = self._get_settings_manager(settings)
+			if not settings_manager.get_tool_execution_config().get("dynamic_registration_enabled", True):
+				return base_tools
+
+		return self._get_tool_registry().merge_tool_definitions(base_tools)
+
+	def _execute_tool_call(self, function_name, arguments_raw, chat, portfolio, security, dynamic_registration_enabled=True):
 		args = self._safe_json_loads(arguments_raw, default={})
 		if not isinstance(args, dict):
 			args = {}
@@ -663,6 +739,7 @@ class CFChatMessage(Document):
 				chat_name=getattr(chat, "name", None) if chat else None,
 				portfolio_name=getattr(portfolio, "name", None) if portfolio else None,
 				security_name=getattr(security, "name", None) if security else None,
+				dynamic_registration_enabled=bool(dynamic_registration_enabled),
 			)
 		except Exception as exc:
 			frappe.log_error(title=f"Tool call failed: {function_name}", message=str(exc))
@@ -674,7 +751,7 @@ class CFChatMessage(Document):
 			}
 
 	@lru_cache(maxsize=256)
-	def _execute_tool_call_cached(self, function_name, args_key, chat_name, portfolio_name, security_name):
+	def _execute_tool_call_cached(self, function_name, args_key, chat_name, portfolio_name, security_name, dynamic_registration_enabled=True):
 		args = self._safe_json_loads(args_key, default={})
 		if not isinstance(args, dict):
 			args = {}
@@ -690,6 +767,11 @@ class CFChatMessage(Document):
 			"search_financial": lambda: self._tool_search_financial(args),
 			"fetch_url_content": lambda: self._tool_fetch_url_content(args),
 		}
+
+		if dynamic_registration_enabled:
+			dynamic_handlers = self._get_tool_registry().get_dynamic_handlers()
+			for tool_name, handler in (dynamic_handlers or {}).items():
+				handlers[tool_name] = lambda h=handler: self._invoke_dynamic_tool_handler(h, args, portfolio_doc, security_doc)
 
 		if function_name not in handlers:
 			return {
@@ -717,6 +799,15 @@ class CFChatMessage(Document):
 				"error_code": "tool_runtime_error",
 				"error": f"Tool '{function_name}' execution failed: {str(exc)}",
 			}
+
+	def _invoke_dynamic_tool_handler(self, handler, args, portfolio_doc, security_doc):
+		try:
+			return handler(self, args, portfolio_doc, security_doc)
+		except TypeError:
+			try:
+				return handler(args, portfolio_doc, security_doc)
+			except TypeError:
+				return handler(args)
 
 	def _tool_get_security_snapshot(self, args, default_security):
 		security_doc = self._resolve_security_doc(args.get("identifier"), default_security)

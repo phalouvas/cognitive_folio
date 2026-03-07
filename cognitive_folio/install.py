@@ -1,7 +1,5 @@
 import subprocess
 import frappe
-import sys
-import os
 
 def after_install():
     """Run after app installation"""
@@ -47,3 +45,22 @@ def install_dependencies():
             )
     
     print("Cognitive Folio dependency installation completed", "Cognitive Folio Setup")
+
+
+def before_tests():
+    """Prepare deterministic test fixtures used by upstream preload generators."""
+    _ensure_fiscal_year_companies()
+
+
+def _ensure_fiscal_year_companies():
+    company = frappe.db.get_value("Company", {}, "name")
+    if not company:
+        return
+
+    fiscal_year_names = frappe.get_all("Fiscal Year", pluck="name") or []
+    for fiscal_year_name in fiscal_year_names:
+        fiscal_year = frappe.get_doc("Fiscal Year", fiscal_year_name)
+        if fiscal_year.get("companies"):
+            continue
+        fiscal_year.append("companies", {"company": company})
+        fiscal_year.save(ignore_permissions=True)

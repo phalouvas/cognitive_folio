@@ -4,6 +4,9 @@
 import frappe
 from frappe import _
 
+from cognitive_folio.cognitive_folio.services.memory import CleanupMetricsStore, VectorMemory
+from cognitive_folio.cognitive_folio.services.settings_manager import SettingsManager
+
 @frappe.whitelist()
 def auto_fetch_portfolio_prices():
 	"""
@@ -114,3 +117,28 @@ def auto_evaluate_holdings_news():
 			f"Error in auto_evaluate_holdings_news scheduled task: {str(e)}",
 			"Auto Evaluate Holdings News Task Error"
 		)
+
+
+@frappe.whitelist()
+def cleanup_vector_memory_store():
+	"""Scheduled cleanup for persistent vector memory retention."""
+	metrics_store = CleanupMetricsStore()
+	try:
+		settings_doc = frappe.get_cached_doc("CF Settings")
+		settings_manager = SettingsManager(settings_doc)
+		config = settings_manager.get_memory_config()
+
+		result = VectorMemory().prune_persistent_store(config=config)
+		metrics_store.persist_daily(result)
+		frappe.logger().info(
+			f"Vector memory cleanup completed: pruned={result.get('pruned')} chats={result.get('chats')} deleted={result.get('deleted')}"
+		)
+		frappe.db.commit()
+		return result
+	except Exception as e:
+		metrics_store.persist_daily({"pruned": False, "reason": "task_failed", "deleted": 0, "chats": 0})
+		frappe.log_error(
+			f"Error in cleanup_vector_memory_store scheduled task: {str(e)}",
+			"Vector Memory Cleanup Task Error"
+		)
+		return {"pruned": False, "reason": "task_failed"}

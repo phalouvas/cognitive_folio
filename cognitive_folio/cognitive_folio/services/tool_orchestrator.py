@@ -3,18 +3,60 @@ import time
 
 import frappe
 
+from cognitive_folio.cognitive_folio.services.agent import (
+    PlanExecutor,
+    PlanGenerator,
+    QueryAnalyzer,
+    ToolRecommender,
+)
+from cognitive_folio.cognitive_folio.services.tooling import ToolComposer, ToolEffectivenessTracker, ToolMetricsStore, ToolSelfCorrector
+
 
 class ToolOrchestrator:
     """Coordinates iterative tool-calling loops for chat completions."""
 
     def __init__(self, chat_message):
         self.chat_message = chat_message
+        self.query_analyzer = QueryAnalyzer()
+        self.tool_recommender = ToolRecommender()
+        self.plan_generator = PlanGenerator()
+        self.plan_executor = PlanExecutor()
+        self.tool_composer = ToolComposer()
+        self.tool_metrics_store = ToolMetricsStore()
+        self.tool_self_corrector = ToolSelfCorrector()
 
     def run_tool_call_chain(self, client, messages, settings, chat, portfolio, security):
-        tools = self.chat_message._get_tool_definitions()
+        tools = self.chat_message._get_tool_definitions(settings=settings)
         max_rounds = self.chat_message._get_max_tool_rounds(settings)
         max_tool_calls_per_round = self.chat_message._get_max_tool_calls_per_round(settings)
         tool_result_max_chars = self.chat_message._get_tool_result_max_chars(settings)
+        settings_manager = self.chat_message._get_settings_manager(settings)
+        planner_config = settings_manager.get_planner_config()
+        tool_execution_config = settings_manager.get_tool_execution_config()
+        effectiveness_tracker = ToolEffectivenessTracker()
+        composition_context = {
+            "last": None,
+            "tools": {},
+            "latest_user_message": "",
+        }
+
+        plan = None
+        recommendation = {"recommended_tools": []}
+        if planner_config.get("enabled", True):
+            analysis = self.query_analyzer.analyze(messages, config=planner_config)
+            composition_context["latest_user_message"] = analysis.get("latest_user_message") or ""
+            recommendation = self.tool_recommender.recommend(analysis, tools, config=planner_config)
+            plan = self.plan_generator.generate(
+                analysis=analysis,
+                recommendation=recommendation,
+                max_rounds=max_rounds,
+                max_tool_calls_per_round=max_tool_calls_per_round,
+                config=planner_config,
+            )
+            if planner_config.get("inject_system_plan", True):
+                plan_message = self.plan_executor.build_system_plan_message(plan)
+                if plan_message:
+                    messages.append({"role": "system", "content": plan_message})
 
         all_reasoning_parts = []
         tool_trace = []
@@ -24,11 +66,23 @@ class ToolOrchestrator:
             "prompt_tokens": 0,
             "completion_tokens": 0,
             "total_tokens": 0,
+            "plan": plan,
+            "planner": {
+                "enabled": bool(planner_config.get("enabled", True)),
+                "inject_system_plan": bool(planner_config.get("inject_system_plan", True)),
+                "enforce_recommended_tools": bool(planner_config.get("enforce_recommended_tools", False)),
+            },
+            "tool_execution": {
+                "composition_enabled": bool(tool_execution_config.get("composition_enabled", True)),
+                "self_correction_enabled": bool(tool_execution_config.get("self_correction_enabled", True)),
+                "dynamic_registration_enabled": bool(tool_execution_config.get("dynamic_registration_enabled", True)),
+                "max_corrections_per_call": int(tool_execution_config.get("max_corrections_per_call", 1)),
+            },
         }
         synthesis_nudge_sent = False
 
         for round_index in range(1, max_rounds + 1):
-            if not synthesis_nudge_sent and (max_rounds - round_index) < 2:
+            if self.plan_executor.should_inject_synthesis_nudge(round_index, max_rounds, synthesis_nudge_sent):
                 messages.append({
                     "role": "system",
                     "content": (
@@ -39,7 +93,7 @@ class ToolOrchestrator:
                 })
                 synthesis_nudge_sent = True
 
-            active_tools = None if round_index == max_rounds else tools
+            active_tools = self.plan_executor.active_tools_for_round(tools, round_index, max_rounds)
             response = self.chat_message._create_non_stream_completion_with_retry(
                 client=client,
                 messages=messages,
@@ -67,10 +121,19 @@ class ToolOrchestrator:
                     messages.append(self.chat_message._build_assistant_message_dict("", reasoning_content, []))
                     break
                 messages.append(self.chat_message._build_assistant_message_dict(assistant_content, reasoning_content, []))
+                aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
+                aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
                 return assistant_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
 
+            tool_calls_to_execute = self.plan_executor.select_tool_calls(
+                tool_calls=tool_calls,
+                max_per_round=max_tool_calls_per_round,
+                recommended_tools=recommendation.get("recommended_tools") if isinstance(recommendation, dict) else None,
+                enforce_recommended=bool(planner_config.get("enforce_recommended_tools", False)),
+            )
+
             assistant_tool_calls = []
-            for tool_call in tool_calls[:max_tool_calls_per_round]:
+            for tool_call in tool_calls_to_execute:
                 call_id = getattr(tool_call, "id", None)
                 function_obj = getattr(tool_call, "function", None)
                 function_name = getattr(function_obj, "name", "") if function_obj else ""
@@ -86,12 +149,15 @@ class ToolOrchestrator:
 
             messages.append(self.chat_message._build_assistant_message_dict(assistant_content, reasoning_content, assistant_tool_calls))
 
-            for tool_call in tool_calls[:max_tool_calls_per_round]:
+            for tool_call in tool_calls_to_execute:
                 call_started = time.time()
                 call_id = getattr(tool_call, "id", None)
                 function_obj = getattr(tool_call, "function", None)
                 function_name = getattr(function_obj, "name", "") if function_obj else ""
                 arguments_raw = getattr(function_obj, "arguments", "{}") if function_obj else "{}"
+
+                if tool_execution_config.get("composition_enabled", True):
+                    arguments_raw = self.tool_composer.compose_arguments_raw(arguments_raw, composition_context)
 
                 tool_result = self.chat_message._execute_tool_call(
                     function_name=function_name,
@@ -99,7 +165,35 @@ class ToolOrchestrator:
                     chat=chat,
                     portfolio=portfolio,
                     security=security,
+                    dynamic_registration_enabled=bool(tool_execution_config.get("dynamic_registration_enabled", True)),
                 )
+
+                retried = False
+                corrections_left = int(tool_execution_config.get("max_corrections_per_call", 1))
+                while (
+                    not tool_result.get("ok", False)
+                    and tool_execution_config.get("self_correction_enabled", True)
+                    and corrections_left > 0
+                ):
+                    corrected_args = self.tool_self_corrector.build_retry_arguments(
+                        function_name=function_name,
+                        arguments_raw=arguments_raw,
+                        tool_result=tool_result,
+                        context=composition_context,
+                    )
+                    if not corrected_args:
+                        break
+                    retried = True
+                    arguments_raw = json.dumps(corrected_args, ensure_ascii=False, default=str)
+                    tool_result = self.chat_message._execute_tool_call(
+                        function_name=function_name,
+                        arguments_raw=arguments_raw,
+                        chat=chat,
+                        portfolio=portfolio,
+                        security=security,
+                        dynamic_registration_enabled=bool(tool_execution_config.get("dynamic_registration_enabled", True)),
+                    )
+                    corrections_left -= 1
 
                 result_content = json.dumps(tool_result, ensure_ascii=False, default=str)
                 if len(result_content) > tool_result_max_chars:
@@ -118,10 +212,22 @@ class ToolOrchestrator:
                     "call_id": call_id,
                     "ok": bool(tool_result.get("ok", False)),
                     "duration_ms": round((time.time() - call_started) * 1000, 2),
+                    "retried": retried,
                     "args": tool_result.get("args", {}),
                     "error_code": tool_result.get("error_code"),
                     "error": tool_result.get("error"),
                 })
+
+                last_trace = tool_trace[-1]
+                effectiveness_tracker.record(
+                    tool_name=function_name,
+                    ok=bool(last_trace.get("ok", False)),
+                    duration_ms=float(last_trace.get("duration_ms", 0) or 0),
+                    retried=bool(last_trace.get("retried", False)),
+                )
+
+                composition_context["last"] = tool_result
+                composition_context.setdefault("tools", {}).setdefault(function_name, []).append(tool_result)
 
                 self.chat_message._publish_chat_realtime(
                     event_name="cf_streaming_update",
@@ -162,6 +268,8 @@ class ToolOrchestrator:
             if final_reasoning:
                 all_reasoning_parts.append(final_reasoning)
             last_finish_reason = getattr(final_choice, "finish_reason", None)
+            aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
+            aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
             return final_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
 
         accumulated = " ".join(
@@ -169,4 +277,17 @@ class ToolOrchestrator:
             for message in messages
             if isinstance(message, dict) and message.get("role") == "assistant" and message.get("content")
         )
+        aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
+        aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
         return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+    def _persist_tool_metrics(self, aggregate_usage):
+        metrics = (aggregate_usage or {}).get("tool_metrics") or {}
+        plan = (aggregate_usage or {}).get("plan") or {}
+        context = {
+            "model": getattr(self.chat_message, "model", None),
+            "intent": plan.get("intent") if isinstance(plan, dict) else None,
+            "chat": getattr(self.chat_message, "chat", None),
+            "message": getattr(self.chat_message, "name", None),
+        }
+        return self.tool_metrics_store.persist_daily_rollups(metrics, context=context)

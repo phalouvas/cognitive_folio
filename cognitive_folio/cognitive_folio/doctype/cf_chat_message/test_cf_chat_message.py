@@ -112,7 +112,6 @@ class TestCFChatMessageSearchHelpers(FrappeTestCase):
         for term in ("stock", "earnings", "10-k", "sec", "edgar", "dividend"):
             self.assertIn(term, FINANCIAL_QUERY_KEYWORDS)
 
-
 class TestCFChatMessageTokenAndThinkingModes(FrappeTestCase):
     def test_deepseek_chat_with_thinking_uses_chat_token_limits(self):
         doc = _make_doc()

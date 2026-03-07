@@ -3,7 +3,7 @@
 ## Overview
 This document outlines a step-by-step implementation plan for enhancing the `CFChatMessage` functionality in the Cognitive Folio application. The current implementation in `/workspace/development/v16/apps/cognitive_folio/cognitive_folio/cognitive_folio/doctype/cf_chat_message/cf_chat_message.py` is robust but has grown to ~2,200 lines with multiple responsibilities. This plan focuses on modularization, improved agent capabilities, and enhanced web search functionality.
 
-## Implementation Status (Updated: 2026-03-06)
+## Implementation Status (Updated: 2026-03-07)
 
 ### Completed
 1. **Phase 1.1 (Base Service Classes)**
@@ -27,14 +27,24 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 5. **Tool Mode Simplification**
 	- `Enable Tool Calls` setting removed from `CF Settings`
 	- Tool chain is now always enabled
+6. **Phase 3 (Web Search Enhancement) - completed (scoped)**
+	- Step 3.1 completed with ProviderRegistry, SerpAPI integration, and SEC real-time filings support under `sec_edgar`
+	- Step 3.2 search quality stack completed (refiner, reranker, freshness, cross-source, authority)
+	- Step 3.3 advanced search features completed (session tracker, semantic, trend, personalized)
 
 ### Partially Completed
 1. **StreamingHandler usage**
 	- Service exists, but the direct streaming fallback path was removed in favor of tool-only execution.
+2. **Phase 2.1 (Agent Planning System)**
+	- `QueryAnalyzer`, `ToolRecommender`, `PlanGenerator`, and `PlanExecutor` implemented.
+	- `ToolOrchestrator` now performs pre-execution analysis and plan generation and stores plan metadata in runtime usage/audit.
+	- Follow-up needed: calibration of intent heuristics and broader integration tests in environments without third-party preload regressions.
 
 ### Not Started
-1. **Phase 2, Phase 3, Phase 4, Phase 5, Phase 6**
-	- Agent planning, advanced memory, expanded provider ecosystem, circuit breakers, compliance, and monitoring/dashboard work remain pending.
+1. **Phase 4, Phase 5, Phase 6**
+	- Performance/reliability, security/compliance, and monitoring/dashboard phases remain pending.
+2. **Remaining Phase 2 completion work**
+	- Phase 2.1 planner calibration in broader environments and Phase 2.3 memory-system completion beyond MVP.
 
 ### Scope Decisions Applied
 1. **Backward compatibility is intentionally not preserved** for removed helper APIs and old fallback flows.
@@ -100,17 +110,62 @@ Notes:
 3. **ToolRecommender** - Suggest relevant tools based on query analysis
 4. **PlanExecutor** - Execute plans with monitoring and adjustment
 
+Status: **Partially Completed**
+
+Notes:
+1. All four foundational classes are now implemented under `cognitive_folio/cognitive_folio/services/agent/`.
+2. Planning is integrated into `ToolOrchestrator` before tool rounds execute.
+3. Planner behavior is now configurable via `SettingsManager` (feature flags/env overrides), including intent markers, thresholds, plan-step bounds, and recommended-tool limits.
+4. Orchestrator now records planner policy metadata in runtime usage and supports optional enforcement of recommended-tool execution.
+5. Test-environment stabilization is still required for full completion: the fiscal-year overlap preload issue is mitigated via app `before_tests`, but full app-level preload still hits an external `erpnext_cyprus` Company override regression (`custom_chart` unbound).
+
 ### Step 2.2: Add Advanced Tool Features
 1. **Tool composition** - Allow tools to chain with data dependencies
 2. **Dynamic tool registration** - Enable plugins without code changes
 3. **Tool learning** - Track effectiveness metrics for different query types
 4. **Self-correction** - Allow agent to recognize and fix erroneous tool calls
 
+Status: **Functionally Completed (with test-environment caveat)**
+
+Notes:
+1. Added `services/tooling/` modules: `ToolComposer`, `ToolRegistry`, `ToolEffectivenessTracker`, and `ToolSelfCorrector`.
+2. `ToolOrchestrator` now supports placeholder-based tool composition, retry-on-failure self-correction, and per-tool effectiveness metrics in usage metadata.
+3. Dynamic tool registration is enabled through Frappe hooks (`cognitive_folio_tool_definitions`, `cognitive_folio_tool_handlers`) with policy gating via settings feature flags.
+4. Added a production plugin example (`normalize_ticker`) wired via hooks to validate dynamic registration end-to-end.
+5. Tool execution policy and per-tool effectiveness metrics are now persisted in runtime audit payload for each message.
+6. Added long-horizon daily rollups via `CF Tool Metric` Doctype and `ToolMetricsStore` persistence service.
+7. Added observability UI artifacts: `Tool Metrics Trends` query report and trend charts (`Tool Calls Trend`, `Tool Avg Latency Trend`), plus workspace report link wiring.
+8. Caveat: feature behavior is complete and module tests pass, but full app-level preload test runs still depend on upstream fixture stability (`Parent Account: Bank Accounts - _TC` in this environment).
+
 ### Step 2.3: Implement Agent Memory System
 1. **VectorMemory** - Store and retrieve important facts using embeddings
 2. **ConversationMemory** - Long-term memory across conversations
 3. **KnowledgeExtractor** - Extract entities and relationships from responses
 4. **MemoryManager** - Coordinate different memory types with prioritization
+
+Status: **In Progress (MVP started)**
+
+Notes:
+1. Added `services/memory/ConversationMemory` with cache-backed memory storage and DB fallback to recent successful chat messages.
+2. Added `services/memory/MemoryManager` as a single entry point for memory retrieval and turn recording.
+3. Integrated memory injection + turn recording into `CFChatMessage.send()` with runtime audit metadata under `runtime_audit.memory`.
+4. Added `services/memory/KnowledgeExtractor` to capture compact turn facts (tickers, numeric values, and intent markers).
+5. Upgraded `ConversationMemory` retrieval with relevance-aware selection using current prompt term overlap and bounded inclusion of relevant memories.
+6. Expanded memory service unit tests to cover extraction, relevance ranking, and metadata delegation.
+7. Added `services/memory/VectorMemory` for context-aware retrieval that prioritizes active portfolio/security scope and semantic term overlap.
+8. Integrated `VectorMemory` into `MemoryManager` and `CFChatMessage.send()` with contextual metadata passed on retrieval and persistence.
+9. Added `services/memory/EmbeddingProvider` and switched vector ranking to cosine similarity over deterministic local embeddings (with lexical fallback mode).
+10. Added embedding-focused unit tests and expanded vector tests to validate ranking behavior in both embedding and lexical modes.
+11. Added persistent vector-memory storage with new `CF Vector Memory` DocType and cache/store fallback retrieval in `VectorMemory`.
+12. Added tests for DocType-backed persistence and store fallback reads when cache is empty.
+13. Added retention controls for persistent vector memory (`max records per chat` and `max age days`) with pruning after successful writes.
+14. Added unit tests validating retention pruning deletes overflow and expired rows.
+15. Added scheduled daily cleanup task (`cleanup_vector_memory_store`) and scheduler hook to enforce retention even without new writes.
+16. Added task-level tests for successful cleanup execution and failure handling.
+17. Added `CF Memory Cleanup Metric` daily rollup DocType to track cleanup observability (runs, chats scanned, rows deleted, success/failure).
+18. Added `CleanupMetricsStore` and wired cleanup task to persist metrics for both successful and failed runs.
+19. Added `Memory Cleanup Metrics Trends` script report with date/status filters and workspace link for operations monitoring.
+20. Added dashboard trend charts for cleanup observability: `Memory Cleanup Rows Deleted Trend` and `Memory Cleanup Failed Runs Trend`, wired into workspace layout.
 
 ## Phase 3: Web Search Enhancement (Week 3)
 
@@ -121,6 +176,18 @@ Notes:
 4. **Add ArXiv API** for academic papers
 5. **Add SEC API** for real-time filings and updates
 
+Status: **Completed (scoped)**
+
+Notes:
+1. Added `services/search/ProviderRegistry` with configurable fallback chains and provider registration.
+2. Refactored `WebSearchService` to route both general and financial search execution through the registry.
+3. Added provider routing tests for fallback behavior and explicit source/provider hints.
+4. Added SerpAPI provider integration (`serpapi`) for both `web_search` and `search_financial`, gated by settings/feature flags.
+5. Extended `SettingsManager` with `get_search_provider_config()` for configurable general/financial provider chains and SerpAPI runtime options.
+6. Added SEC real-time filings support (official SEC submissions JSON) under existing `sec_edgar` provider flow with ticker-based CIK resolution and result normalization.
+7. Added SEC realtime settings controls (`search_sec_realtime_enabled`, `search_sec_user_agent`) with integration test coverage.
+8. Scope decision: deferred Bing and ArXiv provider additions for now.
+
 ### Step 3.2: Implement Search Quality Improvements
 1. **QueryRefiner** - Use LLM to improve search queries before execution
 2. **ResultReranker** - Apply relevance scoring based on query intent
@@ -128,11 +195,42 @@ Notes:
 4. **FreshnessWeighting** - Balance recency vs. authority based on query type
 5. **CrossSourceVerifier** - Fact-check information across multiple sources
 
+Status: **Completed**
+
+Notes:
+1. Added `services/search/QueryRefiner` with deterministic normalization and optional LLM-backed extraction fallback.
+2. Added `services/search/ResultReranker` with lexical relevance + domain authority + provider weighting.
+3. Integrated refinement/reranking into `WebSearchService` for both general and financial search flows.
+4. Added settings flags for `search_query_refiner_enabled`, `search_query_refiner_llm_enabled`, `search_result_reranker_enabled`, and `search_result_reranker_top_k`.
+5. Added unit and integration tests for refiner/reranker behavior and pipeline wiring.
+6. Added `services/search/FreshnessWeighting` and integrated recency-aware scoring into reranking for time-sensitive queries.
+7. Added `services/search/CrossSourceVerifier` and integrated corroboration scoring across independent domains.
+8. Extended search settings with `search_freshness_weighting_enabled`, `search_freshness_half_life_days`, `search_cross_source_verifier_enabled`, and `search_cross_source_min_sources`.
+9. Extracted `services/search/DomainAuthorityScorer` and made authority scoring configurable via `search_domain_authority_enabled`, `search_domain_authority_default_weight`, and `search_domain_authority_weights`.
+10. Upgraded `CrossSourceVerifier` with contradiction-aware confidence scoring and added tunables for contradiction penalty and confidence boost.
+
 ### Step 3.3: Add Advanced Search Features
 1. **SemanticSearch** - Use embeddings for conceptual similarity matching
 2. **TrendDetector** - Identify emerging topics across search results
 3. **PersonalizedSearch** - Adapt search behavior based on user preferences
 4. **SearchSessionTracker** - Maintain context across related searches
+
+Status: **Completed**
+
+Notes:
+1. Added `services/search/SearchSessionTracker` with cache-backed session history for recent queries/providers/top URLs.
+2. Integrated follow-up query expansion and per-search session recording into `WebSearchService` behind feature flags.
+3. Added search settings controls for session tracking limits and follow-up expansion behavior.
+4. Added dedicated unit tests for tracker behavior and integration assertions in web search/settings test suites.
+5. Added `services/search/SemanticSearch` using deterministic local embeddings for conceptual similarity scoring.
+6. Integrated optional semantic-score boosting into `ResultReranker` and runtime rerank options.
+7. Added semantic search settings controls (`search_semantic_search_enabled`, `search_semantic_embedding_dims`, `search_semantic_score_weight`) and test coverage.
+8. Added `services/search/TrendDetector` for repeated-theme detection across result sets.
+9. Integrated optional trend-score boosting into reranking with configurable frequency and weight thresholds.
+10. Added trend detector settings controls (`search_trend_detector_enabled`, `search_trend_min_frequency`, `search_trend_score_weight`) and test coverage.
+11. Added `services/search/PersonalizedSearch` for lightweight preference-aware scoring across providers/domains/tickers.
+12. Integrated optional personalized-score boosting into reranking with session-derived context from recent search history.
+13. Added personalization settings controls (`search_personalized_search_enabled`, `search_personalized_score_weight`, `search_personalized_history_items`, `search_preferred_sources`, `search_preferred_domains`) and test coverage.
 
 ## Phase 4: Performance & Reliability (Week 4)
 
