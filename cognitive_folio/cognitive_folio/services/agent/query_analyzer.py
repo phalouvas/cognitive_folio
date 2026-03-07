@@ -25,6 +25,37 @@ class QueryAnalyzer:
         "compare",
     )
 
+    _GEOPOLITICAL_MARKERS = (
+        "war",
+        "conflict",
+        "iran",
+        "israel",
+        "usa",
+        "united states",
+        "ceasefire",
+        "military",
+        "geopolitical",
+        "sanctions",
+    )
+
+    _TEMPORAL_MARKERS = (
+        "now",
+        "current",
+        "currently",
+        "today",
+        "this week",
+        "this month",
+        "started",
+        "since",
+        "estimate",
+        "how long",
+        "duration",
+        "2024",
+        "2025",
+        "2026",
+        "2027",
+    )
+
     def analyze(self, messages, config=None):
         config = config or {}
         latest_user_message = ""
@@ -36,8 +67,12 @@ class QueryAnalyzer:
         lowered = latest_user_message.lower()
         financial_markers = self._resolve_markers(config.get("financial_markers"), self._FINANCIAL_MARKERS)
         research_markers = self._resolve_markers(config.get("research_markers"), self._RESEARCH_MARKERS)
+        geopolitical_markers = self._resolve_markers(config.get("geopolitical_markers"), self._GEOPOLITICAL_MARKERS)
+        temporal_markers = self._resolve_markers(config.get("temporal_markers"), self._TEMPORAL_MARKERS)
         financial_hits = sum(1 for marker in financial_markers if marker in lowered)
         research_hits = sum(1 for marker in research_markers if marker in lowered)
+        geopolitical_hits = sum(1 for marker in geopolitical_markers if marker in lowered)
+        temporal_hits = sum(1 for marker in temporal_markers if marker in lowered)
 
         if financial_hits >= 2:
             intent = "financial_research"
@@ -45,7 +80,7 @@ class QueryAnalyzer:
             intent = "portfolio_analysis"
         elif "security" in lowered or "ticker" in lowered:
             intent = "security_analysis"
-        elif research_hits > 0:
+        elif research_hits > 0 or (geopolitical_hits > 0 and temporal_hits > 0):
             intent = "general_research"
         else:
             intent = "general_assistance"
@@ -59,19 +94,29 @@ class QueryAnalyzer:
             complexity_score += 1
         if financial_hits >= 2:
             complexity_score += 1
+        if geopolitical_hits >= 2:
+            complexity_score += 1
+        if temporal_hits >= 2:
+            complexity_score += 1
 
         high_threshold = int(config.get("complexity_high_threshold", 3))
         medium_threshold = int(config.get("complexity_medium_threshold", 1))
         complexity = "high" if complexity_score >= high_threshold else "medium" if complexity_score >= medium_threshold else "low"
 
+        requires_tools = intent != "general_assistance" or complexity != "low"
+        if geopolitical_hits > 0 and temporal_hits > 0:
+            requires_tools = True
+
         return {
             "intent": intent,
             "complexity": complexity,
-            "requires_tools": intent != "general_assistance" or complexity != "low",
+            "requires_tools": requires_tools,
             "latest_user_message": latest_user_message,
             "scores": {
                 "financial_hits": financial_hits,
                 "research_hits": research_hits,
+                "geopolitical_hits": geopolitical_hits,
+                "temporal_hits": temporal_hits,
                 "complexity_score": complexity_score,
             },
         }

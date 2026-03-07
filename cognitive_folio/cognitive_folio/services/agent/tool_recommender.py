@@ -25,7 +25,12 @@ class ToolRecommender:
         filtered = [tool_name for tool_name in recommended if tool_name in available_tool_names][:max_recommended_tools]
 
         if not filtered:
-            filtered = available_tool_names
+            requires_tools = bool((analysis or {}).get("requires_tools", False))
+            if requires_tools:
+                fallback = ["web_search", "fetch_url_content"]
+                filtered = [tool_name for tool_name in fallback if tool_name in available_tool_names][:max_recommended_tools]
+            else:
+                filtered = []
 
         return {
             "recommended_tools": filtered,

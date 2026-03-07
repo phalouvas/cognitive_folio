@@ -33,6 +33,22 @@ class ToolOrchestrator:
         "live",
         "latest",
     )
+    CONFLICT_MARKERS = (
+        "war",
+        "conflict",
+        "military",
+        "iran",
+        "israel",
+        "usa",
+        "united states",
+    )
+    DURATION_MARKERS = (
+        "how long",
+        "duration",
+        "last",
+        "estimate",
+        "timeline",
+    )
 
     def __init__(self, chat_message):
         self.chat_message = chat_message
@@ -78,6 +94,36 @@ class ToolOrchestrator:
                 if plan_message:
                     messages.append({"role": "system", "content": plan_message})
 
+        conflict_duration_mode = self._is_conflict_duration_query(composition_context.get("latest_user_message") or "")
+        if conflict_duration_mode:
+            max_rounds = min(max_rounds, 4)
+            messages.append(
+                {
+                    "role": "system",
+                    "content": (
+                        "For conflict-duration questions with uncertain or sparse evidence: "
+                        "do not stop at saying evidence is limited. Provide a concise scenario estimate "
+                        "(best/base/worst case duration ranges), key drivers, and a confidence level. "
+                        "Clearly separate verified facts from assumptions."
+                    ),
+                }
+            )
+
+        current_datetime = frappe.utils.now_datetime()
+        messages.append(
+            {
+                "role": "system",
+                "content": (
+                    "Current system datetime is "
+                    f"{current_datetime.strftime('%Y-%m-%d %H:%M:%S %Z').strip()} "
+                    f"(date: {current_datetime.strftime('%Y-%m-%d')}). "
+                    "For time-sensitive questions, do not contradict this date and rely on tool evidence."
+                ),
+            }
+        )
+
+        effective_enforce_recommended_tools = self._effective_enforce_recommended_tools(planner_config, analysis)
+
         all_reasoning_parts = []
         tool_trace = []
         last_finish_reason = None
@@ -90,7 +136,7 @@ class ToolOrchestrator:
             "planner": {
                 "enabled": bool(planner_config.get("enabled", True)),
                 "inject_system_plan": bool(planner_config.get("inject_system_plan", True)),
-                "enforce_recommended_tools": bool(planner_config.get("enforce_recommended_tools", False)),
+                "enforce_recommended_tools": bool(effective_enforce_recommended_tools),
             },
             "tool_execution": {
                 "composition_enabled": bool(tool_execution_config.get("composition_enabled", True)),
@@ -98,9 +144,12 @@ class ToolOrchestrator:
                 "dynamic_registration_enabled": bool(tool_execution_config.get("dynamic_registration_enabled", True)),
                 "max_corrections_per_call": int(tool_execution_config.get("max_corrections_per_call", 1)),
                 "forced_realtime_web_search": False,
+                "conflict_duration_mode": bool(conflict_duration_mode),
+                "conflict_duration_rewrite": False,
             },
         }
         synthesis_nudge_sent = False
+        conflict_rewrite_done = False
 
         for round_index in range(1, max_rounds + 1):
             if self.plan_executor.should_inject_synthesis_nudge(round_index, max_rounds, synthesis_nudge_sent):
@@ -114,7 +163,13 @@ class ToolOrchestrator:
                 })
                 synthesis_nudge_sent = True
 
-            active_tools = self.plan_executor.active_tools_for_round(tools, round_index, max_rounds)
+            active_tools = self.plan_executor.active_tools_for_round(
+                tools,
+                round_index,
+                max_rounds,
+                recommended_tools=recommendation.get("recommended_tools") if isinstance(recommendation, dict) else None,
+                enforce_recommended=bool(effective_enforce_recommended_tools),
+            )
             response = self.chat_message._create_non_stream_completion_with_retry(
                 client=client,
                 messages=messages,
@@ -161,6 +216,24 @@ class ToolOrchestrator:
                     aggregate_usage["tool_execution"]["forced_realtime_web_search"] = True
                     continue
 
+                if conflict_duration_mode and tool_trace and not conflict_rewrite_done:
+                    conflict_rewrite_done = True
+                    rewrite_response, rewrite_reasoning, rewrite_finish = self._run_conflict_duration_rewrite(
+                        client=client,
+                        messages=messages,
+                        settings=settings,
+                        draft_content=assistant_content,
+                        draft_reasoning=reasoning_content,
+                        tool_trace=tool_trace,
+                        aggregate_usage=aggregate_usage,
+                    )
+                    aggregate_usage["tool_execution"]["conflict_duration_rewrite"] = True
+                    if rewrite_reasoning:
+                        all_reasoning_parts.append(rewrite_reasoning)
+                    aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
+                    aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
+                    return rewrite_response, "\n\n".join(all_reasoning_parts), rewrite_finish, aggregate_usage, tool_trace
+
                 if self.chat_message._content_looks_like_dsml(assistant_content):
                     messages.append(self.chat_message._build_assistant_message_dict("", reasoning_content, []))
                     break
@@ -173,7 +246,7 @@ class ToolOrchestrator:
                 tool_calls=tool_calls,
                 max_per_round=max_tool_calls_per_round,
                 recommended_tools=recommendation.get("recommended_tools") if isinstance(recommendation, dict) else None,
-                enforce_recommended=bool(planner_config.get("enforce_recommended_tools", False)),
+                enforce_recommended=bool(effective_enforce_recommended_tools),
             )
 
             assistant_tool_calls = []
@@ -450,3 +523,71 @@ class ToolOrchestrator:
             "message": getattr(self.chat_message, "name", None),
         }
         return self.tool_metrics_store.persist_daily_rollups(metrics, context=context)
+
+    def _effective_enforce_recommended_tools(self, planner_config, analysis):
+        if bool((planner_config or {}).get("enforce_recommended_tools", False)):
+            return True
+
+        intent = (analysis or {}).get("intent") or ""
+        scores = (analysis or {}).get("scores") or {}
+        financial_hits = int(scores.get("financial_hits", 0) or 0)
+        return intent == "general_research" and financial_hits == 0
+
+    def _is_conflict_duration_query(self, latest_user_message):
+        lowered = str(latest_user_message or "").lower()
+        if not lowered:
+            return False
+
+        has_conflict = any(marker in lowered for marker in self.CONFLICT_MARKERS)
+        has_duration = any(marker in lowered for marker in self.DURATION_MARKERS)
+        return has_conflict and has_duration
+
+    def _run_conflict_duration_rewrite(self, client, messages, settings, draft_content, draft_reasoning, tool_trace, aggregate_usage):
+        searched_queries = []
+        for item in tool_trace or []:
+            args = (item or {}).get("args") or {}
+            query = str(args.get("query") or "").strip()
+            if query:
+                searched_queries.append(query)
+        searched_queries = searched_queries[:5]
+
+        evidence_prompt = (
+            "Rewrite the previous answer using these strict rules:\n"
+            "1) Do NOT claim definitively that an event does not exist.\n"
+            "2) Use wording: 'I could not verify from retrieved sources'.\n"
+            "3) Keep verified findings and hypothetical scenario estimates clearly separated.\n"
+            "4) Provide duration ranges as Best/Base/Worst case only if user asked for estimate.\n"
+            "5) Confidence must be one of: low, medium, high (never N/A).\n"
+            "6) Keep concise and non-repetitive.\n"
+            f"Tool calls executed: {len(tool_trace or [])}.\n"
+            f"Queries searched: {searched_queries}."
+        )
+
+        rewrite_messages = list(messages or [])
+        rewrite_messages.append(
+            {
+                "role": "assistant",
+                "content": draft_content or "",
+                "reasoning_content": draft_reasoning or "",
+            }
+        )
+        rewrite_messages.append({"role": "system", "content": evidence_prompt})
+
+        rewrite_completion = self.chat_message._create_non_stream_completion_with_retry(
+            client=client,
+            messages=rewrite_messages,
+            settings=settings,
+            tools=None,
+        )
+        self.chat_message._accumulate_usage(aggregate_usage, getattr(rewrite_completion, "usage", None))
+
+        if not getattr(rewrite_completion, "choices", None):
+            return draft_content or "", draft_reasoning or "", "stop"
+
+        rewrite_choice = rewrite_completion.choices[0]
+        rewrite_message = rewrite_choice.message
+        return (
+            getattr(rewrite_message, "content", None) or draft_content or "",
+            getattr(rewrite_message, "reasoning_content", None) or "",
+            getattr(rewrite_choice, "finish_reason", None) or "stop",
+        )

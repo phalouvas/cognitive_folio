@@ -24,8 +24,24 @@ class PlanExecutor:
     def should_inject_synthesis_nudge(self, round_index, max_rounds, synthesis_nudge_sent):
         return not synthesis_nudge_sent and (max_rounds - round_index) < 2
 
-    def active_tools_for_round(self, tools, round_index, max_rounds):
-        return None if round_index == max_rounds else tools
+    def active_tools_for_round(self, tools, round_index, max_rounds, recommended_tools=None, enforce_recommended=False):
+        if round_index == max_rounds:
+            return None
+
+        if not enforce_recommended:
+            return tools
+
+        preferred_names = set(recommended_tools or [])
+        if not preferred_names:
+            return []
+
+        filtered = []
+        for item in tools or []:
+            function_obj = (item or {}).get("function") if isinstance(item, dict) else None
+            name = (function_obj or {}).get("name") if isinstance(function_obj, dict) else None
+            if name in preferred_names:
+                filtered.append(item)
+        return filtered
 
     def select_tool_calls(self, tool_calls, max_per_round, recommended_tools=None, enforce_recommended=False):
         ordered = list(tool_calls or [])
@@ -47,6 +63,6 @@ class PlanExecutor:
                 other.append(tool_call)
 
         selected = preferred if enforce_recommended else (preferred + other)
-        if not selected:
+        if not selected and not enforce_recommended:
             selected = ordered
         return selected[:max_per_round]

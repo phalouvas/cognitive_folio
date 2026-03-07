@@ -180,3 +180,17 @@ class TestCFChatMessageTokenAndThinkingModes(unittest.TestCase):
         settings.get.return_value = "0"
 
         self.assertTrue(doc._is_thinking_mode_active(settings))
+
+
+class TestCFChatMessagePromptSensitivity(unittest.TestCase):
+    def test_is_time_sensitive_prompt_for_weather(self):
+        doc = _make_doc()
+        self.assertTrue(doc._is_time_sensitive_prompt("What is the weather now in Larnaka Cyprus?"))
+
+    def test_is_time_sensitive_prompt_for_geopolitical_timing(self):
+        doc = _make_doc()
+        self.assertTrue(doc._is_time_sensitive_prompt("How long will the war between Iran and Israel started in 2026 last?"))
+
+    def test_is_time_sensitive_prompt_for_generic_finance(self):
+        doc = _make_doc()
+        self.assertFalse(doc._is_time_sensitive_prompt("Explain portfolio diversification principles."))

@@ -223,6 +223,42 @@ class CFChatMessage(Document):
 				docname=message_id,
 			)
 
+	def _is_time_sensitive_prompt(self, prompt_text):
+		lowered = str(prompt_text or "").lower()
+		if not lowered:
+			return False
+
+		time_markers = (
+			" now",
+			" current",
+			" currently",
+			" today",
+			" this week",
+			" this month",
+			" latest",
+			" estimate",
+			" how long",
+			" started",
+			" since ",
+			"2024",
+			"2025",
+			"2026",
+			"2027",
+		)
+		geopolitical_markers = (
+			"war",
+			"conflict",
+			"iran",
+			"israel",
+			"usa",
+			"united states",
+		)
+
+		has_time = any(marker in lowered for marker in time_markers)
+		has_geopolitical = any(marker in lowered for marker in geopolitical_markers)
+		has_weather = "weather" in lowered
+		return (has_time and has_geopolitical) or has_weather
+
 	def validate(self):
 		if not self.system_prompt:
 			chat = frappe.get_doc("CF Chat", self.chat)
@@ -487,16 +523,20 @@ class CFChatMessage(Document):
 				})
 
 		memory_manager = self._get_memory_manager()
-		memory_context = memory_manager.get_context_for_prompt(
-			chat_name=chat.name,
-			settings_manager=settings_manager,
-			current_prompt=runtime_prompt,
-			context={
-				"portfolio": getattr(portfolio, "name", None) if portfolio else None,
-				"security": getattr(security, "name", None) if security else None,
-			},
-		)
+		memory_context = ""
 		runtime_audit["memory"]["enabled"] = bool(settings_manager.get_memory_config().get("enabled", True))
+		if self._is_time_sensitive_prompt(runtime_prompt):
+			runtime_audit["memory"]["suppressed_reason"] = "time_sensitive_prompt"
+		else:
+			memory_context = memory_manager.get_context_for_prompt(
+				chat_name=chat.name,
+				settings_manager=settings_manager,
+				current_prompt=runtime_prompt,
+				context={
+					"portfolio": getattr(portfolio, "name", None) if portfolio else None,
+					"security": getattr(security, "name", None) if security else None,
+				},
+			)
 		if memory_context:
 			messages.insert(1, {
 				"role": "system",
