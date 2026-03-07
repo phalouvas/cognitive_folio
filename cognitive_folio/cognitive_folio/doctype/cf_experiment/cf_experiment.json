@@ -1,0 +1,37 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-07 06:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "experiment_name",
+  "status",
+  "rollout_percentage",
+  "variants_json",
+  "winner_variant",
+  "notes"
+ ],
+ "fields": [
+  {"fieldname": "experiment_name", "fieldtype": "Data", "in_list_view": 1, "label": "Experiment Name", "reqd": 1},
+  {"fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "Draft\nActive\nCompleted\nPaused", "reqd": 1},
+  {"default": "0", "fieldname": "rollout_percentage", "fieldtype": "Percent", "label": "Rollout Percentage"},
+  {"fieldname": "variants_json", "fieldtype": "JSON", "label": "Variants JSON"},
+  {"fieldname": "winner_variant", "fieldtype": "Data", "label": "Winner Variant"},
+  {"fieldname": "notes", "fieldtype": "Small Text", "label": "Notes"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-07 06:00:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Experiment",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1}
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

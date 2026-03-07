@@ -160,14 +160,41 @@ scheduler_events = {
 		],
 		"0 4 * * *": [
 			"cognitive_folio.tasks.auto_evaluate_holdings_news"
+		],
+		"30 4 * * *": [
+			"cognitive_folio.tasks.cleanup_vector_memory_store"
+		],
+		"0 5 * * *": [
+			"cognitive_folio.tasks.capture_search_reliability_health_snapshot"
+		],
+		"30 5 * * 0": [
+			"cognitive_folio.tasks.run_phase4_index_maintenance"
+		],
+		"0 6 * * *": [
+			"cognitive_folio.tasks.cleanup_phase56_retention_data"
+		],
+		"15 6 * * *": [
+			"cognitive_folio.tasks.capture_phase6_usage_snapshot"
+		],
+		"45 6 * * 0": [
+			"cognitive_folio.tasks.evaluate_ab_experiment_rollouts"
 		]
 	}
+}
+
+# Dynamic tool registration hooks (Phase 2.2)
+cognitive_folio_tool_definitions = [
+	"cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.get_tool_definitions",
+]
+
+cognitive_folio_tool_handlers = {
+	"normalize_ticker": "cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.handle_normalize_ticker",
 }
 
 # Testing
 # -------
 
-# before_tests = "cognitive_folio.install.before_tests"
+before_tests = "cognitive_folio.install.before_tests"
 
 # Overriding Methods
 # ------------------------------
@@ -190,7 +217,7 @@ scheduler_events = {
 # Ignore links to specified DocTypes when deleting documents
 # -----------------------------------------------------------
 
-# ignore_links_on_delete = ["Communication", "ToDo"]
+ignore_links_on_delete = ["Communication", "ToDo", "CF Tool Metric"]
 
 # Request Events
 # ----------------

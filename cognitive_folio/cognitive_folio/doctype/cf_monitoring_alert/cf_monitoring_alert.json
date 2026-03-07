@@ -1,0 +1,42 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-07 06:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "alert_date",
+  "alert_type",
+  "severity",
+  "message",
+  "status",
+  "model",
+  "chat",
+  "chat_message"
+ ],
+ "fields": [
+  {"fieldname": "alert_date", "fieldtype": "Date", "in_list_view": 1, "label": "Alert Date", "reqd": 1},
+  {"fieldname": "alert_type", "fieldtype": "Data", "in_list_view": 1, "label": "Alert Type", "reqd": 1},
+  {"fieldname": "severity", "fieldtype": "Select", "in_list_view": 1, "label": "Severity", "options": "Low\nMedium\nHigh", "reqd": 1},
+  {"fieldname": "message", "fieldtype": "Small Text", "label": "Message"},
+  {"fieldname": "status", "fieldtype": "Select", "in_list_view": 1, "label": "Status", "options": "Open\nAcknowledged\nResolved", "reqd": 1},
+  {"fieldname": "model", "fieldtype": "Data", "label": "Model"},
+    {"fieldname": "chat", "fieldtype": "Link", "label": "Chat", "on_delete": "Set Null", "options": "CF Chat"},
+    {"fieldname": "chat_message", "fieldtype": "Link", "label": "Chat Message", "on_delete": "Set Null", "options": "CF Chat Message"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-07 06:00:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Monitoring Alert",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"read": 1, "report": 1, "role": "Portfolio Manager"}
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

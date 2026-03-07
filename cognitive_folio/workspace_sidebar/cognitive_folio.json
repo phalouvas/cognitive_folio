@@ -41,10 +41,22 @@
    "link_type": "DocType",
    "show_arrow": 0,
    "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "message-square-text",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Chats",
+   "link_to": "CF Chat",
+   "link_type": "DocType",
+   "show_arrow": 0,
+   "type": "Link"
   }
  ],
- "modified": "2026-02-13 11:29:31.186379",
- "modified_by": "Administrator",
+ "modified": "2026-03-07 06:46:27.055534",
+ "modified_by": "info@kainotomo.com",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
  "owner": "Administrator",

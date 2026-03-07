@@ -1,0 +1,103 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-06 18:10:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "metric_date",
+  "runs",
+  "success_runs",
+  "failed_runs",
+  "chats_scanned",
+  "rows_deleted",
+  "last_status",
+  "last_reason",
+  "last_run_at"
+ ],
+ "fields": [
+  {
+   "fieldname": "metric_date",
+   "fieldtype": "Date",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Metric Date",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "runs",
+   "fieldtype": "Int",
+   "in_list_view": 1,
+   "label": "Runs"
+  },
+  {
+   "default": "0",
+   "fieldname": "success_runs",
+   "fieldtype": "Int",
+   "label": "Success Runs"
+  },
+  {
+   "default": "0",
+   "fieldname": "failed_runs",
+   "fieldtype": "Int",
+   "label": "Failed Runs"
+  },
+  {
+   "default": "0",
+   "fieldname": "chats_scanned",
+   "fieldtype": "Int",
+   "label": "Chats Scanned"
+  },
+  {
+   "default": "0",
+   "fieldname": "rows_deleted",
+   "fieldtype": "Int",
+   "label": "Rows Deleted"
+  },
+  {
+   "fieldname": "last_status",
+   "fieldtype": "Data",
+   "label": "Last Status"
+  },
+  {
+   "fieldname": "last_reason",
+   "fieldtype": "Data",
+   "label": "Last Reason"
+  },
+  {
+   "fieldname": "last_run_at",
+   "fieldtype": "Datetime",
+   "label": "Last Run At"
+  }
+ ],
+ "links": [],
+ "modified": "2026-03-06 18:10:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Memory Cleanup Metric",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

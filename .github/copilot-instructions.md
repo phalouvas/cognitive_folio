@@ -8,6 +8,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - **AI Integration**: Centralized settings in `CF Settings` (OpenWebUI endpoint, API key, system prompt, model list). All AI calls use the `openai` Python package configured with `base_url` and `api_key`.
 - **Background Jobs**: Long‑running AI tasks run on the `long` queue (30‑min timeout). Enqueue via `frappe.enqueue` or `frappe.utils.background_jobs.enqueue`.
 - **Real‑time Events**: Use `frappe.publish_realtime` with event names `cf_job_completed` and `cf_streaming_update`. Include relevant IDs (`security_id`, `portfolio_id`, `chat_id`, `message_id`) in the payload.
+- **Per-message context switch**: `CF Chat Message.implicit_chat_context` (`Use Connected Context`) controls whether linked security/portfolio context is injected into plain prompts.
 - **Variable Substitution**: Prompts can contain `{{field}}` or `{{field.nested.path}}` placeholders that are replaced using `cognitive_folio.utils.helper.replace_variables`. Supports JSON fields and wildcards (`{{field.ARRAY.key}}`).
 
 ## AI Generation Flows
@@ -23,11 +24,21 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 
 ### Chat Messages
 - `CF Chat Message.process()` enqueues `process_in_background` → calls `send()`.
-- `send()`: manages token budget (~60k) with `tiktoken`, replays previous messages newest‑first, streams response, updates document incrementally, publishes `cf_streaming_update` events.
+- `send()`: manages token budget with `tiktoken`, replays previous messages newest‑first, runs tool-orchestrated completion, and persists final response/tokens/runtime audit.
+- `process_in_background()`: sets status to `Processing`, calls `send()`, then finalizes to `Success` (or `Failed` on errors) and emits `cf_job_completed`.
 - Supports optional URL embedding (`fetch_urls`), PDF extraction.
-- **Agentic tool calls**: when `tool_calls_enabled` is set in `CF Settings`, `send()` routes through `_run_tool_call_chain` instead of direct streaming. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
+- Supports optional connected-context prompt injection (`implicit_chat_context`) for chats linked to a security/portfolio.
+- **Agentic tool calls**: `send()` always routes through the tool-call chain. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
 - **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`.
 - **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-reasoner` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
+- **Lifecycle cleanup**: `CF Chat Message.on_trash()` and `.on_cancel()` detach noncritical monitoring/compliance links so cancel/delete actions are not blocked by linked analytics records.
+
+### Connected Context Injection
+- Controlled by `CF Chat Message.implicit_chat_context` (checkbox).
+- When enabled and chat is linked, prompt preamble may include:
+`security.symbol`, `security.security_name`, `security.security_type`, `security.currency`, `portfolio.name`, `portfolio.base_currency`/`currency`, `portfolio.risk_profile`.
+- Injection is skipped when explicit template tokens already exist in prompt (`{{...}}`, `((...))`, `[[...]]`, `***HOLDINGS***`).
+- Runtime observability is recorded in `runtime_audit.context_injection` (`enabled`, `enabled_source`, `applied`, `fields_used`, `chars_added`, `reason`).
 
 ### Batch News Evaluation
 - Scheduled task `auto_evaluate_holdings_news` runs daily at 4 AM for portfolios with `auth_fetch_prices` enabled.
@@ -56,7 +67,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - Use `frappe.publish_realtime(event='cf_job_completed', ...)` to inform the frontend that a job finished.
 - Include `user=frappe.session.user` to target the specific user.
 - Payload must contain at least `status` ('success'/'error'), a human‑readable `message`, and the relevant ID (security_id, portfolio_id, chat_id).
-- For streaming updates, use `cf_streaming_update` with partial `message` and `reasoning` fields.
+- For tool-loop progress updates (when emitted), use `cf_streaming_update` with partial `message` and `reasoning` fields.
 
 ## Variable Substitution System
 - Placeholders in prompts are replaced by `replace_variables(match, doc)`.
@@ -68,7 +79,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 ## Dependencies & Configuration
 - **Python packages**: `yfinance`, `openai`, `edgartools`, `duckduckgo-search`, `tiktoken`. Installed automatically via `install.after_install`.
 - **Frappe hooks**: Scheduled tasks defined in `hooks.py` (`scheduler_events`).
-- **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`tool_calls_enabled`, `max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
+- **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
 - **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-chat"` if not set.
 
 ## Development Workflow
@@ -86,7 +97,8 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 
 ## Common Pitfalls & Reminders
 - **Token budgeting**: Always reserve space for response (~60k total context). Use `tiktoken` to count tokens, replay messages newest‑first.
-- **Streaming responses**: Update `response` and `response_html` incrementally, call `db_update()` and `frappe.db.commit()` after each chunk, publish `cf_streaming_update`.
+- **Status finalization**: Ensure every background run transitions out of `Processing` to `Success` or `Failed`.
+- **Prompt context safety**: Keep implicit connected-context concise and do not apply when explicit template tokens are present.
 - **Duplicate jobs**: Use unique `job_id` based on document name and timestamp.
 - **Missing dependencies**: If `openai` import fails, log instructions to run `bench pip install openai`.
 - **SEC EDGAR integration**: Uses `edgartools`; CIK lookup via `CF Security.fetch_cik()`.

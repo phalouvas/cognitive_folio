@@ -1,0 +1,92 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-06 16:30:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "chat",
+  "portfolio",
+  "security",
+  "memory_text",
+  "facts_json",
+  "tags_json",
+  "embedding_json"
+ ],
+ "fields": [
+  {
+   "fieldname": "chat",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "in_standard_filter": 1,
+   "label": "Chat",
+   "options": "CF Chat",
+   "reqd": 1
+  },
+  {
+   "fieldname": "portfolio",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Portfolio",
+   "options": "CF Portfolio"
+  },
+  {
+   "fieldname": "security",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Security",
+   "options": "CF Security"
+  },
+  {
+   "fieldname": "memory_text",
+   "fieldtype": "Long Text",
+   "in_list_view": 1,
+   "label": "Memory Text",
+   "reqd": 1
+  },
+  {
+   "fieldname": "facts_json",
+   "fieldtype": "Long Text",
+   "label": "Facts JSON"
+  },
+  {
+   "fieldname": "tags_json",
+   "fieldtype": "Long Text",
+   "label": "Tags JSON"
+  },
+  {
+   "fieldname": "embedding_json",
+   "fieldtype": "Long Text",
+   "label": "Embedding JSON"
+  }
+ ],
+ "links": [],
+ "modified": "2026-03-06 16:30:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Vector Memory",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 1,
+   "email": 1,
+   "export": 1,
+   "print": 1,
+   "read": 1,
+   "report": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  },
+  {
+   "read": 1,
+   "report": 1,
+   "role": "Portfolio Manager"
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

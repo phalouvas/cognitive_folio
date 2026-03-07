@@ -9,6 +9,8 @@
   "open_ai_api_key",
   "system_content",
   "section_break_ai_runtime",
+  "deployment_environment",
+  "feature_flags_json",
   "max_context_tokens",
   "chat_default_max_tokens",
   "reasoner_default_max_tokens",
@@ -31,7 +33,6 @@
   "stream_flush_min_char_delta",
   "enable_conversation_summarization",
   "section_break_tool_calls",
-  "tool_calls_enabled",
   "max_tool_rounds",
   "max_tool_calls_per_round",
   "column_break_tools",
@@ -62,6 +63,19 @@
    "fieldname": "section_break_ai_runtime",
    "fieldtype": "Section Break",
    "label": "AI Runtime"
+  },
+  {
+   "default": "production",
+   "description": "Environment label used for environment-specific configuration overrides (e.g. production, staging, development).",
+   "fieldname": "deployment_environment",
+   "fieldtype": "Data",
+   "label": "Deployment Environment"
+  },
+  {
+   "description": "Optional JSON object of feature flags. Example: {\"use_experimental_planner\": true}",
+   "fieldname": "feature_flags_json",
+   "fieldtype": "Small Text",
+   "label": "Feature Flags JSON"
   },
   {
    "default": "120000",
@@ -201,13 +215,6 @@
    "fieldname": "section_break_tool_calls",
    "fieldtype": "Section Break",
    "label": "Tool Calls"
-  },
-  {
-   "default": "1",
-   "description": "Enable model-driven function calling and multi-call chains.",
-   "fieldname": "tool_calls_enabled",
-   "fieldtype": "Check",
-   "label": "Enable Tool Calls"
   },
   {
    "default": "8",

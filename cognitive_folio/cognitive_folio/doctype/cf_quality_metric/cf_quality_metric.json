@@ -1,0 +1,52 @@
+{
+ "actions": [],
+ "allow_rename": 1,
+ "creation": "2026-03-07 06:00:00",
+ "doctype": "DocType",
+ "engine": "InnoDB",
+ "field_order": [
+  "metric_date",
+  "model",
+  "messages",
+  "quality_score",
+  "relevance_score",
+  "completeness_score",
+  "grounding_score",
+  "estimated_cost_usd",
+  "prompt_tokens",
+  "completion_tokens",
+  "user_feedback_avg",
+  "last_chat",
+  "last_message"
+ ],
+ "fields": [
+  {"fieldname": "metric_date", "fieldtype": "Date", "in_list_view": 1, "in_standard_filter": 1, "label": "Metric Date", "reqd": 1},
+  {"fieldname": "model", "fieldtype": "Data", "in_list_view": 1, "label": "Model", "reqd": 1},
+  {"default": "0", "fieldname": "messages", "fieldtype": "Int", "label": "Messages"},
+  {"default": "0", "fieldname": "quality_score", "fieldtype": "Float", "in_list_view": 1, "label": "Quality Score"},
+  {"default": "0", "fieldname": "relevance_score", "fieldtype": "Float", "label": "Relevance Score"},
+  {"default": "0", "fieldname": "completeness_score", "fieldtype": "Float", "label": "Completeness Score"},
+  {"default": "0", "fieldname": "grounding_score", "fieldtype": "Float", "label": "Grounding Score"},
+  {"default": "0", "fieldname": "estimated_cost_usd", "fieldtype": "Currency", "label": "Estimated Cost Usd"},
+  {"default": "0", "fieldname": "prompt_tokens", "fieldtype": "Int", "label": "Prompt Tokens"},
+  {"default": "0", "fieldname": "completion_tokens", "fieldtype": "Int", "label": "Completion Tokens"},
+  {"default": "0", "fieldname": "user_feedback_avg", "fieldtype": "Float", "label": "User Feedback Avg"},
+    {"fieldname": "last_chat", "fieldtype": "Link", "label": "Last Chat", "on_delete": "Set Null", "options": "CF Chat"},
+    {"fieldname": "last_message", "fieldtype": "Link", "label": "Last Message", "on_delete": "Set Null", "options": "CF Chat Message"}
+ ],
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-03-07 06:00:00",
+ "modified_by": "Administrator",
+ "module": "Cognitive Folio",
+ "name": "CF Quality Metric",
+ "owner": "Administrator",
+ "permissions": [
+  {"create": 1, "delete": 1, "email": 1, "export": 1, "print": 1, "read": 1, "report": 1, "role": "System Manager", "share": 1, "write": 1},
+  {"read": 1, "report": 1, "role": "Portfolio Manager"}
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "modified",
+ "sort_order": "DESC",
+ "states": []
+}

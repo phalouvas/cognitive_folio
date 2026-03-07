@@ -2,8 +2,9 @@
 # See license.txt
 
 # import frappe
-from frappe.tests.utils import FrappeTestCase
+import unittest
 
 
-class TestCFPortfolioHolding(FrappeTestCase):
-	pass
+class TestCFPortfolioHolding(unittest.TestCase):
+	def test_placeholder(self):
+		self.assertTrue(True)
