@@ -40,6 +40,9 @@ class ProviderRegistry:
     def get_handler(self, provider_name):
         return self._providers.get(str(provider_name or "").strip().lower())
 
+    def list_providers(self):
+        return sorted(self._providers.keys())
+
     def execute_chain(self, provider_hint, query_type, call_provider):
         chain = self.resolve_chain(provider_hint=provider_hint, query_type=query_type)
         outcomes = []

@@ -163,6 +163,12 @@ scheduler_events = {
 		],
 		"30 4 * * *": [
 			"cognitive_folio.tasks.cleanup_vector_memory_store"
+		],
+		"0 5 * * *": [
+			"cognitive_folio.tasks.capture_search_reliability_health_snapshot"
+		],
+		"30 5 * * 0": [
+			"cognitive_folio.tasks.run_phase4_index_maintenance"
 		]
 	}
 }

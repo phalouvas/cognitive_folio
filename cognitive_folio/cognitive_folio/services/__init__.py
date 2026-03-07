@@ -1,5 +1,19 @@
 from .agent import PlanExecutor, PlanGenerator, QueryAnalyzer, ToolRecommender
 from .memory import ConversationMemory, MemoryManager
+from .performance import (
+    BatchDatabaseWriter,
+    CircuitBreakerManager,
+    ConnectionPooling,
+    ContentSummarizationCache,
+    GracefulDegradation,
+    HealthDashboard,
+    IndexManagement,
+    PredictivePrefetching,
+    QueryOptimization,
+    RateLimiter,
+    SearchResultCache,
+    ToolResultCache,
+)
 from .prompt_processor import PromptProcessor
 from .search import ProviderRegistry
 from .settings_manager import SettingsManager
@@ -13,11 +27,23 @@ __all__ = [
     "PromptProcessor",
     "QueryAnalyzer",
     "ProviderRegistry",
+    "BatchDatabaseWriter",
+    "CircuitBreakerManager",
     "ConversationMemory",
+    "ConnectionPooling",
+    "ContentSummarizationCache",
+    "GracefulDegradation",
+    "HealthDashboard",
+    "IndexManagement",
     "MemoryManager",
+    "PredictivePrefetching",
+    "QueryOptimization",
+    "RateLimiter",
+    "SearchResultCache",
     "SettingsManager",
     "StreamingHandler",
     "ToolRecommender",
+    "ToolResultCache",
     "ToolComposer",
     "ToolEffectivenessTracker",
     "ToolMetricsStore",

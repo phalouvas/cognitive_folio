@@ -31,6 +31,10 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 	- Step 3.1 completed with ProviderRegistry, SerpAPI integration, and SEC real-time filings support under `sec_edgar`
 	- Step 3.2 search quality stack completed (refiner, reranker, freshness, cross-source, authority)
 	- Step 3.3 advanced search features completed (session tracker, semantic, trend, personalized)
+7. **Phase 4 (Performance & Reliability) - completed (feature-flagged)**
+	- Step 4.1 caching stack completed (search result cache, content summarization cache, tool result cache, predictive prefetch)
+	- Step 4.2 resilience stack completed (circuit breaker, rate limiter, graceful provider fallback behavior, health snapshot)
+	- Step 4.3 DB optimization stack completed (batch writer integration, connection/index/query optimization utilities, scheduled index maintenance)
 
 ### Partially Completed
 1. **StreamingHandler usage**
@@ -41,8 +45,8 @@ This document outlines a step-by-step implementation plan for enhancing the `CFC
 	- Follow-up needed: calibration of intent heuristics and broader integration tests in environments without third-party preload regressions.
 
 ### Not Started
-1. **Phase 4, Phase 5, Phase 6**
-	- Performance/reliability, security/compliance, and monitoring/dashboard phases remain pending.
+1. **Phase 5, Phase 6**
+	- Security/compliance and monitoring/dashboard phases remain pending.
 2. **Remaining Phase 2 completion work**
 	- Phase 2.1 planner calibration in broader environments and Phase 2.3 memory-system completion beyond MVP.
 
@@ -240,17 +244,41 @@ Notes:
 3. **ToolResultCache** - Enhance existing LRU cache with persistence
 4. **PredictivePrefetching** - Anticipate follow-up searches based on conversation patterns
 
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `services/performance/SearchResultCache` and wired cache lookups/writes into `WebSearchService.search_web_results()` and `search_financial_sources()`.
+2. Added `services/performance/ContentSummarizationCache` and integrated cached URL-content extraction in `CFChatMessage._tool_fetch_url_content()`.
+3. Added `services/performance/ToolResultCache` and integrated read-through caching in `CFChatMessage._execute_tool_call()` for read-only tool calls.
+4. Added `services/performance/PredictivePrefetching` and optional prefetch follow-up execution in `WebSearchService` behind feature flags.
+
 ### Step 4.2: Add Circuit Breaker Pattern
 1. **CircuitBreakerManager** - Monitor external API health and availability
 2. **RateLimiter** - Respect provider rate limits with token bucket algorithm
 3. **GracefulDegradation** - Maintain functionality when external services fail
 4. **HealthDashboard** - Monitor system health and performance metrics
 
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `services/performance/CircuitBreakerManager` and `RateLimiter` and wired both into provider execution paths in `WebSearchService`.
+2. Added graceful provider fallback behavior by skipping unavailable/rate-limited providers and continuing through configured fallback chains.
+3. Added `services/performance/HealthDashboard` and `WebSearchService.get_health_snapshot()` for provider health introspection.
+4. Added scheduled health snapshot task `capture_search_reliability_health_snapshot`.
+
 ### Step 4.3: Database Optimization
 1. **BatchDatabaseWriter** - Optimize multiple writes during streaming
 2. **ConnectionPooling** - Manage database connections efficiently
 3. **QueryOptimization** - Improve database query performance
 4. **IndexManagement** - Add appropriate indexes for common queries
+
+Status: **Completed (feature-flagged)**
+
+Notes:
+1. Added `services/performance/BatchDatabaseWriter`, `ConnectionPooling`, `QueryOptimization`, and `IndexManagement`.
+2. Integrated `BatchDatabaseWriter` into `CFChatMessage.process_in_background()` for status/update write batching.
+3. Added scheduled index maintenance task `run_phase4_index_maintenance` with explicit high-traffic index specs (`CF Chat Message`, `CF Tool Metric`, `CF Vector Memory`).
+4. Added `SettingsManager.get_performance_config()` for typed control over cache/reliability/maintenance feature flags and thresholds.
 
 ## Phase 5: Security & Compliance (Week 5)
 

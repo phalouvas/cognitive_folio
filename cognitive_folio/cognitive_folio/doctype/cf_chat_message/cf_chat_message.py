@@ -6,9 +6,12 @@ import json
 from functools import lru_cache
 from cognitive_folio.cognitive_folio.services import (
 	MemoryManager,
+	BatchDatabaseWriter,
+	ContentSummarizationCache,
 	PromptProcessor,
 	SettingsManager,
 	TokenManager,
+	ToolResultCache,
 	ToolRegistry,
 	ToolOrchestrator,
 	WebSearchService,
@@ -83,6 +86,33 @@ class CFChatMessage(Document):
 			self._memory_manager = MemoryManager(self)
 		return self._memory_manager
 
+	def _get_performance_config(self):
+		if hasattr(self, "_performance_config"):
+			return self._performance_config
+
+		try:
+			settings = frappe.get_cached_doc("CF Settings")
+			self._performance_config = self._get_settings_manager(settings).get_performance_config()
+		except Exception:
+			self._performance_config = {}
+
+		runtime_id = str(getattr(self, "chat", None) or getattr(self, "name", None) or "default")
+		suffix = runtime_id.replace(" ", "_")
+		self._performance_config.setdefault("tool_result_cache_namespace", f"cf:tool:{suffix}")
+		self._performance_config.setdefault("content_summary_cache_namespace", f"cf:content:{suffix}")
+
+		return self._performance_config
+
+	def _get_tool_result_cache(self):
+		if not hasattr(self, "_tool_result_cache"):
+			self._tool_result_cache = ToolResultCache(config=self._get_performance_config())
+		return self._tool_result_cache
+
+	def _get_content_summarization_cache(self):
+		if not hasattr(self, "_content_summarization_cache"):
+			self._content_summarization_cache = ContentSummarizationCache(config=self._get_performance_config())
+		return self._content_summarization_cache
+
 	def _publish_chat_realtime(self, event_name, payload):
 		"""Publish realtime updates to related doc rooms."""
 
@@ -136,18 +166,30 @@ class CFChatMessage(Document):
 		try:			
 			# Reload the document from the database
 			message_doc = frappe.get_doc("CF Chat Message", self.name)
+			performance_config = message_doc._get_performance_config()
+			batch_enabled = bool(performance_config.get("db_batch_writer_enabled", True))
+			batch_writer = BatchDatabaseWriter() if batch_enabled else None
 			
 			# Update status to processing
-			message_doc.db_set("status", "Processing", update_modified=False)
-			frappe.db.commit()
+			if batch_writer:
+				batch_writer.add_set_value("CF Chat Message", message_doc.name, "status", "Processing", update_modified=False)
+				batch_writer.flush(commit=True)
+			else:
+				message_doc.db_set("status", "Processing", update_modified=False)
+				frappe.db.commit()
 			
 			# Process the message (use the reloaded document)
 			message_doc.send()
 			
 			# Update status to success and save the response
-			message_doc.db_set("status", "Success", update_modified=False)
-			message_doc.db_update()
-			frappe.db.commit()
+			if batch_writer:
+				batch_writer.add_set_value("CF Chat Message", message_doc.name, "status", "Success", update_modified=False)
+				batch_writer.add_doc_update(message_doc)
+				batch_writer.flush(commit=True)
+			else:
+				message_doc.db_set("status", "Success", update_modified=False)
+				message_doc.db_update()
+				frappe.db.commit()
 			
 			# Notify the user that the response is ready
 			self._publish_chat_realtime(
@@ -731,16 +773,41 @@ class CFChatMessage(Document):
 		if not isinstance(args, dict):
 			args = {}
 		args_key = json.dumps(args, sort_keys=True, ensure_ascii=False, default=str)
+		tool_result_cache = self._get_tool_result_cache()
+		chat_name = getattr(chat, "name", None) if chat else None
+		portfolio_name = getattr(portfolio, "name", None) if portfolio else None
+		security_name = getattr(security, "name", None) if security else None
+
+		cached_result = tool_result_cache.get(
+			function_name=function_name,
+			args_key=args_key,
+			chat_name=chat_name,
+			portfolio_name=portfolio_name,
+			security_name=security_name,
+			dynamic_registration_enabled=bool(dynamic_registration_enabled),
+		)
+		if cached_result is not None:
+			return cached_result
 
 		try:
-			return self._execute_tool_call_cached(
+			result = self._execute_tool_call_cached(
 				function_name=function_name,
 				args_key=args_key,
-				chat_name=getattr(chat, "name", None) if chat else None,
-				portfolio_name=getattr(portfolio, "name", None) if portfolio else None,
-				security_name=getattr(security, "name", None) if security else None,
+				chat_name=chat_name,
+				portfolio_name=portfolio_name,
+				security_name=security_name,
 				dynamic_registration_enabled=bool(dynamic_registration_enabled),
 			)
+			tool_result_cache.set(
+				function_name=function_name,
+				args_key=args_key,
+				chat_name=chat_name,
+				portfolio_name=portfolio_name,
+				security_name=security_name,
+				dynamic_registration_enabled=bool(dynamic_registration_enabled),
+				result=result,
+			)
+			return result
 		except Exception as exc:
 			frappe.log_error(title=f"Tool call failed: {function_name}", message=str(exc))
 			return {
@@ -881,7 +948,11 @@ class CFChatMessage(Document):
 			raise ValueError("url must start with http:// or https://")
 
 		max_chars = max(200, min(int(args.get("max_chars", DEFAULT_TOOL_RESULT_MAX_CHARS) or DEFAULT_TOOL_RESULT_MAX_CHARS), 20000))
-		extracted = fetch_and_embed_url_content(url, self)
+		content_cache = self._get_content_summarization_cache()
+		extracted = content_cache.get(url=url, max_chars=max_chars)
+		if extracted is None:
+			extracted = fetch_and_embed_url_content(url, self)
+			content_cache.set(url=url, max_chars=max_chars, content=extracted)
 		if extracted and len(extracted) > max_chars:
 			extracted = extracted[:max_chars] + "..."
 

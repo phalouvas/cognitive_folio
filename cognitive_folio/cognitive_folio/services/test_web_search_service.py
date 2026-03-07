@@ -323,3 +323,46 @@ class TestWebSearchServiceProviderRouting(unittest.TestCase):
         self.assertIn("financial_news", captured["options"]["personalization_context"]["preferred_sources"])
         self.assertIn("pref.example", captured["options"]["personalization_context"]["preferred_domains"])
         self.assertIn("history.example", captured["options"]["personalization_context"]["preferred_domains"])
+
+    def test_web_search_uses_result_cache(self):
+        service = self._make_service()
+        service._search_provider_config["query_refiner_enabled"] = False
+        service._search_provider_config["result_reranker_enabled"] = False
+        service.provider_registry.set_chain("general", ["ddgs"])
+
+        calls = []
+
+        service.provider_registry.register(
+            "ddgs",
+            lambda **_: calls.append("called") or [
+                {
+                    "title": "Cached Topic",
+                    "url": "https://example.com/cached",
+                    "snippet": "Cached snippet",
+                    "source": "ddgs",
+                }
+            ],
+        )
+
+        first = service.search_web_results("cached topic", num_results=1)
+        second = service.search_web_results("cached topic", num_results=1)
+
+        self.assertEqual(len(first), 1)
+        self.assertEqual(len(second), 1)
+        self.assertEqual(calls, ["called"])
+
+    def test_web_search_skips_provider_when_circuit_breaker_open(self):
+        service = self._make_service()
+        service._search_provider_config["query_refiner_enabled"] = False
+        service._search_provider_config["result_reranker_enabled"] = False
+        service.provider_registry.set_chain("general", ["ddgs", "wikipedia"])
+
+        service.circuit_breaker.allow_request = lambda provider: provider != "ddgs"
+        service.rate_limiter.allow = lambda provider: True
+        service.provider_registry.register("ddgs", lambda **_: [{"title": "D", "url": "https://example.com/d", "snippet": "D", "source": "ddgs"}])
+        service.provider_registry.register("wikipedia", lambda **_: [{"title": "W", "url": "https://example.com/w", "snippet": "W", "source": "wikipedia"}])
+
+        results = service.search_web_results("topic", num_results=1)
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0]["source"], "wikipedia")

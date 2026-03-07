@@ -158,3 +158,73 @@ class TestSettingsManager(unittest.TestCase):
         self.assertEqual(config["personalized_history_items"], 7)
         self.assertEqual(config["preferred_sources"], ["financial_news", "sec_edgar"])
         self.assertEqual(config["preferred_domains"], ["reuters.com", "sec.gov"])
+
+    def test_get_performance_config_uses_feature_flags(self):
+        settings = self._make_settings(
+            {
+                "feature_flags_json": (
+                    '{"search_cache_enabled": true, '
+                    '"search_cache_ttl_general_seconds": 1200, '
+                    '"search_cache_ttl_financial_seconds": 240, '
+                    '"search_cache_ttl_realtime_seconds": 90, '
+                    '"content_summary_cache_enabled": true, '
+                    '"content_summary_cache_ttl_seconds": 7200, '
+                    '"tool_result_cache_enabled": true, '
+                    '"tool_result_cache_ttl_seconds": 900, '
+                    '"search_prefetch_enabled": true, '
+                    '"search_prefetch_max_queries": 3, '
+                    '"search_circuit_breaker_enabled": true, '
+                    '"search_circuit_breaker_failure_threshold": 4, '
+                    '"search_circuit_breaker_recovery_seconds": 300, '
+                    '"search_circuit_breaker_half_open_calls": 2, '
+                    '"search_rate_limiter_enabled": true, '
+                    '"search_rate_limit_per_provider_per_minute": 45, '
+                    '"search_stale_cache_fallback_enabled": true, '
+                    '"db_batch_writer_enabled": true, '
+                    '"db_index_maintenance_enabled": true, '
+                    '"health_dashboard_enabled": true}'
+                ),
+            }
+        )
+        manager = SettingsManager(settings)
+
+        config = manager.get_performance_config()
+
+        self.assertTrue(config["search_cache_enabled"])
+        self.assertEqual(config["search_cache_ttl_general_seconds"], 1200)
+        self.assertEqual(config["search_cache_ttl_financial_seconds"], 240)
+        self.assertEqual(config["search_cache_ttl_realtime_seconds"], 90)
+        self.assertTrue(config["content_summary_cache_enabled"])
+        self.assertEqual(config["content_summary_cache_ttl_seconds"], 7200)
+        self.assertTrue(config["tool_result_cache_enabled"])
+        self.assertEqual(config["tool_result_cache_ttl_seconds"], 900)
+        self.assertTrue(config["search_prefetch_enabled"])
+        self.assertEqual(config["search_prefetch_max_queries"], 3)
+        self.assertTrue(config["search_circuit_breaker_enabled"])
+        self.assertEqual(config["search_circuit_breaker_failure_threshold"], 4)
+        self.assertEqual(config["search_circuit_breaker_recovery_seconds"], 300)
+        self.assertEqual(config["search_circuit_breaker_half_open_calls"], 2)
+        self.assertTrue(config["search_rate_limiter_enabled"])
+        self.assertEqual(config["search_rate_limit_per_provider_per_minute"], 45)
+        self.assertTrue(config["search_stale_cache_fallback_enabled"])
+        self.assertTrue(config["db_batch_writer_enabled"])
+        self.assertTrue(config["db_index_maintenance_enabled"])
+        self.assertTrue(config["health_dashboard_enabled"])
+
+    def test_validate_chat_schema_rejects_invalid_phase4_ttl_relationships(self):
+        settings = self._make_settings(
+            {
+                "feature_flags_json": (
+                    '{"search_cache_ttl_general_seconds": 120, '
+                    '"search_cache_ttl_financial_seconds": 240, '
+                    '"search_cache_ttl_realtime_seconds": 180}'
+                )
+            }
+        )
+        manager = SettingsManager(settings)
+
+        result = manager.validate_chat_schema()
+
+        self.assertFalse(result["valid"])
+        self.assertTrue(any("search_cache_ttl_financial_seconds" in err for err in result["errors"]))
+        self.assertTrue(any("search_cache_ttl_realtime_seconds" in err for err in result["errors"]))

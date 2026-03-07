@@ -217,6 +217,50 @@ class SettingsManager:
             "vector_similarity_mode": str(self.get_feature_value("vector_memory_similarity_mode", "embedding") or "embedding").strip().lower(),
         }
 
+    def get_performance_config(self):
+        return {
+            "search_cache_enabled": self.get_feature_flag("search_cache_enabled", default=True),
+            "search_cache_ttl_general_seconds": self.get_int_config(
+                "search_cache_ttl_general_seconds", default=900, minimum=30, maximum=86400
+            ),
+            "search_cache_ttl_financial_seconds": self.get_int_config(
+                "search_cache_ttl_financial_seconds", default=300, minimum=15, maximum=86400
+            ),
+            "search_cache_ttl_realtime_seconds": self.get_int_config(
+                "search_cache_ttl_realtime_seconds", default=120, minimum=10, maximum=3600
+            ),
+            "content_summary_cache_enabled": self.get_feature_flag("content_summary_cache_enabled", default=True),
+            "content_summary_cache_ttl_seconds": self.get_int_config(
+                "content_summary_cache_ttl_seconds", default=3600, minimum=60, maximum=172800
+            ),
+            "tool_result_cache_enabled": self.get_feature_flag("tool_result_cache_enabled", default=True),
+            "tool_result_cache_ttl_seconds": self.get_int_config(
+                "tool_result_cache_ttl_seconds", default=600, minimum=30, maximum=86400
+            ),
+            "search_prefetch_enabled": self.get_feature_flag("search_prefetch_enabled", default=False),
+            "search_prefetch_max_queries": self.get_int_config(
+                "search_prefetch_max_queries", default=2, minimum=0, maximum=5
+            ),
+            "search_circuit_breaker_enabled": self.get_feature_flag("search_circuit_breaker_enabled", default=True),
+            "search_circuit_breaker_failure_threshold": self.get_int_config(
+                "search_circuit_breaker_failure_threshold", default=3, minimum=1, maximum=10
+            ),
+            "search_circuit_breaker_recovery_seconds": self.get_int_config(
+                "search_circuit_breaker_recovery_seconds", default=120, minimum=10, maximum=7200
+            ),
+            "search_circuit_breaker_half_open_calls": self.get_int_config(
+                "search_circuit_breaker_half_open_calls", default=1, minimum=1, maximum=5
+            ),
+            "search_rate_limiter_enabled": self.get_feature_flag("search_rate_limiter_enabled", default=True),
+            "search_rate_limit_per_provider_per_minute": self.get_int_config(
+                "search_rate_limit_per_provider_per_minute", default=60, minimum=1, maximum=600
+            ),
+            "search_stale_cache_fallback_enabled": self.get_feature_flag("search_stale_cache_fallback_enabled", default=True),
+            "db_batch_writer_enabled": self.get_feature_flag("db_batch_writer_enabled", default=True),
+            "db_index_maintenance_enabled": self.get_feature_flag("db_index_maintenance_enabled", default=False),
+            "health_dashboard_enabled": self.get_feature_flag("health_dashboard_enabled", default=True),
+        }
+
     def get_search_provider_config(self):
         general_chain_raw = (
             self._get_environment_override("search_general_provider_chain")
@@ -424,6 +468,12 @@ class SettingsManager:
         planner_config = self.get_planner_config()
         if planner_config["complexity_medium_threshold"] >= planner_config["complexity_high_threshold"]:
             errors.append("planner_complexity_medium_threshold must be less than planner_complexity_high_threshold")
+
+        performance_config = self.get_performance_config()
+        if performance_config["search_cache_ttl_realtime_seconds"] > performance_config["search_cache_ttl_general_seconds"]:
+            errors.append("search_cache_ttl_realtime_seconds should be less than or equal to search_cache_ttl_general_seconds")
+        if performance_config["search_cache_ttl_financial_seconds"] > performance_config["search_cache_ttl_general_seconds"]:
+            errors.append("search_cache_ttl_financial_seconds should be less than or equal to search_cache_ttl_general_seconds")
 
         return {
             "valid": len(errors) == 0,

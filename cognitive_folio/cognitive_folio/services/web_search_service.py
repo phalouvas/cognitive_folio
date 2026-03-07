@@ -3,6 +3,13 @@ from urllib.parse import urlparse
 
 import frappe
 
+from .performance import (
+    CircuitBreakerManager,
+    HealthDashboard,
+    PredictivePrefetching,
+    RateLimiter,
+    SearchResultCache,
+)
 from .search import ProviderRegistry, QueryRefiner, ResultReranker, SearchSessionTracker
 
 
@@ -30,10 +37,25 @@ class WebSearchService:
         self.provider_registry.register("financial_news", self._provider_financial_news)
         self.provider_registry.register("yahoo_finance", self._provider_yahoo_finance)
         self._search_provider_config = self._get_search_provider_config()
+        self._performance_config = self._with_runtime_namespaces(self._get_performance_config())
         self._apply_registry_chains(self._search_provider_config)
         self.query_refiner = QueryRefiner(enable_llm=bool((self._search_provider_config or {}).get("query_refiner_llm_enabled")))
         self.result_reranker = ResultReranker()
         self.search_session_tracker = SearchSessionTracker()
+        self.search_cache = SearchResultCache(config=self._performance_config)
+        self.prefetching = PredictivePrefetching(config=self._performance_config)
+        self.circuit_breaker = CircuitBreakerManager(config=self._performance_config)
+        self.rate_limiter = RateLimiter(config=self._performance_config)
+        self.health_dashboard = HealthDashboard()
+
+    def _with_runtime_namespaces(self, config):
+        resolved = dict(config or {})
+        runtime_id = str(getattr(self.chat_message, "chat", None) or getattr(self.chat_message, "name", None) or id(self.chat_message))
+        suffix = runtime_id.replace(" ", "_")
+        resolved.setdefault("search_cache_namespace", f"cf:search:{suffix}")
+        resolved.setdefault("search_circuit_breaker_namespace", f"cf:circuit:{suffix}")
+        resolved.setdefault("search_rate_limiter_namespace", f"cf:rate:{suffix}")
+        return resolved
 
     def _get_search_provider_config(self):
         try:
@@ -90,6 +112,44 @@ class WebSearchService:
             "personalized_history_items": 5,
             "preferred_sources": [],
             "preferred_domains": [],
+        }
+
+    def _get_performance_config(self):
+        try:
+            settings_doc = frappe.get_single("CF Settings")
+            if hasattr(self.chat_message, "_get_settings_manager"):
+                manager = self.chat_message._get_settings_manager(settings_doc)
+            else:
+                from .settings_manager import SettingsManager
+
+                manager = SettingsManager(settings_doc)
+
+            if hasattr(manager, "get_performance_config"):
+                return manager.get_performance_config() or {}
+        except Exception:
+            pass
+
+        return {
+            "search_cache_enabled": True,
+            "search_cache_ttl_general_seconds": 900,
+            "search_cache_ttl_financial_seconds": 300,
+            "search_cache_ttl_realtime_seconds": 120,
+            "content_summary_cache_enabled": True,
+            "content_summary_cache_ttl_seconds": 3600,
+            "tool_result_cache_enabled": True,
+            "tool_result_cache_ttl_seconds": 600,
+            "search_prefetch_enabled": False,
+            "search_prefetch_max_queries": 2,
+            "search_circuit_breaker_enabled": True,
+            "search_circuit_breaker_failure_threshold": 3,
+            "search_circuit_breaker_recovery_seconds": 120,
+            "search_circuit_breaker_half_open_calls": 1,
+            "search_rate_limiter_enabled": True,
+            "search_rate_limit_per_provider_per_minute": 60,
+            "search_stale_cache_fallback_enabled": True,
+            "db_batch_writer_enabled": True,
+            "db_index_maintenance_enabled": False,
+            "health_dashboard_enabled": True,
         }
 
     def _apply_registry_chains(self, config):
@@ -172,7 +232,7 @@ Search query:"""
 
         return "\n".join(lines)
 
-    def search_web_results(self, query, num_results=3, providers=None, domain_filter=None, result_type="snippets", date_range=None):
+    def search_web_results(self, query, num_results=3, providers=None, domain_filter=None, result_type="snippets", date_range=None, is_prefetch=False):
         query_type = self.classify_query_type(query)
         search_query = self._prepare_search_query(query=query, query_type=query_type)
         provider_hint = providers[0] if isinstance(providers, list) and len(providers) == 1 else "auto"
@@ -181,28 +241,36 @@ Search query:"""
         else:
             resolved_providers = self.provider_registry.resolve_chain(provider_hint=provider_hint, query_type=query_type)
 
+        cache_payload = {
+            "query": search_query,
+            "num_results": int(num_results or 0),
+            "providers": resolved_providers,
+            "domain_filter": domain_filter,
+            "result_type": result_type,
+            "date_range": date_range,
+            "query_type": query_type,
+        }
+        cached = self.search_cache.get("search_web_results", cache_payload)
+        if isinstance(cached, list):
+            return cached[:num_results]
+
         all_results = []
         configured_max = int((self._search_provider_config or {}).get("max_results", 5) or 5)
         per_provider = max(1, min(num_results, configured_max))
 
         for provider in resolved_providers:
-            try:
-                handler = self.provider_registry.get_handler(provider)
-                if not handler:
-                    continue
-                results = handler(
-                    query=search_query,
-                    max_results=per_provider,
-                    date_range=date_range,
-                    domain_filter=domain_filter,
-                    ticker=None,
-                    form_type=None,
-                )
-                all_results.extend(results)
-                if len(all_results) >= num_results:
-                    break
-            except Exception as exc:
-                frappe.log_error(f"Provider '{provider}' search error: {str(exc)}", "Web Search Error")
+            results = self._execute_provider_search(
+                provider=provider,
+                query=search_query,
+                max_results=per_provider,
+                date_range=date_range,
+                domain_filter=domain_filter,
+                ticker=None,
+                form_type=None,
+            )
+            all_results.extend(results)
+            if len(all_results) >= num_results:
+                break
 
         deduped = self.deduplicate_results(all_results)
         reranked = self._rerank_results(query=search_query, query_type=query_type, results=deduped)
@@ -216,12 +284,24 @@ Search query:"""
             except Exception:
                 pass
 
-        self._record_search_session(
-            query=search_query,
+        if not is_prefetch:
+            self._record_search_session(
+                query=search_query,
+                query_type=query_type,
+                providers=resolved_providers,
+                results=final_results,
+            )
+
+        self.search_cache.set(
+            operation="search_web_results",
+            payload=cache_payload,
+            value=final_results,
             query_type=query_type,
-            providers=resolved_providers,
-            results=final_results,
+            date_range=date_range,
         )
+
+        if not is_prefetch:
+            self._prefetch_follow_ups(query=search_query, query_type=query_type, ticker=None)
 
         return final_results
 
@@ -458,42 +538,131 @@ Search query:"""
 
         return normalized
 
-    def search_financial_sources(self, query, ticker=None, source="auto", form_type=None, max_results=5):
+    def search_financial_sources(self, query, ticker=None, source="auto", form_type=None, max_results=5, is_prefetch=False):
         search_query = self._prepare_search_query(query=query, query_type="financial", ticker=ticker)
+        cache_payload = {
+            "query": search_query,
+            "ticker": ticker,
+            "source": source,
+            "form_type": form_type,
+            "max_results": int(max_results or 0),
+            "query_type": "financial",
+        }
+        cached = self.search_cache.get("search_financial_sources", cache_payload)
+        if isinstance(cached, list):
+            return cached[:max_results]
+
         all_results = []
         half = max(1, max_results // 2 + 1)
         provider_hint = source if source in ("sec_edgar", "yahoo_finance", "financial_news", "serpapi") else "auto"
         resolved_providers = self.provider_registry.resolve_chain(provider_hint=provider_hint, query_type="financial")
 
         for provider in resolved_providers:
-            handler = self.provider_registry.get_handler(provider)
-            if not handler:
-                continue
-            try:
-                results = handler(
-                    query=search_query,
-                    max_results=half,
-                    date_range=None,
-                    domain_filter=None,
-                    ticker=ticker,
-                    form_type=form_type,
-                )
-                all_results.extend(results)
-                if len(all_results) >= max_results:
-                    break
-            except Exception as exc:
-                frappe.log_error(f"Provider '{provider}' financial search error: {str(exc)}", "Web Search Error")
+            results = self._execute_provider_search(
+                provider=provider,
+                query=search_query,
+                max_results=half,
+                date_range=None,
+                domain_filter=None,
+                ticker=ticker,
+                form_type=form_type,
+            )
+            all_results.extend(results)
+            if len(all_results) >= max_results:
+                break
 
         deduped = self.deduplicate_results(all_results)
         reranked = self._rerank_results(query=search_query, query_type="financial", results=deduped, ticker=ticker)
         final_results = reranked[:max_results]
-        self._record_search_session(
-            query=search_query,
+        if not is_prefetch:
+            self._record_search_session(
+                query=search_query,
+                query_type="financial",
+                providers=resolved_providers,
+                results=final_results,
+            )
+
+        self.search_cache.set(
+            operation="search_financial_sources",
+            payload=cache_payload,
+            value=final_results,
             query_type="financial",
-            providers=resolved_providers,
-            results=final_results,
+            date_range=None,
         )
+
+        if not is_prefetch:
+            self._prefetch_follow_ups(query=search_query, query_type="financial", ticker=ticker)
+
         return final_results
+
+    def _execute_provider_search(self, provider, query, max_results, date_range, domain_filter, ticker, form_type):
+        if not self.circuit_breaker.allow_request(provider):
+            return []
+
+        if not self.rate_limiter.allow(provider):
+            return []
+
+        handler = self.provider_registry.get_handler(provider)
+        if not handler:
+            return []
+
+        try:
+            results = handler(
+                query=query,
+                max_results=max_results,
+                date_range=date_range,
+                domain_filter=domain_filter,
+                ticker=ticker,
+                form_type=form_type,
+            )
+            self.circuit_breaker.record_success(provider)
+            return list(results or [])
+        except Exception as exc:
+            self.circuit_breaker.record_failure(provider)
+            frappe.log_error(f"Provider '{provider}' search error: {str(exc)}", "Web Search Error")
+            return []
+
+    def _prefetch_follow_ups(self, query, query_type, ticker=None):
+        predicted = self.prefetching.predict_queries(query=query, query_type=query_type, ticker=ticker)
+        if not predicted:
+            return
+
+        if query_type == "financial":
+            self.prefetching.prefetch(
+                callback=lambda query, num_results, is_prefetch=True: self.search_financial_sources(
+                    query=query,
+                    ticker=ticker,
+                    source="auto",
+                    form_type=None,
+                    max_results=num_results,
+                    is_prefetch=is_prefetch,
+                ),
+                queries=predicted,
+                max_results=2,
+            )
+            return
+
+        self.prefetching.prefetch(
+            callback=lambda query, num_results, is_prefetch=True: self.search_web_results(
+                query=query,
+                num_results=num_results,
+                providers=None,
+                domain_filter=None,
+                result_type="snippets",
+                date_range=None,
+                is_prefetch=is_prefetch,
+            ),
+            queries=predicted,
+            max_results=2,
+        )
+
+    def get_health_snapshot(self):
+        providers = (self.provider_registry or ProviderRegistry()).list_providers()
+        return self.health_dashboard.build_snapshot(
+            providers=providers,
+            circuit_breaker=self.circuit_breaker,
+            rate_limiter=self.rate_limiter,
+        )
 
     def _prepare_search_query(self, query, query_type, ticker=None):
         config = self._search_provider_config or {}
