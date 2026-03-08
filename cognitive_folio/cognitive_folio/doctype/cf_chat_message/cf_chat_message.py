@@ -247,18 +247,10 @@ class CFChatMessage(Document):
 			" how long",
 			" started",
 			" since ",
-			"2024",
-			"2025",
-			"2026",
-			"2027",
 		)
 		geopolitical_markers = (
 			"war",
 			"conflict",
-			"iran",
-			"israel",
-			"usa",
-			"united states",
 		)
 
 		has_time = any(marker in lowered for marker in time_markers)
