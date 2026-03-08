@@ -51,7 +51,12 @@ class CFSettings(Document):
 			self.seed_value = self._coerce_int(seed_value, 0, 0, 2147483647)
 
 		if (self.thinking_type or "").strip() == "":
-			self.thinking_type = "reasoning"
+			self.thinking_type = "adaptive"
+		else:
+			# Validate thinking_type is one of the values accepted by OpenAI API
+			valid_types = {"adaptive", "enabled", "disabled"}
+			if self.thinking_type.lower() not in valid_types:
+				frappe.throw(f"Thinking Type must be one of: {', '.join(sorted(valid_types))}")
 
 	@frappe.whitelist()
 	def check_openwebui_connection(self):

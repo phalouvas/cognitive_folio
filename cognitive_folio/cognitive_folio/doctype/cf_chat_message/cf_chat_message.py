@@ -43,7 +43,7 @@ DEFAULT_MAX_TOOL_ROUNDS = 8
 DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 8
 DEFAULT_TOOL_RESULT_MAX_CHARS = 8000
 DEFAULT_THINKING_BUDGET_TOKENS = 2048
-DEFAULT_THINKING_TYPE = "reasoning"
+DEFAULT_THINKING_TYPE = "adaptive"
 DEFAULT_TOP_P = 1.0
 DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
@@ -1522,6 +1522,11 @@ class CFChatMessage(Document):
 	def _get_thinking_type(self, settings):
 		value = (settings.get("thinking_type") or DEFAULT_THINKING_TYPE).strip().lower()
 		if not value:
+			return DEFAULT_THINKING_TYPE
+		# Validate that the thinking type is one of the values accepted by OpenAI API
+		valid_types = {"adaptive", "enabled", "disabled"}
+		if value not in valid_types:
+			# Fall back to default if invalid value is provided
 			return DEFAULT_THINKING_TYPE
 		return value
 
