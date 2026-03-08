@@ -440,15 +440,7 @@ class CFChatMessage(Document):
 			# Process the message (use the reloaded document)
 			message_doc.send()
 			
-			# Update status to success and save the response
-			if batch_writer:
-				message_doc.status = "Success"
-				batch_writer.add_doc_update(message_doc)
-				batch_writer.flush(commit=True)
-			else:
-				message_doc.db_set("status", "Success", update_modified=False)
-				message_doc.db_update()
-				frappe.db.commit()
+			# Status already updated to 'Success' by send()
 			
 			# Notify the user that the response is ready
 			self._publish_chat_realtime(
@@ -469,7 +461,7 @@ class CFChatMessage(Document):
 				message_doc = frappe.get_doc("CF Chat Message", self.name)
 				message_doc.response = f"Error processing request: {error_message}"
 				message_doc.response_html = safe_markdown_to_html(message_doc.response)
-				message_doc.db_set("status", "Failed", update_modified=False)
+				message_doc.status = "Failed"
 				message_doc.db_update()
 				frappe.db.commit()
 			except Exception as inner_e:
@@ -834,6 +826,7 @@ class CFChatMessage(Document):
 		)
 
 		self.runtime_audit = runtime_audit
+		self.status = "Success"
 		self.db_update()
 		frappe.db.commit()
 
