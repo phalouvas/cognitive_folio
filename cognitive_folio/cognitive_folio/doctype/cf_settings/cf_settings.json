@@ -113,8 +113,8 @@
    "label": "Thinking Enabled"
   },
   {
-   "default": "reasoning",
-   "description": "Thinking type passed in extra_body.thinking.type.",
+   "default": "adaptive",
+   "description": "Thinking type passed in extra_body.thinking.type. Allowed values: adaptive, enabled, disabled.",
    "fieldname": "thinking_type",
    "fieldtype": "Data",
    "label": "Thinking Type"
