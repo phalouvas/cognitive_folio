@@ -151,8 +151,8 @@
    "label": "Seed Value"
   },
   {
-   "default": "1.0",
-   "description": "Sampling nucleus probability for non-thinking completions (0-1).",
+    "default": "0.8",
+    "description": "Sampling nucleus probability for non-thinking completions (0-1). Lower values improve response stability.",
    "fieldname": "top_p",
    "fieldtype": "Float",
    "label": "Top P"
@@ -177,7 +177,7 @@
    "label": "Reliability & Streaming"
   },
   {
-   "default": "3",
+    "default": "5",
    "description": "Number of retry attempts for transient API errors (timeouts, rate limits, 5xx).",
    "fieldname": "max_api_retries",
    "fieldtype": "Int",
@@ -205,8 +205,8 @@
    "label": "Stream Flush Min Char Delta"
   },
   {
-   "default": "0",
-   "description": "Summarize earlier chat turns when history exceeds context budget.",
+    "default": "1",
+    "description": "Summarize earlier chat turns when history exceeds context budget to preserve analytical context.",
    "fieldname": "enable_conversation_summarization",
    "fieldtype": "Check",
    "label": "Enable Conversation Summarization"
@@ -284,7 +284,8 @@
    "label": "AI Models"
   },
   {
-   "description": "Select the default AI model to use for operations",
+    "default": "deepseek-reasoner",
+    "description": "Select the default AI model to use for operations. deepseek-reasoner is recommended for complex financial analysis.",
    "fieldname": "default_ai_model",
    "fieldtype": "Select",
    "label": "Default AI Model"

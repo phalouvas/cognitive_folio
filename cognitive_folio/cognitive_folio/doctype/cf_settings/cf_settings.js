@@ -31,13 +31,14 @@ function ensure_runtime_defaults(frm) {
         reasoner_default_max_tokens: 32000,
         chat_max_tokens_cap: 8000,
         reasoner_max_tokens_cap: 64000,
-        max_api_retries: 3,
+        max_api_retries: 5,
         retry_backoff_base_seconds: 1.5,
-        stream_flush_interval_seconds: 1.0,
+        stream_flush_interval_seconds: 0.5,
         stream_flush_min_char_delta: 120,
         max_tool_rounds: 8,
         max_tool_calls_per_round: 8,
         tool_result_max_chars: 8000,
+        top_p: 0.8,
     };
 
     let changed = false;
@@ -126,6 +127,10 @@ function populate_default_ai_model_options(frm) {
     
     // Set options to the select field
     frm.set_df_property('default_ai_model', 'options', options);
+
+    if (!frm.doc.default_ai_model && options.some(option => option.value === 'deepseek-reasoner')) {
+        frm.set_value('default_ai_model', 'deepseek-reasoner');
+    }
     
     // Refresh the field to show updated options
     frm.refresh_field('default_ai_model');
