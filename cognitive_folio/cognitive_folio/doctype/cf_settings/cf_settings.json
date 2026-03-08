@@ -217,8 +217,8 @@
    "label": "Tool Calls"
   },
   {
-    "default": "6",
-    "description": "Maximum number of model-tool rounds per assistant response. Lower values reduce tool-loop drift and improve synthesis reliability.",
+    "default": "8",
+    "description": "Maximum number of model-tool rounds per assistant response. The last two rounds are reserved for synthesis (tools suppressed), so effective data-gathering rounds = max_tool_rounds - 2. 8 is recommended for complex multi-holding financial analysis.",
    "fieldname": "max_tool_rounds",
    "fieldtype": "Int",
    "label": "Max Tool Rounds"

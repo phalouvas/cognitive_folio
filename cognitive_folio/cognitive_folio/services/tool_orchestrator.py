@@ -153,18 +153,19 @@ class ToolOrchestrator:
 
         for round_index in range(1, max_rounds + 1):
             if self.plan_executor.should_inject_synthesis_nudge(round_index, max_rounds, synthesis_nudge_sent):
+                synthesis_nudge_sent = True
                 messages.append({
                     "role": "system",
                     "content": (
-                        "You have used several research rounds. "
-                        "Stop calling tools now and write your final, complete answer "
-                        "based on everything you have gathered so far."
+                        "Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        "no further tool calls will be processed from this point. "
+                        "You MUST now write a complete, structured response using all the data gathered above. "
+                        "Do NOT output raw parameter values or tool argument lists. "
+                        "Produce the full formatted analysis addressing all user requirements."
                     ),
                 })
-                synthesis_nudge_sent = True
-
-            if round_index == max_rounds:
-                # Final round always gets an explicit directive — active_tools will be None this round
+            elif round_index == max_rounds:
+                # Safety net: repeat directive if we somehow reach the absolute last round
                 messages.append({
                     "role": "system",
                     "content": (
@@ -182,6 +183,11 @@ class ToolOrchestrator:
                 recommended_tools=recommendation.get("recommended_tools") if isinstance(recommendation, dict) else None,
                 enforce_recommended=bool(effective_enforce_recommended_tools),
             )
+            # Enforce synthesis: once the synthesis directive has fired, suppress all tools so
+            # the model cannot defer to another tool call instead of writing the final answer.
+            # (The round_index > 1 guard protects the edge case where max_rounds <= 2.)
+            if synthesis_nudge_sent and round_index > 1:
+                active_tools = None
             response = self.chat_message._create_non_stream_completion_with_retry(
                 client=client,
                 messages=messages,
@@ -248,38 +254,23 @@ class ToolOrchestrator:
 
                 if synthesis_nudge_sent and self._is_weak_synthesis_content(assistant_content, round_index):
                     frappe.logger("cognitive_folio").warning(
-                        "Weak synthesis at round %s (len=%s); retrying with explicit synthesis prompt.",
+                        "Weak synthesis at round %s (len=%s); forcing synthesis pass.",
                         round_index,
                         len(assistant_content or ""),
                     )
-                    messages.append(self.chat_message._build_assistant_message_dict(assistant_content, reasoning_content, []))
-                    messages.append({
-                        "role": "system",
-                        "content": (
-                            "CRITICAL: Your previous response was incomplete or malformed. "
-                            "You MUST now write the complete, structured analysis. "
-                            "Do NOT call any tools. Do NOT output raw values or parameter lists. "
-                            "Use the data already gathered in this conversation to produce a full formatted response."
-                        ),
-                    })
-                    re_response = self.chat_message._create_non_stream_completion_with_retry(
+                    forced = self._force_synthesis_response(
                         client=client,
                         messages=messages,
                         settings=settings,
-                        tools=None,
+                        aggregate_usage=aggregate_usage,
                     )
-                    self.chat_message._accumulate_usage(aggregate_usage, getattr(re_response, "usage", None))
-                    if re_response.choices:
-                        re_choice = re_response.choices[0]
-                        re_msg = re_choice.message
-                        re_content = getattr(re_msg, "content", None) or assistant_content or ""
-                        re_reasoning = getattr(re_msg, "reasoning_content", None) or ""
-                        if re_reasoning:
-                            all_reasoning_parts.append(re_reasoning)
-                        last_finish_reason = getattr(re_choice, "finish_reason", None)
+                    if forced:
+                        forced_content, forced_reasoning, forced_finish = forced
+                        if forced_reasoning:
+                            all_reasoning_parts.append(forced_reasoning)
                         aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
                         aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
-                        return re_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+                        return forced_content, "\n\n".join(all_reasoning_parts), forced_finish, aggregate_usage, tool_trace
 
                 if self.chat_message._content_looks_like_dsml(assistant_content):
                     messages.append(self.chat_message._build_assistant_message_dict("", reasoning_content, []))
@@ -435,35 +426,22 @@ class ToolOrchestrator:
 
             if self._is_weak_synthesis_content(final_content, max_rounds):
                 frappe.logger("cognitive_folio").warning(
-                    "Weak forced synthesis for message %s (len=%s); retrying once.",
+                    "Weak forced synthesis for message %s (len=%s); forcing synthesis pass.",
                     self.chat_message.name,
                     len(final_content),
                 )
-                messages.append(self.chat_message._build_assistant_message_dict(final_content, final_reasoning, []))
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "CRITICAL: Your previous response was incomplete or malformed. "
-                        "You MUST now write the complete, structured analysis. "
-                        "Do NOT call any tools. Do NOT output raw values or parameter lists. "
-                        "Use the data already gathered in this conversation to produce a full formatted response."
-                    ),
-                })
-                retry_response = self.chat_message._create_non_stream_completion_with_retry(
+                forced = self._force_synthesis_response(
                     client=client,
                     messages=messages,
                     settings=settings,
-                    tools=None,
+                    aggregate_usage=aggregate_usage,
                 )
-                self.chat_message._accumulate_usage(aggregate_usage, getattr(retry_response, "usage", None))
-                if retry_response.choices:
-                    retry_choice = retry_response.choices[0]
-                    retry_msg = retry_choice.message
-                    final_content = getattr(retry_msg, "content", None) or final_content or ""
-                    retry_reasoning = getattr(retry_msg, "reasoning_content", None) or ""
-                    if retry_reasoning:
-                        all_reasoning_parts.append(retry_reasoning)
-                    last_finish_reason = getattr(retry_choice, "finish_reason", None)
+                if forced:
+                    forced_content, forced_reasoning, forced_finish = forced
+                    if forced_reasoning:
+                        all_reasoning_parts.append(forced_reasoning)
+                    final_content = forced_content or final_content
+                    last_finish_reason = forced_finish or last_finish_reason
 
             aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
             aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
@@ -483,6 +461,75 @@ class ToolOrchestrator:
         if not content:
             return True
         return len(content.strip()) < 200 and int(tool_rounds or 0) >= 2
+
+    def _force_synthesis_response(self, client, messages, settings, aggregate_usage):
+        """Force a clean synthesis completion when the model produced a weak/garbage response.
+
+        Appends a CRITICAL synthesis directive WITHOUT first appending the garbage content
+        (which would confuse the model into repeating it).  For deepseek-reasoner, falls back
+        to deepseek-chat so tool-arg artifacts from the reasoner's thinking phase are bypassed.
+
+        Returns (content, reasoning_content, finish_reason) on success, or None on failure.
+        """
+        messages.append({
+            "role": "system",
+            "content": (
+                "CRITICAL: Tool calls are permanently disabled. "
+                "Write the complete, structured analysis now using only the data already "
+                "gathered in this conversation. "
+                "Do NOT output function argument values. "
+                "Begin immediately with the analysis content."
+            ),
+        })
+
+        is_reasoner = self.chat_message._is_reasoner_model(
+            getattr(self.chat_message, "model", ""), settings
+        )
+        resp = None
+        if is_reasoner:
+            # deepseek-reasoner commits to tool-call plans during its thinking phase and
+            # leaks those argument values into content when tools are then unavailable.
+            # Use deepseek-chat for a clean synthesis pass that avoids this pattern.
+            try:
+                chat_max_tokens = int(getattr(settings, "chat_default_max_tokens", None) or 4000)
+                # Strip reasoning_content from history — deepseek-chat rejects it as an
+                # unknown field and it adds no value for the chat model synthesis pass.
+                clean_messages = [
+                    {k: v for k, v in m.items() if k != "reasoning_content"}
+                    if isinstance(m, dict) else m
+                    for m in messages
+                ]
+                resp = client.chat.completions.create(
+                    model="deepseek-chat",
+                    messages=clean_messages,
+                    stream=False,
+                    max_tokens=chat_max_tokens,
+                )
+                aggregate_usage.setdefault("tool_execution", {})["synthesis_fallback_model"] = "deepseek-chat"
+            except Exception as exc:  # noqa: BLE001
+                frappe.logger("cognitive_folio").warning(
+                    "deepseek-chat synthesis fallback failed (%s); using primary model.", exc
+                )
+
+        if resp is None:
+            resp = self.chat_message._create_non_stream_completion_with_retry(
+                client=client,
+                messages=messages,
+                settings=settings,
+                tools=None,
+            )
+
+        self.chat_message._accumulate_usage(aggregate_usage, getattr(resp, "usage", None))
+        if not getattr(resp, "choices", None):
+            return None
+
+        choice = resp.choices[0]
+        msg = choice.message
+        return (
+            getattr(msg, "content", None) or "",
+            getattr(msg, "reasoning_content", None) or "",
+            getattr(choice, "finish_reason", None),
+        )
 
     def _latest_user_message(self, messages):
         for message in reversed(messages or []):
