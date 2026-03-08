@@ -43,7 +43,7 @@ DEFAULT_MAX_TOOL_ROUNDS = 8
 DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 8
 DEFAULT_TOOL_RESULT_MAX_CHARS = 8000
 DEFAULT_THINKING_BUDGET_TOKENS = 2048
-DEFAULT_THINKING_TYPE = "reasoning"
+DEFAULT_THINKING_TYPE = "adaptive"
 DEFAULT_TOP_P = 1.0
 DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
@@ -247,18 +247,10 @@ class CFChatMessage(Document):
 			" how long",
 			" started",
 			" since ",
-			"2024",
-			"2025",
-			"2026",
-			"2027",
 		)
 		geopolitical_markers = (
 			"war",
 			"conflict",
-			"iran",
-			"israel",
-			"usa",
-			"united states",
 		)
 
 		has_time = any(marker in lowered for marker in time_markers)
@@ -386,6 +378,27 @@ class CFChatMessage(Document):
 			if chat.system_prompt:
 				self.system_prompt = chat.system_prompt
 
+		self._update_rendered_prompt_preview()
+
+	def _update_rendered_prompt_preview(self):
+		"""Populate a read-only rendered prompt preview without mutating raw prompt."""
+		raw_prompt = self.prompt or ""
+		rendered_prompt = raw_prompt
+
+		if raw_prompt and getattr(self, "chat", None):
+			try:
+				chat = frappe.get_doc("CF Chat", self.chat)
+				portfolio = frappe.get_doc("CF Portfolio", chat.portfolio) if getattr(chat, "portfolio", None) else None
+				security = frappe.get_doc("CF Security", chat.security) if getattr(chat, "security", None) else None
+				rendered_prompt = self._get_prompt_processor().prepare_prompt_without_mutation(raw_prompt, portfolio, security)
+			except Exception as exc:
+				frappe.log_error(
+					title=f"Rendered prompt preview failed: {getattr(self, 'name', 'new-chat-message')}",
+					message=str(exc),
+				)
+
+		self.rendered_prompt_preview = rendered_prompt
+
 	@frappe.whitelist()
 	def process(self):
 		# Skip processing if this is a duplicated message
@@ -427,15 +440,7 @@ class CFChatMessage(Document):
 			# Process the message (use the reloaded document)
 			message_doc.send()
 			
-			# Update status to success and save the response
-			if batch_writer:
-				message_doc.status = "Success"
-				batch_writer.add_doc_update(message_doc)
-				batch_writer.flush(commit=True)
-			else:
-				message_doc.db_set("status", "Success", update_modified=False)
-				message_doc.db_update()
-				frappe.db.commit()
+			# Status already updated to 'Success' by send()
 			
 			# Notify the user that the response is ready
 			self._publish_chat_realtime(
@@ -456,7 +461,7 @@ class CFChatMessage(Document):
 				message_doc = frappe.get_doc("CF Chat Message", self.name)
 				message_doc.response = f"Error processing request: {error_message}"
 				message_doc.response_html = safe_markdown_to_html(message_doc.response)
-				message_doc.db_set("status", "Failed", update_modified=False)
+				message_doc.status = "Failed"
 				message_doc.db_update()
 				frappe.db.commit()
 			except Exception as inner_e:
@@ -821,6 +826,7 @@ class CFChatMessage(Document):
 		)
 
 		self.runtime_audit = runtime_audit
+		self.status = "Success"
 		self.db_update()
 		frappe.db.commit()
 
@@ -1509,6 +1515,11 @@ class CFChatMessage(Document):
 	def _get_thinking_type(self, settings):
 		value = (settings.get("thinking_type") or DEFAULT_THINKING_TYPE).strip().lower()
 		if not value:
+			return DEFAULT_THINKING_TYPE
+		# Validate that the thinking type is one of the values accepted by OpenAI API
+		valid_types = {"adaptive", "enabled", "disabled"}
+		if value not in valid_types:
+			# Fall back to default if invalid value is provided
 			return DEFAULT_THINKING_TYPE
 		return value
 

@@ -10,6 +10,11 @@ class TestPhase56Services(unittest.TestCase):
         cleaned = ContentSanitizer().sanitize_text(value)
         self.assertEqual(cleaned, "Helloworld")
 
+    def test_content_sanitizer_preserves_newlines(self):
+        value = "Line one\nLine two\n\nLine three"
+        cleaned = ContentSanitizer().sanitize_text(value)
+        self.assertEqual(cleaned, "Line one\nLine two\n\nLine three")
+
     def test_privacy_preserver_redacts_email_and_phone(self):
         text = "contact me at test@example.com or +1 (650) 123-4567"
         redacted = PrivacyPreserver().anonymize_query(text)

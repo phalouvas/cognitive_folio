@@ -16,7 +16,27 @@ class ContentSanitizer:
         text = self.SCRIPT_RE.sub("", text)
         text = text.replace("javascript:", "")
         text = self.TAG_RE.sub("", text)
-        return " ".join(text.split())
+
+        # Preserve model formatting (newlines/headings/lists) while normalizing noisy spacing.
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        normalized_lines = [re.sub(r"[ \t\f\v]+", " ", line).strip() for line in text.split("\n")]
+
+        # Trim leading/trailing empty lines and collapse long empty runs.
+        while normalized_lines and normalized_lines[0] == "":
+            normalized_lines.pop(0)
+        while normalized_lines and normalized_lines[-1] == "":
+            normalized_lines.pop()
+
+        collapsed = []
+        previous_blank = False
+        for line in normalized_lines:
+            is_blank = line == ""
+            if is_blank and previous_blank:
+                continue
+            collapsed.append(line)
+            previous_blank = is_blank
+
+        return "\n".join(collapsed)
 
     def sanitize_result_items(self, items):
         sanitized = []
