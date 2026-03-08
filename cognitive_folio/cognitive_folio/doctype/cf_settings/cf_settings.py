@@ -31,8 +31,8 @@ class CFSettings(Document):
 		self.retry_backoff_base_seconds = self._coerce_float(self.retry_backoff_base_seconds, 1.5, 0.1, 30.0)
 		self.stream_flush_interval_seconds = self._coerce_float(self.stream_flush_interval_seconds, 0.5, 0.1, 10.0)
 		self.stream_flush_min_char_delta = self._coerce_int(self.stream_flush_min_char_delta, 120, 1, 5000)
-		self.max_tool_rounds = self._coerce_int(self.max_tool_rounds, 8, 1, 30)
-		self.max_tool_calls_per_round = self._coerce_int(self.max_tool_calls_per_round, 8, 1, 30)
+		self.max_tool_rounds = self._coerce_int(self.max_tool_rounds, 6, 1, 30)
+		self.max_tool_calls_per_round = self._coerce_int(self.max_tool_calls_per_round, 4, 1, 30)
 		self.tool_result_max_chars = self._coerce_int(self.tool_result_max_chars, 8000, 500, 40000)
 
 		self.web_search_max_results = self._coerce_int(

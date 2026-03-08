@@ -217,15 +217,15 @@
    "label": "Tool Calls"
   },
   {
-   "default": "8",
-   "description": "Maximum number of model-tool rounds per assistant response.",
+    "default": "6",
+    "description": "Maximum number of model-tool rounds per assistant response. Lower values reduce tool-loop drift and improve synthesis reliability.",
    "fieldname": "max_tool_rounds",
    "fieldtype": "Int",
    "label": "Max Tool Rounds"
   },
   {
-   "default": "8",
-   "description": "Maximum tool calls allowed in a single round.",
+    "default": "4",
+    "description": "Maximum tool calls allowed in a single round. Lower values encourage focused evidence gathering.",
    "fieldname": "max_tool_calls_per_round",
    "fieldtype": "Int",
    "label": "Max Tool Calls Per Round"

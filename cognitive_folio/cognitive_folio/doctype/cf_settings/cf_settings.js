@@ -35,8 +35,8 @@ function ensure_runtime_defaults(frm) {
         retry_backoff_base_seconds: 1.5,
         stream_flush_interval_seconds: 0.5,
         stream_flush_min_char_delta: 120,
-        max_tool_rounds: 8,
-        max_tool_calls_per_round: 8,
+        max_tool_rounds: 6,
+        max_tool_calls_per_round: 4,
         tool_result_max_chars: 8000,
         top_p: 0.8,
     };
