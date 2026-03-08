@@ -163,6 +163,18 @@ class ToolOrchestrator:
                 })
                 synthesis_nudge_sent = True
 
+            if round_index == max_rounds:
+                # Final round always gets an explicit directive — active_tools will be None this round
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "FINAL ROUND — No further tool calls are available. "
+                        "You MUST now write a complete, structured response using the data gathered above. "
+                        "Do NOT output raw values or parameter lists. "
+                        "Produce the full formatted analysis addressing all user requirements."
+                    ),
+                })
+
             active_tools = self.plan_executor.active_tools_for_round(
                 tools,
                 round_index,
@@ -233,6 +245,41 @@ class ToolOrchestrator:
                     aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
                     aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
                     return rewrite_response, "\n\n".join(all_reasoning_parts), rewrite_finish, aggregate_usage, tool_trace
+
+                if synthesis_nudge_sent and self._is_weak_synthesis_content(assistant_content, round_index):
+                    frappe.logger("cognitive_folio").warning(
+                        "Weak synthesis at round %s (len=%s); retrying with explicit synthesis prompt.",
+                        round_index,
+                        len(assistant_content or ""),
+                    )
+                    messages.append(self.chat_message._build_assistant_message_dict(assistant_content, reasoning_content, []))
+                    messages.append({
+                        "role": "system",
+                        "content": (
+                            "CRITICAL: Your previous response was incomplete or malformed. "
+                            "You MUST now write the complete, structured analysis. "
+                            "Do NOT call any tools. Do NOT output raw values or parameter lists. "
+                            "Use the data already gathered in this conversation to produce a full formatted response."
+                        ),
+                    })
+                    re_response = self.chat_message._create_non_stream_completion_with_retry(
+                        client=client,
+                        messages=messages,
+                        settings=settings,
+                        tools=None,
+                    )
+                    self.chat_message._accumulate_usage(aggregate_usage, getattr(re_response, "usage", None))
+                    if re_response.choices:
+                        re_choice = re_response.choices[0]
+                        re_msg = re_choice.message
+                        re_content = getattr(re_msg, "content", None) or assistant_content or ""
+                        re_reasoning = getattr(re_msg, "reasoning_content", None) or ""
+                        if re_reasoning:
+                            all_reasoning_parts.append(re_reasoning)
+                        last_finish_reason = getattr(re_choice, "finish_reason", None)
+                        aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
+                        aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
+                        return re_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
 
                 if self.chat_message._content_looks_like_dsml(assistant_content):
                     messages.append(self.chat_message._build_assistant_message_dict("", reasoning_content, []))
@@ -385,6 +432,39 @@ class ToolOrchestrator:
             if final_reasoning:
                 all_reasoning_parts.append(final_reasoning)
             last_finish_reason = getattr(final_choice, "finish_reason", None)
+
+            if self._is_weak_synthesis_content(final_content, max_rounds):
+                frappe.logger("cognitive_folio").warning(
+                    "Weak forced synthesis for message %s (len=%s); retrying once.",
+                    self.chat_message.name,
+                    len(final_content),
+                )
+                messages.append(self.chat_message._build_assistant_message_dict(final_content, final_reasoning, []))
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "CRITICAL: Your previous response was incomplete or malformed. "
+                        "You MUST now write the complete, structured analysis. "
+                        "Do NOT call any tools. Do NOT output raw values or parameter lists. "
+                        "Use the data already gathered in this conversation to produce a full formatted response."
+                    ),
+                })
+                retry_response = self.chat_message._create_non_stream_completion_with_retry(
+                    client=client,
+                    messages=messages,
+                    settings=settings,
+                    tools=None,
+                )
+                self.chat_message._accumulate_usage(aggregate_usage, getattr(retry_response, "usage", None))
+                if retry_response.choices:
+                    retry_choice = retry_response.choices[0]
+                    retry_msg = retry_choice.message
+                    final_content = getattr(retry_msg, "content", None) or final_content or ""
+                    retry_reasoning = getattr(retry_msg, "reasoning_content", None) or ""
+                    if retry_reasoning:
+                        all_reasoning_parts.append(retry_reasoning)
+                    last_finish_reason = getattr(retry_choice, "finish_reason", None)
+
             aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
             aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
             return final_content, "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
@@ -397,6 +477,12 @@ class ToolOrchestrator:
         aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
         aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
         return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
+
+    def _is_weak_synthesis_content(self, content, tool_rounds):
+        """Return True if content is too thin to be a real synthesis after multi-round data gathering."""
+        if not content:
+            return True
+        return len(content.strip()) < 200 and int(tool_rounds or 0) >= 2
 
     def _latest_user_message(self, messages):
         for message in reversed(messages or []):

@@ -27,12 +27,12 @@ class CFSettings(Document):
 		self.reasoner_default_max_tokens = self._coerce_int(self.reasoner_default_max_tokens, 32000, 1, 128000)
 		self.chat_max_tokens_cap = self._coerce_int(self.chat_max_tokens_cap, 8000, 1, 128000)
 		self.reasoner_max_tokens_cap = self._coerce_int(self.reasoner_max_tokens_cap, 64000, 1, 128000)
-		self.max_api_retries = self._coerce_int(self.max_api_retries, 3, 1, 10)
+		self.max_api_retries = self._coerce_int(self.max_api_retries, 5, 1, 10)
 		self.retry_backoff_base_seconds = self._coerce_float(self.retry_backoff_base_seconds, 1.5, 0.1, 30.0)
 		self.stream_flush_interval_seconds = self._coerce_float(self.stream_flush_interval_seconds, 0.5, 0.1, 10.0)
 		self.stream_flush_min_char_delta = self._coerce_int(self.stream_flush_min_char_delta, 120, 1, 5000)
-		self.max_tool_rounds = self._coerce_int(self.max_tool_rounds, 8, 1, 30)
-		self.max_tool_calls_per_round = self._coerce_int(self.max_tool_calls_per_round, 8, 1, 30)
+		self.max_tool_rounds = self._coerce_int(self.max_tool_rounds, 6, 1, 30)
+		self.max_tool_calls_per_round = self._coerce_int(self.max_tool_calls_per_round, 4, 1, 30)
 		self.tool_result_max_chars = self._coerce_int(self.tool_result_max_chars, 8000, 500, 40000)
 
 		self.web_search_max_results = self._coerce_int(
@@ -41,8 +41,11 @@ class CFSettings(Document):
 		if not (self.web_search_providers or "").strip():
 			self.web_search_providers = "ddgs"
 
+		if not (self.default_ai_model or "").strip():
+			self.default_ai_model = "deepseek-reasoner"
+
 		self.thinking_budget_tokens = self._coerce_int(self.thinking_budget_tokens, 2048, 128, 64000)
-		self.top_p = self._coerce_float(self.top_p, 1.0, 0.0, 1.0, allow_zero=True)
+		self.top_p = self._coerce_float(self.top_p, 0.8, 0.0, 1.0, allow_zero=True)
 		self.frequency_penalty = self._coerce_float(self.frequency_penalty, 0.0, -2.0, 2.0, allow_zero=True)
 		self.presence_penalty = self._coerce_float(self.presence_penalty, 0.0, -2.0, 2.0, allow_zero=True)
 

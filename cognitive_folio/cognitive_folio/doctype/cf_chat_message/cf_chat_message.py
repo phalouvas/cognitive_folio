@@ -37,14 +37,14 @@ DEFAULT_REASONER_MAX_TOKENS = 32000
 MAX_CHAT_MAX_TOKENS = 8000
 MAX_REASONER_MAX_TOKENS = 64000
 DEEPSEEK_CHAT_MAX_TOKENS_CAP = 8192
-MAX_OPENAI_RETRIES = 3
+MAX_OPENAI_RETRIES = 5
 RETRY_BACKOFF_BASE_SECONDS = 1.5
-DEFAULT_MAX_TOOL_ROUNDS = 8
-DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 8
+DEFAULT_MAX_TOOL_ROUNDS = 6
+DEFAULT_MAX_TOOL_CALLS_PER_ROUND = 4
 DEFAULT_TOOL_RESULT_MAX_CHARS = 8000
 DEFAULT_THINKING_BUDGET_TOKENS = 2048
 DEFAULT_THINKING_TYPE = "adaptive"
-DEFAULT_TOP_P = 1.0
+DEFAULT_TOP_P = 0.8
 DEFAULT_FREQUENCY_PENALTY = 0.0
 DEFAULT_PRESENCE_PENALTY = 0.0
 
@@ -1626,7 +1626,7 @@ class CFChatMessage(Document):
 
 	def _conversation_summarization_enabled(self, settings):
 		manager = self._get_settings_manager(settings)
-		return manager.get_feature_flag("enable_conversation_summarization", default=False)
+		return manager.get_feature_flag("enable_conversation_summarization", default=True)
 
 	def _read_int_setting(self, settings, fieldname, default_value):
 		manager = self._get_settings_manager(settings)

@@ -752,7 +752,7 @@ def process_security_ai_suggestion(security_name, user):
 			client = OpenAI(api_key=settings.get_password('open_ai_api_key'), base_url=settings.open_ai_url)
 			
 			# Use default AI model from settings instead of hardcoded value
-			model = settings.default_ai_model or "deepseek-chat"
+			model = settings.default_ai_model or "deepseek-reasoner"
 
 			prompt = security.ai_prompt or ""
 
