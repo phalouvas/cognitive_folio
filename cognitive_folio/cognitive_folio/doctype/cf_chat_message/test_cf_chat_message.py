@@ -447,7 +447,7 @@ class TestCFChatMessageLifecycleFlows(unittest.TestCase):
             "plan": {"steps": [{"tool": "web_search"}]},
             "tool_metrics": {"web_search": {"success_rate": 1.0}},
             "tool_metrics_store": {"stored": True},
-            "tool_execution": {"forced_realtime_web_search": True},
+            "tool_execution": {"composition_enabled": True, "self_correction_enabled": True, "dynamic_registration_enabled": True, "max_corrections_per_call": 1},
         }
         tool_trace = [
             {

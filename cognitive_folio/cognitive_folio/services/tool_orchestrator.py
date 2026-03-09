@@ -33,22 +33,6 @@ class ToolOrchestrator:
         "live",
         "latest",
     )
-    CONFLICT_MARKERS = (
-        "war",
-        "conflict",
-        "military",
-        "iran",
-        "israel",
-        "usa",
-        "united states",
-    )
-    DURATION_MARKERS = (
-        "how long",
-        "duration",
-        "last",
-        "estimate",
-        "timeline",
-    )
 
     def __init__(self, chat_message):
         self.chat_message = chat_message
@@ -75,6 +59,14 @@ class ToolOrchestrator:
             "latest_user_message": "",
         }
 
+        # Log simplified orchestration mode (conflict-duration and forced realtime removed)
+        frappe.logger("cognitive_folio").info(
+            "ToolOrchestrator: Simplified mode active (planner=%s, composition=%s, self_correction=%s)",
+            bool(planner_config.get("enabled", True)),
+            bool(tool_execution_config.get("composition_enabled", True)),
+            bool(tool_execution_config.get("self_correction_enabled", True)),
+        )
+
         analysis = {}
         plan = None
         recommendation = {"recommended_tools": []}
@@ -94,20 +86,7 @@ class ToolOrchestrator:
                 if plan_message:
                     messages.append({"role": "system", "content": plan_message})
 
-        conflict_duration_mode = self._is_conflict_duration_query(composition_context.get("latest_user_message") or "")
-        if conflict_duration_mode:
-            max_rounds = min(max_rounds, 4)
-            messages.append(
-                {
-                    "role": "system",
-                    "content": (
-                        "For conflict-duration questions with uncertain or sparse evidence: "
-                        "do not stop at saying evidence is limited. Provide a concise scenario estimate "
-                        "(best/base/worst case duration ranges), key drivers, and a confidence level. "
-                        "Clearly separate verified facts from assumptions."
-                    ),
-                }
-            )
+
 
         current_datetime = frappe.utils.now_datetime()
         messages.append(
@@ -143,13 +122,9 @@ class ToolOrchestrator:
                 "self_correction_enabled": bool(tool_execution_config.get("self_correction_enabled", True)),
                 "dynamic_registration_enabled": bool(tool_execution_config.get("dynamic_registration_enabled", True)),
                 "max_corrections_per_call": int(tool_execution_config.get("max_corrections_per_call", 1)),
-                "forced_realtime_web_search": False,
-                "conflict_duration_mode": bool(conflict_duration_mode),
-                "conflict_duration_rewrite": False,
             },
         }
         synthesis_nudge_sent = False
-        conflict_rewrite_done = False
 
         for round_index in range(1, max_rounds + 1):
             if self.plan_executor.should_inject_synthesis_nudge(round_index, max_rounds, synthesis_nudge_sent):
@@ -211,46 +186,6 @@ class ToolOrchestrator:
             last_finish_reason = getattr(choice, "finish_reason", None)
 
             if not tool_calls:
-                latest_user_message = composition_context.get("latest_user_message") or self._latest_user_message(messages)
-                if self._should_force_realtime_web_search(
-                    latest_user_message=latest_user_message,
-                    analysis=analysis,
-                    recommendation=recommendation,
-                    tool_trace=tool_trace,
-                    round_index=round_index,
-                    max_rounds=max_rounds,
-                ):
-                    self._inject_forced_web_search_context(
-                        messages=messages,
-                        latest_user_message=latest_user_message,
-                        tool_result_max_chars=tool_result_max_chars,
-                        chat=chat,
-                        portfolio=portfolio,
-                        security=security,
-                        round_index=round_index,
-                        tool_trace=tool_trace,
-                        effectiveness_tracker=effectiveness_tracker,
-                    )
-                    aggregate_usage["tool_execution"]["forced_realtime_web_search"] = True
-                    continue
-
-                if conflict_duration_mode and tool_trace and not conflict_rewrite_done:
-                    conflict_rewrite_done = True
-                    rewrite_response, rewrite_reasoning, rewrite_finish = self._run_conflict_duration_rewrite(
-                        client=client,
-                        messages=messages,
-                        settings=settings,
-                        draft_content=assistant_content,
-                        draft_reasoning=reasoning_content,
-                        tool_trace=tool_trace,
-                        aggregate_usage=aggregate_usage,
-                    )
-                    aggregate_usage["tool_execution"]["conflict_duration_rewrite"] = True
-                    if rewrite_reasoning:
-                        all_reasoning_parts.append(rewrite_reasoning)
-                    aggregate_usage["tool_metrics"] = effectiveness_tracker.as_dict()
-                    aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
-                    return rewrite_response, "\n\n".join(all_reasoning_parts), rewrite_finish, aggregate_usage, tool_trace
 
                 if synthesis_nudge_sent and self._is_weak_synthesis_content(assistant_content, round_index):
                     frappe.logger("cognitive_folio").warning(
@@ -537,114 +472,9 @@ class ToolOrchestrator:
                 return (message.get("content") or "").strip()
         return ""
 
-    def _is_realtime_external_query(self, latest_user_message):
-        lowered = str(latest_user_message or "").lower()
-        if not lowered:
-            return False
 
-        has_realtime = any(marker in lowered for marker in self.CURRENT_TIME_MARKERS)
-        has_weather = any(marker in lowered for marker in self.REALTIME_WEB_MARKERS)
-        return has_weather and (has_realtime or "weather" in lowered)
 
-    def _should_force_realtime_web_search(self, latest_user_message, analysis, recommendation, tool_trace, round_index, max_rounds):
-        if not bool(getattr(self.chat_message, "web_search", False)):
-            return False
-        if tool_trace:
-            return False
-        if round_index >= max_rounds:
-            return False
 
-        lowered = str(latest_user_message or "").lower()
-        if not lowered:
-            return False
-
-        if self._is_realtime_external_query(lowered):
-            return True
-
-        intent = (analysis or {}).get("intent") or ""
-        recommended_tools = set((recommendation or {}).get("recommended_tools") or [])
-        looks_realtime = any(marker in lowered for marker in self.CURRENT_TIME_MARKERS)
-        return intent == "general_research" and looks_realtime and "web_search" in recommended_tools
-
-    def _inject_forced_web_search_context(
-        self,
-        messages,
-        latest_user_message,
-        tool_result_max_chars,
-        chat,
-        portfolio,
-        security,
-        round_index,
-        tool_trace,
-        effectiveness_tracker,
-    ):
-        call_started = time.time()
-        forced_args = {
-            "query": latest_user_message,
-            "max_results": 5,
-            "provider": "auto",
-            "date_range": "day",
-            "result_type": "snippets",
-        }
-
-        tool_result = self.chat_message._execute_tool_call(
-            function_name="web_search",
-            arguments_raw=json.dumps(forced_args, ensure_ascii=False, default=str),
-            chat=chat,
-            portfolio=portfolio,
-            security=security,
-            dynamic_registration_enabled=True,
-        )
-
-        result_content = json.dumps(tool_result, ensure_ascii=False, default=str)
-        if len(result_content) > tool_result_max_chars:
-            result_content = result_content[:tool_result_max_chars] + "..."
-
-        messages.append(
-            {
-                "role": "system",
-                "content": (
-                    "Realtime search fallback was executed for the latest user query. "
-                    "Use these results directly and do not claim you lack realtime lookup capability.\n"
-                    f"{result_content}"
-                ),
-            }
-        )
-
-        ok = bool((tool_result or {}).get("ok", False))
-        duration_ms = round((time.time() - call_started) * 1000, 2)
-        tool_trace.append(
-            {
-                "round": round_index,
-                "tool": "web_search",
-                "call_id": f"forced_web_search_round_{round_index}",
-                "ok": ok,
-                "duration_ms": duration_ms,
-                "retried": False,
-                "forced": True,
-                "args": forced_args,
-                "error_code": (tool_result or {}).get("error_code"),
-                "error": (tool_result or {}).get("error"),
-            }
-        )
-
-        effectiveness_tracker.record(
-            tool_name="web_search",
-            ok=ok,
-            duration_ms=duration_ms,
-            retried=False,
-        )
-
-        self.chat_message._publish_chat_realtime(
-            event_name="cf_streaming_update",
-            payload={
-                "message_id": self.chat_message.name,
-                "chat_id": self.chat_message.chat,
-                "message": "[Tool] web_search executed (forced realtime fallback)",
-                "reasoning": "",
-                "status": "streaming",
-            },
-        )
 
     def _persist_tool_metrics(self, aggregate_usage):
         metrics = (aggregate_usage or {}).get("tool_metrics") or {}
@@ -666,61 +496,4 @@ class ToolOrchestrator:
         financial_hits = int(scores.get("financial_hits", 0) or 0)
         return intent == "general_research" and financial_hits == 0
 
-    def _is_conflict_duration_query(self, latest_user_message):
-        lowered = str(latest_user_message or "").lower()
-        if not lowered:
-            return False
 
-        has_conflict = any(marker in lowered for marker in self.CONFLICT_MARKERS)
-        has_duration = any(marker in lowered for marker in self.DURATION_MARKERS)
-        return has_conflict and has_duration
-
-    def _run_conflict_duration_rewrite(self, client, messages, settings, draft_content, draft_reasoning, tool_trace, aggregate_usage):
-        searched_queries = []
-        for item in tool_trace or []:
-            args = (item or {}).get("args") or {}
-            query = str(args.get("query") or "").strip()
-            if query:
-                searched_queries.append(query)
-        searched_queries = searched_queries[:5]
-
-        evidence_prompt = (
-            "Rewrite the previous answer using these strict rules:\n"
-            "1) Do NOT claim definitively that an event does not exist.\n"
-            "2) Use wording: 'I could not verify from retrieved sources'.\n"
-            "3) Keep verified findings and hypothetical scenario estimates clearly separated.\n"
-            "4) Provide duration ranges as Best/Base/Worst case only if user asked for estimate.\n"
-            "5) Confidence must be one of: low, medium, high (never N/A).\n"
-            "6) Keep concise and non-repetitive.\n"
-            f"Tool calls executed: {len(tool_trace or [])}.\n"
-            f"Queries searched: {searched_queries}."
-        )
-
-        rewrite_messages = list(messages or [])
-        rewrite_messages.append(
-            {
-                "role": "assistant",
-                "content": draft_content or "",
-                "reasoning_content": draft_reasoning or "",
-            }
-        )
-        rewrite_messages.append({"role": "system", "content": evidence_prompt})
-
-        rewrite_completion = self.chat_message._create_non_stream_completion_with_retry(
-            client=client,
-            messages=rewrite_messages,
-            settings=settings,
-            tools=None,
-        )
-        self.chat_message._accumulate_usage(aggregate_usage, getattr(rewrite_completion, "usage", None))
-
-        if not getattr(rewrite_completion, "choices", None):
-            return draft_content or "", draft_reasoning or "", "stop"
-
-        rewrite_choice = rewrite_completion.choices[0]
-        rewrite_message = rewrite_choice.message
-        return (
-            getattr(rewrite_message, "content", None) or draft_content or "",
-            getattr(rewrite_message, "reasoning_content", None) or "",
-            getattr(rewrite_choice, "finish_reason", None) or "stop",
-        )
