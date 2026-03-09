@@ -49,6 +49,32 @@ class TestPlanExecutor(unittest.TestCase):
         )
         self.assertIsNone(active)
 
+    # ------------------------------------------------------------------
+    # should_inject_synthesis_nudge
+    # ------------------------------------------------------------------
+
+    def test_nudge_fires_only_at_max_rounds(self):
+        """Nudge must fire at round_index == max_rounds, not before."""
+        executor = PlanExecutor()
+        self.assertFalse(executor.should_inject_synthesis_nudge(1, 3, False))
+        self.assertFalse(executor.should_inject_synthesis_nudge(2, 3, False))
+        self.assertTrue(executor.should_inject_synthesis_nudge(3, 3, False))
+
+    def test_nudge_skipped_if_already_sent(self):
+        executor = PlanExecutor()
+        self.assertFalse(executor.should_inject_synthesis_nudge(3, 3, True))
+
+    def test_nudge_fires_at_max_rounds_1(self):
+        """With max_rounds=1, nudge fires immediately on the first (and only) round."""
+        executor = PlanExecutor()
+        self.assertTrue(executor.should_inject_synthesis_nudge(1, 1, False))
+
+    def test_nudge_fires_at_max_rounds_2_not_round_1(self):
+        """With max_rounds=2, nudge fires at round 2, not round 1."""
+        executor = PlanExecutor()
+        self.assertFalse(executor.should_inject_synthesis_nudge(1, 2, False))
+        self.assertTrue(executor.should_inject_synthesis_nudge(2, 2, False))
+
 
 if __name__ == "__main__":
     unittest.main()

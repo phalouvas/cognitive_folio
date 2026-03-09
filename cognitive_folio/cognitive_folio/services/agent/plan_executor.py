@@ -22,7 +22,7 @@ class PlanExecutor:
         )
 
     def should_inject_synthesis_nudge(self, round_index, max_rounds, synthesis_nudge_sent):
-        return not synthesis_nudge_sent and (max_rounds - round_index) < 2
+        return not synthesis_nudge_sent and round_index == max_rounds
 
     def active_tools_for_round(self, tools, round_index, max_rounds, recommended_tools=None, enforce_recommended=False):
         if round_index == max_rounds:

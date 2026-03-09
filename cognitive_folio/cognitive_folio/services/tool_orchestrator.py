@@ -129,27 +129,34 @@ class ToolOrchestrator:
         for round_index in range(1, max_rounds + 1):
             if self.plan_executor.should_inject_synthesis_nudge(round_index, max_rounds, synthesis_nudge_sent):
                 synthesis_nudge_sent = True
-                messages.append({
-                    "role": "system",
-                    "content": (
+                plan_steps = (plan or {}).get("steps") or []
+                # Use the last 3 plan steps (the "synthesis" oriented ones) as mandatory section headers.
+                # Explicitly named sections mean the model cannot satisfy the directive with a single
+                # short paragraph — it must address each section, naturally producing comprehensive output.
+                if plan_steps:
+                    sections = "\n".join(f"## {s}" for s in plan_steps[-3:])
+                    synthesis_directive = (
+                        "Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        "no further tool calls will be processed.\n\n"
+                        "You MUST produce ALL of the following sections using the data gathered above. "
+                        "Each section must be substantive (3+ sentences with specific data/numbers from tools).\n\n"
+                        f"{sections}\n\n"
+                        "Do NOT skip any section. Do NOT output raw parameter values. "
+                        "Begin with the first section heading immediately."
+                    )
+                else:
+                    synthesis_directive = (
                         "Research phase complete. FINAL SYNTHESIS REQUIRED — "
                         "no further tool calls will be processed from this point. "
-                        "You MUST now write a complete, structured response using all the data gathered above. "
+                        "You MUST now write a thorough, comprehensive response (minimum 500 words) "
+                        "using ALL the data gathered from the tool results above. "
+                        "Structure your response with ## headings, specific numbers/data from tools, "
+                        "and bullet points for key findings. "
+                        "Address EVERY aspect of the user's question in detail. "
                         "Do NOT output raw parameter values or tool argument lists. "
-                        "Produce the full formatted analysis addressing all user requirements."
-                    ),
-                })
-            elif round_index == max_rounds:
-                # Safety net: repeat directive if we somehow reach the absolute last round
-                messages.append({
-                    "role": "system",
-                    "content": (
-                        "FINAL ROUND — No further tool calls are available. "
-                        "You MUST now write a complete, structured response using the data gathered above. "
-                        "Do NOT output raw values or parameter lists. "
-                        "Produce the full formatted analysis addressing all user requirements."
-                    ),
-                })
+                        "Begin writing the complete detailed analysis immediately."
+                    )
+                messages.append({"role": "system", "content": synthesis_directive})
 
             active_tools = self.plan_executor.active_tools_for_round(
                 tools,
@@ -160,8 +167,7 @@ class ToolOrchestrator:
             )
             # Enforce synthesis: once the synthesis directive has fired, suppress all tools so
             # the model cannot defer to another tool call instead of writing the final answer.
-            # (The round_index > 1 guard protects the edge case where max_rounds <= 2.)
-            if synthesis_nudge_sent and round_index > 1:
+            if synthesis_nudge_sent:
                 active_tools = None
             response = self.chat_message._create_non_stream_completion_with_retry(
                 client=client,
@@ -187,7 +193,12 @@ class ToolOrchestrator:
 
             if not tool_calls:
 
-                if synthesis_nudge_sent and self._is_weak_synthesis_content(assistant_content, round_index):
+                # When synthesis was explicitly requested, use a stricter minimum length
+                # (scales with round count) to catch thin responses the model chose to stop early.
+                nudge_min_chars = max(800, round_index * 500) if synthesis_nudge_sent else None
+                if (synthesis_nudge_sent or tool_trace) and self._is_weak_synthesis_content(
+                    assistant_content, round_index, min_chars=nudge_min_chars
+                ):
                     frappe.logger("cognitive_folio").warning(
                         "Weak synthesis at round %s (len=%s); forcing synthesis pass.",
                         round_index,
@@ -198,6 +209,7 @@ class ToolOrchestrator:
                         messages=messages,
                         settings=settings,
                         aggregate_usage=aggregate_usage,
+                        prior_content=assistant_content,
                     )
                     if forced:
                         forced_content, forced_reasoning, forced_finish = forced
@@ -370,6 +382,7 @@ class ToolOrchestrator:
                     messages=messages,
                     settings=settings,
                     aggregate_usage=aggregate_usage,
+                    prior_content=final_content,
                 )
                 if forced:
                     forced_content, forced_reasoning, forced_finish = forced
@@ -391,31 +404,83 @@ class ToolOrchestrator:
         aggregate_usage["tool_metrics_store"] = self._persist_tool_metrics(aggregate_usage)
         return accumulated or "", "\n\n".join(all_reasoning_parts), last_finish_reason, aggregate_usage, tool_trace
 
-    def _is_weak_synthesis_content(self, content, tool_rounds):
-        """Return True if content is too thin to be a real synthesis after multi-round data gathering."""
+    def _is_weak_synthesis_content(self, content, tool_rounds, min_chars=None):
+        """Return True if content is too thin to be a real synthesis after multi-round data gathering.
+
+        Args:
+            min_chars: explicit minimum character count; defaults to max(200, tool_rounds * 400).
+                       Callers that explicitly requested synthesis should pass a higher value.
+        """
         if not content:
             return True
-        return len(content.strip()) < 200 and int(tool_rounds or 0) >= 2
+        stripped = content.strip()
+        # Short content after research rounds is likely weak/incomplete.
+        # Default threshold scales with the number of research rounds so that a
+        # 3-round deep-research query requires proportionally more output than a simple 1-round ask.
+        effective_min = min_chars if min_chars is not None else max(200, int(tool_rounds or 0) * 400)
+        if len(stripped) < effective_min:
+            return True
+        # Detect leaked tool-call argument artifacts (content looks like raw query params rather
+        # than a structured answer).  Only flag these when tools were actually used.
+        if int(tool_rounds or 0) >= 1 and len(stripped) < 400:
+            has_structure = (
+                "#" in stripped
+                or "**" in stripped
+                or "\n-" in stripped
+                or "\n*" in stripped
+                or "\n1." in stripped
+            )
+            opener_is_planning = (
+                stripped.lower().startswith("let me")
+                or stripped.lower().startswith("i need to")
+                or stripped.lower().startswith("searching for")
+            )
+            if opener_is_planning and not has_structure:
+                return True
+        return False
 
-    def _force_synthesis_response(self, client, messages, settings, aggregate_usage):
-        """Force a clean synthesis completion when the model produced a weak/garbage response.
+    def _force_synthesis_response(self, client, messages, settings, aggregate_usage, prior_content=None):
+        """Force a comprehensive synthesis completion when the model produced a weak/thin response.
 
-        Appends a CRITICAL synthesis directive WITHOUT first appending the garbage content
-        (which would confuse the model into repeating it).  For deepseek-reasoner, falls back
-        to deepseek-chat so tool-arg artifacts from the reasoner's thinking phase are bypassed.
+        Strategy: if a thin prior response exists, append it as an assistant turn so the model
+        sees it as its own incomplete work, then use an expansion directive.  This is far more
+        reliable than a fresh "write more" system directive because the model is asked to
+        *continue/deepen* what it already started rather than produce new content from scratch.
+
+        For deepseek-reasoner, falls back to deepseek-chat to avoid tool-arg artifact leakage.
 
         Returns (content, reasoning_content, finish_reason) on success, or None on failure.
         """
-        messages.append({
-            "role": "system",
-            "content": (
-                "CRITICAL: Tool calls are permanently disabled. "
-                "Write the complete, structured analysis now using only the data already "
-                "gathered in this conversation. "
-                "Do NOT output function argument values. "
-                "Begin immediately with the analysis content."
-            ),
-        })
+        if prior_content and prior_content.strip():
+            # Put the thin output back as an assistant message so the model treats it as its
+            # own prior work that needs to be continued and expanded.
+            messages.append({
+                "role": "assistant",
+                "content": prior_content,
+            })
+            messages.append({
+                "role": "user",
+                "content": (
+                    "Your analysis above is incomplete. Please expand it into a comprehensive report. "
+                    "For each section already started, add 2-3 more detailed paragraphs with specific "
+                    "data, numbers, and actionable insights from the research results. "
+                    "Add any important sections that are missing. "
+                    "Do not repeat what is already written — only add the missing depth and detail."
+                ),
+            })
+        else:
+            messages.append({
+                "role": "system",
+                "content": (
+                    "CRITICAL: Tool calls are permanently disabled. "
+                    "Write the complete, structured analysis NOW using only the data already "
+                    "gathered in this conversation. "
+                    "Your response MUST be comprehensive (minimum 500 words) with ## headings, "
+                    "bullet points, and specific numbers/data from the tool results. "
+                    "Do NOT output function argument values. "
+                    "Begin immediately with the analysis content."
+                ),
+            })
 
         is_reasoner = self.chat_message._is_reasoner_model(
             getattr(self.chat_message, "model", ""), settings
@@ -426,7 +491,7 @@ class ToolOrchestrator:
             # leaks those argument values into content when tools are then unavailable.
             # Use deepseek-chat for a clean synthesis pass that avoids this pattern.
             try:
-                chat_max_tokens = int(getattr(settings, "chat_default_max_tokens", None) or 4000)
+                chat_max_tokens = max(int(getattr(settings, "chat_default_max_tokens", None) or 4000), 8192)
                 # Strip reasoning_content from history — deepseek-chat rejects it as an
                 # unknown field and it adds no value for the chat model synthesis pass.
                 clean_messages = [
@@ -460,11 +525,57 @@ class ToolOrchestrator:
 
         choice = resp.choices[0]
         msg = choice.message
-        return (
-            getattr(msg, "content", None) or "",
-            getattr(msg, "reasoning_content", None) or "",
-            getattr(choice, "finish_reason", None),
-        )
+        forced_content = getattr(msg, "content", None) or ""
+        forced_reasoning = getattr(msg, "reasoning_content", None) or ""
+        forced_finish = getattr(choice, "finish_reason", None)
+
+        # If the first forced synthesis is still weak, append it and ask for expansion once more.
+        tool_rounds = aggregate_usage.get("tool_rounds", 0)
+        if self._is_weak_synthesis_content(forced_content, tool_rounds):
+            frappe.logger("cognitive_folio").warning(
+                "First forced synthesis still weak (len=%s); attempting one final retry.",
+                len(forced_content),
+            )
+            if forced_content and forced_content.strip():
+                messages.append({"role": "assistant", "content": forced_content})
+                messages.append({
+                    "role": "user",
+                    "content": (
+                        "This response is still too brief. "
+                        "Continue the analysis with substantially more detail: deeper context, "
+                        "more specific data points, portfolio implications, and concrete recommendations. "
+                        "Expand each section significantly."
+                    ),
+                })
+            else:
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "FINAL ATTEMPT: Your previous response was still insufficient. "
+                        "You MUST produce a complete, well-structured analysis NOW. "
+                        "Start immediately with a \'##\' heading, then write detailed paragraphs. "
+                        "Do NOT reference tool arguments or parameter values."
+                    ),
+                })
+            retry_resp = self.chat_message._create_non_stream_completion_with_retry(
+                client=client,
+                messages=messages,
+                settings=settings,
+                tools=None,
+            )
+            self.chat_message._accumulate_usage(aggregate_usage, getattr(retry_resp, "usage", None))
+            if getattr(retry_resp, "choices", None):
+                retry_choice = retry_resp.choices[0]
+                retry_msg = retry_choice.message
+                retry_content = getattr(retry_msg, "content", None) or ""
+                if retry_content:
+                    return (
+                        retry_content,
+                        getattr(retry_msg, "reasoning_content", None) or "",
+                        getattr(retry_choice, "finish_reason", None),
+                    )
+
+        return forced_content, forced_reasoning, forced_finish
 
     def _latest_user_message(self, messages):
         for message in reversed(messages or []):
