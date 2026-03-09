@@ -24,11 +24,18 @@ class PlanGenerator:
         if max_plan_steps > 0:
             steps = steps[:max_plan_steps]
 
+        # Dynamic max_rounds: increase for high complexity queries with many tools
+        plan_max_rounds = int(max_rounds)
+        if complexity == "high" and len(recommended_tools) >= 3:
+            # Allow enough rounds for each tool + buffer + synthesis
+            plan_max_rounds = min(int(max_rounds), len(recommended_tools) + 2)
+            plan_max_rounds = min(plan_max_rounds, 8)  # Cap at 8 to avoid excessive latency
+
         return {
             "intent": intent,
             "complexity": complexity,
             "recommended_tools": recommended_tools,
-            "max_rounds": int(max_rounds),
+            "max_rounds": plan_max_rounds,
             "max_tool_calls_per_round": int(max_tool_calls_per_round),
             "steps": steps,
         }

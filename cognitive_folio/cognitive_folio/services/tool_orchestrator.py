@@ -58,6 +58,10 @@ class ToolOrchestrator:
             "tools": {},
             "latest_user_message": "",
         }
+        
+        # Track used tools for diversity nudges
+        used_tools = set()
+        diversity_nudge_sent = False
 
         # Log simplified orchestration mode (conflict-duration and forced realtime removed)
         frappe.logger("cognitive_folio").info(
@@ -85,6 +89,19 @@ class ToolOrchestrator:
                 plan_message = self.plan_executor.build_system_plan_message(plan)
                 if plan_message:
                     messages.append({"role": "system", "content": plan_message})
+
+            # Use plan's max_rounds if higher (dynamic adjustment for complex queries)
+            if plan and "max_rounds" in plan:
+                plan_max_rounds = plan["max_rounds"]
+                if plan_max_rounds > max_rounds:
+                    max_rounds = min(plan_max_rounds, 8)  # Cap at 8 to avoid excessive latency
+                    frappe.logger("cognitive_folio").info(
+                        "Dynamic max_rounds adjustment: %s -> %s (complexity=%s, tools=%s)",
+                        self.chat_message._get_max_tool_rounds(settings),
+                        max_rounds,
+                        analysis.get("complexity", "low"),
+                        len(recommendation.get("recommended_tools", [])),
+                    )
 
 
 
@@ -130,23 +147,29 @@ class ToolOrchestrator:
             if self.plan_executor.should_inject_synthesis_nudge(round_index, max_rounds, synthesis_nudge_sent):
                 synthesis_nudge_sent = True
                 plan_steps = (plan or {}).get("steps") or []
+                
+                # Get user's original question for relevance re-anchoring
+                user_question = composition_context.get("latest_user_message", "").strip()
+                question_prefix = f"The user asked: '{user_question}'. " if user_question else ""
+                
                 # Use the last 3 plan steps (the "synthesis" oriented ones) as mandatory section headers.
                 # Explicitly named sections mean the model cannot satisfy the directive with a single
                 # short paragraph — it must address each section, naturally producing comprehensive output.
                 if plan_steps:
                     sections = "\n".join(f"## {s}" for s in plan_steps[-3:])
                     synthesis_directive = (
-                        "Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        f"{question_prefix}Research phase complete. FINAL SYNTHESIS REQUIRED — "
                         "no further tool calls will be processed.\n\n"
                         "You MUST produce ALL of the following sections using the data gathered above. "
-                        "Each section must be substantive (3+ sentences with specific data/numbers from tools).\n\n"
+                        "Each section must be substantive (3+ sentences with specific data/numbers from tools). "
+                        "Directly address the user's question in each section.\n\n"
                         f"{sections}\n\n"
                         "Do NOT skip any section. Do NOT output raw parameter values. "
                         "Begin with the first section heading immediately."
                     )
                 else:
                     synthesis_directive = (
-                        "Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        f"{question_prefix}Research phase complete. FINAL SYNTHESIS REQUIRED — "
                         "no further tool calls will be processed from this point. "
                         "You MUST now write a thorough, comprehensive response (minimum 500 words) "
                         "using ALL the data gathered from the tool results above. "
@@ -193,13 +216,12 @@ class ToolOrchestrator:
 
             if not tool_calls:
 
-                # For any synthesis round where tools were actually used, always run the
-                # expansion pass — not just when content is thin.  The first synthesis call
-                # reliably produces a structured skeleton; the expansion pass deepens each
-                # section with specific data, numbers, and recommendations.  This is the
-                # standard quality path for complex multi-tool queries.
-                # For simple queries with no tool data, fall through to the weak-content check.
-                should_expand = synthesis_nudge_sent and bool(tool_trace)
+                # Gate expansion on quality/structure to avoid unnecessary latency
+                # Only expand if response is short (<1500 chars) or lacks structure
+                # Keep unconditional for very short responses (<800 chars) or tool-leak patterns
+                should_expand = synthesis_nudge_sent and bool(tool_trace) and self._should_expand_response(
+                    assistant_content, tool_trace, synthesis_nudge_sent
+                )
 
                 nudge_min_chars = max(800, round_index * 500) if synthesis_nudge_sent else None
                 if should_expand or (
@@ -339,6 +361,21 @@ class ToolOrchestrator:
 
                 composition_context["last"] = tool_result
                 composition_context.setdefault("tools", {}).setdefault(function_name, []).append(tool_result)
+                
+                # Track used tools for diversity nudges
+                if function_name:
+                    used_tools.add(function_name)
+                    
+                    # Check for diversity nudge
+                    if not diversity_nudge_sent and round_index < max_rounds - 1:
+                        recommended_tools_list = recommendation.get("recommended_tools", []) if isinstance(recommendation, dict) else []
+                        unused = set(recommended_tools_list) - used_tools
+                        if unused:
+                            messages.append({
+                                "role": "system",
+                                "content": f"Consider also using {', '.join(unused)} to gather additional perspectives."
+                            })
+                            diversity_nudge_sent = True
 
                 self.chat_message._publish_chat_realtime(
                     event_name="cf_streaming_update",
@@ -380,8 +417,13 @@ class ToolOrchestrator:
                 all_reasoning_parts.append(final_reasoning)
             last_finish_reason = getattr(final_choice, "finish_reason", None)
 
-            # Always expand when tools were used — same quality guarantee as the in-loop path.
-            if bool(tool_trace) or self._is_weak_synthesis_content(final_content, max_rounds):
+            # Gate expansion on quality/structure to avoid unnecessary latency
+            # Only expand if response is short (<1500 chars) or lacks structure
+            # Keep unconditional for very short responses (<800 chars) or tool-leak patterns
+            should_expand = bool(tool_trace) and self._should_expand_response(
+                final_content, tool_trace, True
+            )
+            if should_expand or self._is_weak_synthesis_content(final_content, max_rounds):
                 frappe.logger("cognitive_folio").info(
                     "Expanding post-loop synthesis for message %s (len=%s, tools_used=%s).",
                     self.chat_message.name,
@@ -448,6 +490,30 @@ class ToolOrchestrator:
             )
             if opener_is_planning and not has_structure:
                 return True
+        return False
+
+    def _should_expand_response(self, content, tool_trace, synthesis_nudge_sent):
+        """Gate expansion on quality/structure to avoid unnecessary latency."""
+        if not content:
+            return True
+        
+        # Always expand very short responses
+        if len(content) < 800:
+            return True
+        
+        # Check for structure
+        has_structure = (
+            "##" in content or
+            "\n-" in content or 
+            "\n*" in content or
+            "\n1." in content
+        )
+        
+        # Expand if lacks structure OR too short
+        if len(content) < 1500 or not has_structure:
+            return True
+        
+        # Keep unconditional for tool-leak patterns (already in _is_weak_synthesis_content)
         return False
 
     def _force_synthesis_response(self, client, messages, settings, aggregate_usage, prior_content=None):
