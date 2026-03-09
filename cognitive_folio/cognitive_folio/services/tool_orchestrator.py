@@ -193,16 +193,25 @@ class ToolOrchestrator:
 
             if not tool_calls:
 
-                # When synthesis was explicitly requested, use a stricter minimum length
-                # (scales with round count) to catch thin responses the model chose to stop early.
+                # For any synthesis round where tools were actually used, always run the
+                # expansion pass — not just when content is thin.  The first synthesis call
+                # reliably produces a structured skeleton; the expansion pass deepens each
+                # section with specific data, numbers, and recommendations.  This is the
+                # standard quality path for complex multi-tool queries.
+                # For simple queries with no tool data, fall through to the weak-content check.
+                should_expand = synthesis_nudge_sent and bool(tool_trace)
+
                 nudge_min_chars = max(800, round_index * 500) if synthesis_nudge_sent else None
-                if (synthesis_nudge_sent or tool_trace) and self._is_weak_synthesis_content(
-                    assistant_content, round_index, min_chars=nudge_min_chars
+                if should_expand or (
+                    (synthesis_nudge_sent or tool_trace) and self._is_weak_synthesis_content(
+                        assistant_content, round_index, min_chars=nudge_min_chars
+                    )
                 ):
-                    frappe.logger("cognitive_folio").warning(
-                        "Weak synthesis at round %s (len=%s); forcing synthesis pass.",
+                    frappe.logger("cognitive_folio").info(
+                        "Expanding synthesis at round %s (len=%s, tools_used=%s).",
                         round_index,
                         len(assistant_content or ""),
+                        len(tool_trace),
                     )
                     forced = self._force_synthesis_response(
                         client=client,
@@ -371,11 +380,13 @@ class ToolOrchestrator:
                 all_reasoning_parts.append(final_reasoning)
             last_finish_reason = getattr(final_choice, "finish_reason", None)
 
-            if self._is_weak_synthesis_content(final_content, max_rounds):
-                frappe.logger("cognitive_folio").warning(
-                    "Weak forced synthesis for message %s (len=%s); forcing synthesis pass.",
+            # Always expand when tools were used — same quality guarantee as the in-loop path.
+            if bool(tool_trace) or self._is_weak_synthesis_content(final_content, max_rounds):
+                frappe.logger("cognitive_folio").info(
+                    "Expanding post-loop synthesis for message %s (len=%s, tools_used=%s).",
                     self.chat_message.name,
                     len(final_content),
+                    len(tool_trace),
                 )
                 forced = self._force_synthesis_response(
                     client=client,

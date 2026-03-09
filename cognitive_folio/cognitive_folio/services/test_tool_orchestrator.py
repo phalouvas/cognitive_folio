@@ -131,47 +131,54 @@ class TestToolOrchestrator(unittest.TestCase):
     # ------------------------------------------------------------------
 
     def test_max_rounds_3_gives_two_tool_rounds_then_synthesis(self):
-        """With max_rounds=3, the model uses tools in rounds 1-2 and synthesises at round 3."""
+        """With max_rounds=3, the model uses tools in rounds 1-2 and synthesises at round 3.
+        Expansion always fires when tools were used, so one extra response is needed."""
         orch, chat_msg = self._make_orchestrator(max_rounds=3)
         tool_call = _make_tool_call()
-        rich_synthesis = "## Gold Market Analysis\n\n" + "Detailed analysis of gold prices.\n" * 50  # >1500 chars (round-3 nudge threshold)
+        first_synthesis = "## Gold Market Analysis\n\nInitial findings.\n"
+        expanded = "## Gold Market Analysis\n\n" + "Detailed analysis of gold prices.\n" * 50
 
         responses = [
             _make_response("", [tool_call], "tool_calls"),   # round 1: tool call
             _make_response("", [tool_call], "tool_calls"),   # round 2: tool call
-            _make_response(rich_synthesis, [], "stop"),       # round 3: synthesis
+            _make_response(first_synthesis, [], "stop"),      # round 3: synthesis
+            _make_response(expanded, [], "stop"),             # expansion pass
         ]
         content, _reasoning, finish, usage, trace = self._run_chain(orch, chat_msg, responses)
 
-        self.assertEqual(content, rich_synthesis)
+        self.assertEqual(content, expanded)
         self.assertEqual(finish, "stop")
         self.assertEqual(usage["tool_rounds"], 3)
         # Two tool executions — one per tool-calling round
         self.assertEqual(len(trace), 2)
 
     def test_max_rounds_2_gives_one_tool_round_then_synthesis(self):
-        """With max_rounds=2, the model uses tools in round 1 and synthesises at round 2."""
+        """With max_rounds=2, the model uses tools in round 1 and synthesises at round 2.
+        Expansion always fires when tools were used."""
         orch, chat_msg = self._make_orchestrator(max_rounds=2)
         tool_call = _make_tool_call()
-        rich_synthesis = "## Analysis\n\n" + "Content.\n" * 120  # >1000 chars (round-2 nudge threshold)
+        first_synthesis = "## Analysis\n\nInitial findings.\n"
+        expanded = "## Analysis\n\n" + "Content.\n" * 120
 
         responses = [
             _make_response("", [tool_call], "tool_calls"),  # round 1: tool call
-            _make_response(rich_synthesis, [], "stop"),      # round 2: synthesis
+            _make_response(first_synthesis, [], "stop"),     # round 2: synthesis
+            _make_response(expanded, [], "stop"),            # expansion pass
         ]
         content, _reasoning, finish, usage, trace = self._run_chain(orch, chat_msg, responses)
 
-        self.assertEqual(content, rich_synthesis)
+        self.assertEqual(content, expanded)
         self.assertEqual(usage["tool_rounds"], 2)
         self.assertEqual(len(trace), 1)
 
     def test_max_rounds_1_direct_synthesis_no_tools(self):
-        """With max_rounds=1, the synthesis nudge fires in round 1 — tools are suppressed."""
+        """With max_rounds=1, the synthesis nudge fires in round 1 — tools are suppressed.
+        No tool_trace means no expansion; response returned directly."""
         orch, chat_msg = self._make_orchestrator(max_rounds=1)
-        rich_synthesis = "## Direct Answer\n\n" + "Content.\n" * 90  # >800 chars (round-1 nudge threshold)
+        rich_synthesis = "## Direct Answer\n\n" + "Content.\n" * 90  # >800 chars
 
         responses = [
-            _make_response(rich_synthesis, [], "stop"),  # round 1: synthesis (no tools)
+            _make_response(rich_synthesis, [], "stop"),  # round 1: synthesis (no tools, no expansion)
         ]
         content, _reasoning, finish, usage, trace = self._run_chain(orch, chat_msg, responses)
 
@@ -183,14 +190,16 @@ class TestToolOrchestrator(unittest.TestCase):
         """Synthesis nudge message appears in the messages list at max_rounds only."""
         orch, chat_msg = self._make_orchestrator(max_rounds=3)
         tool_call = _make_tool_call()
-        rich_synthesis = "## Analysis\n\n" + "Content.\n" * 180  # >1500 chars (round-3 nudge threshold)
+        first_synthesis = "## Analysis\n\nInitial findings.\n"
+        expanded = "## Analysis\n\n" + "Content.\n" * 180
 
         captured_messages = []
 
         original_side_effect = [
             _make_response("", [tool_call], "tool_calls"),
             _make_response("", [tool_call], "tool_calls"),
-            _make_response(rich_synthesis, [], "stop"),
+            _make_response(first_synthesis, [], "stop"),
+            _make_response(expanded, [], "stop"),  # expansion pass
         ]
 
         call_count = 0
