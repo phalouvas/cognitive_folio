@@ -472,10 +472,6 @@ class ToolOrchestrator:
                 return (message.get("content") or "").strip()
         return ""
 
-
-
-
-
     def _persist_tool_metrics(self, aggregate_usage):
         metrics = (aggregate_usage or {}).get("tool_metrics") or {}
         plan = (aggregate_usage or {}).get("plan") or {}
@@ -495,5 +491,3 @@ class ToolOrchestrator:
         scores = (analysis or {}).get("scores") or {}
         financial_hits = int(scores.get("financial_hits", 0) or 0)
         return intent == "general_research" and financial_hits == 0
-
-
