@@ -12,33 +12,20 @@ This roadmap is designed for a **single-user personal portfolio management syste
 
 ## **Phased Implementation Roadmap**
 
-### **Phase 1: Core Workflow Automation (Weeks 1-4)**
-**Objective**: Solve the "6-prompt evaluation problem" and establish basic personal data management.
-
-**Key Deliverables:**
-1. **One-Click Analysis Engine** - Single button that executes your preferred prompt sequence
-2. **Personal Prompt Templates** - Save and manage analysis templates
-3. **Unified Report Generator** - Compile multiple AI responses into cohesive reports
-4. **Manual Data Override System** - Update stale or missing data manually
-
-**Dependencies**: Existing CF Chat, CF Chat Message, CF Prompt doctypes
-**Estimated Complexity**: Medium (requires UI changes and new backend logic)
-**Integration Points**: Extend `cf_chat.py`, `cf_chat_message.py`, create new `CFAnalysisTemplate` doctype
-
-### **Phase 2: Enhanced Data Management (Weeks 5-8)**
+### **Phase 1: Enhanced Data Management (Weeks 1-4)**
 **Objective**: Improve data quality and handle your proprietary research materials.
 
 **Key Deliverables:**
-1. **Multi-Source Data Aggregator** - Pull from multiple providers (Yahoo Finance + alternatives)
-2. **Personal Research Vault** - Upload and organize PDFs, Excel files, notes
-3. **Data Freshness Dashboard** - Visualize which securities need data updates
-4. **Document-Aware AI** - Extract insights from uploaded documents
+**Key Deliverables:**
+1. **Personal Research Vault** - Upload and organize PDFs, Excel files, notes
+2. **Data Freshness Dashboard** - Visualize which securities need data updates
+3. **Document-Aware AI** - Extract insights from uploaded documents
 
-**Dependencies**: Phase 1, existing `cf_security.py` data fetching
+**Dependencies**: existing `cf_security.py` data fetching
 **Estimated Complexity**: High (requires document processing and data aggregation logic)
 **Integration Points**: Extend `cf_security.py`, create `CFDocument` doctype, enhance AI prompts
 
-### **Phase 3: Opportunity Discovery System (Weeks 9-12)**
+### **Phase 2: Opportunity Discovery System (Weeks 5-8)**
 **Objective**: Help you find new investment opportunities tailored to your preferences.
 
 **Key Deliverables:**
@@ -47,11 +34,11 @@ This roadmap is designed for a **single-user personal portfolio management syste
 3. **Automated News/Earnings Digest** - Daily summaries for holdings and watchlist
 4. **Portfolio Gap Analysis** - Identify missing sectors/regions in your allocation
 
-**Dependencies**: Phase 2 data infrastructure, web search capabilities
+**Dependencies**: Phase 1 data infrastructure, web search capabilities
 **Estimated Complexity**: Medium-High (requires screening algorithms and notification system)
 **Integration Points**: Create `CFWatchlist` doctype, enhance `tasks.py` for daily digests, leverage web search
 
-### **Phase 4: Advanced Analysis Tools (Weeks 13-16)**
+### **Phase 3: Advanced Analysis Tools (Weeks 9-12)**
 **Objective**: Provide professional-grade analysis tools for your personal use.
 
 **Key Deliverables:**
@@ -60,11 +47,11 @@ This roadmap is designed for a **single-user personal portfolio management syste
 3. **Basic Backtesting Framework** - Test strategies against historical data
 4. **Personal Risk Dashboard** - Visualize concentration and risk metrics
 
-**Dependencies**: Phase 2 data quality, portfolio holdings data
+**Dependencies**: Phase 1 data quality, portfolio holdings data
 **Estimated Complexity**: High (requires financial mathematics implementation)
 **Integration Points**: Create `CFOptimization` and `CFScenario` doctypes, enhance portfolio analysis
 
-### **Phase 5: Investment Intelligence (Weeks 17-20)**
+### **Phase 4: Investment Intelligence (Weeks 13-16)**
 **Objective**: Improve your investment skills and decision-making process.
 
 **Key Deliverables:**
@@ -73,7 +60,7 @@ This roadmap is designed for a **single-user personal portfolio management syste
 3. **Performance Attribution** - Understand return drivers (stock selection vs. timing)
 4. **Personal Skill Tracking** - Monitor improvement in analysis quality
 
-**Dependencies**: Phase 1-4, historical decision data
+**Dependencies**: Phases 1-3, historical decision data
 **Estimated Complexity**: Medium (requires pattern analysis and tracking)
 **Integration Points**: Create `CFDecisionJournal` doctype, add analytics to existing models
 
@@ -90,7 +77,6 @@ This roadmap is designed for a **single-user personal portfolio management syste
 ### **Data Management Features**
 | Feature | Priority | Complexity | Dependencies | Implementation Notes |
 |---------|----------|------------|--------------|---------------------|
-| **Multi-Source Aggregation** | P1 | High | `cf_security.py` | Create provider abstraction layer, fallback logic, cache most recent valid data |
 | **Research Vault** | P1 | Medium | File doctype | Use Frappe's File doctype, add metadata (security, date, type), OCR for PDFs |
 | **Manual Override Dashboard** | P1 | Low-Medium | Security doctype | Add "manual_value" fields with "last_verified" dates, UI to highlight discrepancies |
 | **Data Quality Monitor** | P2 | Low | Security data | Dashboard showing data freshness, automated alerts for stale data |
