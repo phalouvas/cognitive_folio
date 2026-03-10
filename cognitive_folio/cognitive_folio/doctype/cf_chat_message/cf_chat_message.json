@@ -16,14 +16,14 @@
   "template_prompt",
   "section_break_nyal",
   "prompt",
+  "response",
   "rendered_prompt_section",
   "rendered_prompt_preview",
   "response_html",
-  "response",
   "reasoning",
   "tokens_section",
-    "tokens",
-    "runtime_audit"
+  "tokens",
+  "runtime_audit"
  ],
  "fields": [
   {
@@ -70,13 +70,13 @@
    "no_copy": 1,
    "read_only": 1
   },
-    {
-     "fieldname": "runtime_audit",
-     "fieldtype": "JSON",
-     "label": "Runtime Audit",
-     "no_copy": 1,
-     "read_only": 1
-    },
+  {
+   "fieldname": "runtime_audit",
+   "fieldtype": "JSON",
+   "label": "Runtime Audit",
+   "no_copy": 1,
+   "read_only": 1
+  },
   {
    "allow_in_quick_entry": 1,
    "fetch_from": "chat.model",
@@ -159,8 +159,8 @@
  "grid_page_length": 50,
  "index_web_pages_for_search": 1,
  "links": [],
- "modified": "2025-12-18 06:44:03.919589",
- "modified_by": "Administrator",
+ "modified": "2026-03-09 10:21:06.274315",
+ "modified_by": "info@kainotomo.com",
  "module": "Cognitive Folio",
  "name": "CF Chat Message",
  "owner": "Administrator",
