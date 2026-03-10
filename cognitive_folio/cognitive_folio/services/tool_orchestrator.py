@@ -365,17 +365,6 @@ class ToolOrchestrator:
                 # Track used tools for diversity nudges
                 if function_name:
                     used_tools.add(function_name)
-                    
-                    # Check for diversity nudge
-                    if not diversity_nudge_sent and round_index < max_rounds - 1:
-                        recommended_tools_list = recommendation.get("recommended_tools", []) if isinstance(recommendation, dict) else []
-                        unused = set(recommended_tools_list) - used_tools
-                        if unused:
-                            messages.append({
-                                "role": "system",
-                                "content": f"Consider also using {', '.join(unused)} to gather additional perspectives."
-                            })
-                            diversity_nudge_sent = True
 
                 self.chat_message._publish_chat_realtime(
                     event_name="cf_streaming_update",
@@ -387,6 +376,17 @@ class ToolOrchestrator:
                         "status": "streaming",
                     },
                 )
+            
+            # Check for diversity nudge (AFTER all tool results are appended)
+            if not diversity_nudge_sent and round_index < max_rounds - 1:
+                recommended_tools_list = recommendation.get("recommended_tools", []) if isinstance(recommendation, dict) else []
+                unused = set(recommended_tools_list) - used_tools
+                if unused:
+                    messages.append({
+                        "role": "system",
+                        "content": f"Consider also using {', '.join(unused)} to gather additional perspectives."
+                    })
+                    diversity_nudge_sent = True
 
         frappe.logger("cognitive_folio").warning(
             "Tool-call chain reached max rounds (%s) for message %s; forcing final synthesis.",
