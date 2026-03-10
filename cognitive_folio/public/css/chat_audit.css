@@ -103,6 +103,79 @@
     color: var(--blue-600) !important;
 }
 
+/* Tables for tool execution trace */
+.tool-execution-details table {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+}
+
+.tool-execution-details th {
+    font-weight: 600;
+    background-color: var(--bg-color);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tool-execution-details td {
+    vertical-align: middle;
+}
+
+.tool-execution-details .table-responsive {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Human-readable details sections */
+.human-readable-details h6 {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-color);
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.human-readable-details .pl-3 {
+    padding-left: 1rem;
+}
+
+.human-readable-details div {
+    margin-bottom: 0.25rem;
+}
+
+.human-readable-details strong {
+    font-weight: 600;
+    color: var(--text-color);
+    min-width: 160px;
+    display: inline-block;
+}
+
+.human-readable-details ol,
+.human-readable-details ul {
+    padding-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.human-readable-details li {
+    margin-bottom: 0.25rem;
+}
+
+/* Tool metrics cards */
+.tool-metrics-summary .frappe-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--bg-color);
+}
+
+.tool-metrics-summary .row.small {
+    font-size: 0.6875rem;
+}
+
+.tool-metrics-summary .col-6 {
+    margin-bottom: 0.25rem;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
     .chat-tokens-display .col-sm-4,
@@ -117,5 +190,18 @@
     .chat-tokens-display .frappe-card,
     .chat-audit-display .frappe-card {
         padding: 0.75rem;
+    }
+    
+    .tool-execution-details .table-responsive {
+        max-height: 200px;
+    }
+    
+    .human-readable-details strong {
+        min-width: 120px;
+    }
+    
+    .tool-metrics-summary .col-sm-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
     }
 }
