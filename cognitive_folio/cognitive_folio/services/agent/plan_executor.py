@@ -18,7 +18,9 @@ class PlanExecutor:
             f"Preferred tools: {tool_text}\n"
             "Plan steps:\n"
             f"{step_lines}\n"
-            "Use tool calls as needed, then provide a concise final synthesis."
+            "IMPORTANT: You should use each preferred tool at least once across rounds to gather comprehensive data. "
+            "Vary your tool calls — do not repeat the same tool unless you need different data from it. "
+            "After gathering data from multiple tools, provide a thorough final synthesis."
         )
 
     def should_inject_synthesis_nudge(self, round_index, max_rounds, synthesis_nudge_sent):
