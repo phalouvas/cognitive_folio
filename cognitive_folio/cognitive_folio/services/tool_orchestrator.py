@@ -394,13 +394,54 @@ class ToolOrchestrator:
             self.chat_message.name,
         )
         if not synthesis_nudge_sent:
-            messages.append({
-                "role": "system",
-                "content": (
-                    "You have used the maximum number of research rounds. "
-                    "Write your final, complete answer now based on what you have gathered."
-                ),
-            })
+            # Use section-based directive if tools were used, otherwise generic fallback
+            if tool_trace:
+                plan_steps = (plan or {}).get("steps") or []
+                
+                # Get user's original question for relevance re-anchoring
+                user_question = composition_context.get("latest_user_message", "").strip()
+                question_prefix = f"The user asked: '{user_question}'. " if user_question else ""
+                
+                # Use the last 3 plan steps (the "synthesis" oriented ones) as mandatory section headers.
+                # Explicitly named sections mean the model cannot satisfy the directive with a single
+                # short paragraph — it must address each section, naturally producing comprehensive output.
+                if plan_steps:
+                    sections = "\n".join(f"## {s}" for s in plan_steps[-3:])
+                    synthesis_directive = (
+                        f"{question_prefix}Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        "no further tool calls will be processed.\n\n"
+                        "You MUST produce ALL of the following sections using the data gathered above. "
+                        "Each section must be substantive (3+ sentences with specific data/numbers from tools). "
+                        "Directly address the user's question in each section.\n\n"
+                        f"{sections}\n\n"
+                        "Do NOT skip any section. Do NOT output raw parameter values. "
+                        "Begin with the first section heading immediately."
+                    )
+                else:
+                    synthesis_directive = (
+                        f"{question_prefix}Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        "no further tool calls will be processed from this point. "
+                        "You MUST now write a thorough, comprehensive response (minimum 500 words) "
+                        "using ALL the data gathered from the tool results above. "
+                        "Structure your response with ## headings, specific numbers/data from tools, "
+                        "and bullet points for key findings. "
+                        "Address EVERY aspect of the user's question in detail. "
+                        "Do NOT output raw parameter values or tool argument lists. "
+                        "Begin writing the complete detailed analysis immediately."
+                    )
+                messages.append({
+                    "role": "system",
+                    "content": synthesis_directive,
+                })
+            else:
+                # Generic fallback for cases where no tools were used
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "You have used the maximum number of research rounds. "
+                        "Write your final, complete answer now based on what you have gathered."
+                    ),
+                })
         final_response = self.chat_message._create_non_stream_completion_with_retry(
             client=client,
             messages=messages,
