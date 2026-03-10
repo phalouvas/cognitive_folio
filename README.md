@@ -38,11 +38,6 @@ bench start                         # Dev server
 bench worker --queue long           # Background jobs in separate terminal
 ```
 
-**Test**:
-```bash
-bench --site tmp.localhost run-tests --app cognitive_folio
-```
-
 ### Documentation
 
 - **[Copilot Instructions](.github/copilot-instructions.md)** — Full technical details (AI flows, prompt templating, financial variables, debugging)

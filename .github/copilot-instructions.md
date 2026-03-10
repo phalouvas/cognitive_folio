@@ -84,7 +84,6 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 
 ## Development Workflow
 - **Pre‑commit**: Uses ruff (import sorting, linting, formatting), prettier (JavaScript/SCSS), eslint. Run `pre‑commit install` in the app directory.
-- **Testing**: No built‑in test harness; use `bench --site tmp.localhost run‑tests --app cognitive_folio`. Temporary helpers can be added to `cognitive_folio/utils/tmp_testing.py` and removed after use.
 - **Background workers**: Start with `bench worker --queue long` in a separate terminal during development.
 - **Installation**: After `bench get‑app`, run `bench install‑app cognitive_folio` (triggers `after_install` which installs Python dependencies).
 

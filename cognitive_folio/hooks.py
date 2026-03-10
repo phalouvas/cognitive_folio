@@ -191,11 +191,6 @@ cognitive_folio_tool_handlers = {
 	"normalize_ticker": "cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.handle_normalize_ticker",
 }
 
-# Testing
-# -------
-
-before_tests = "cognitive_folio.install.before_tests"
-
 # Overriding Methods
 # ------------------------------
 #
