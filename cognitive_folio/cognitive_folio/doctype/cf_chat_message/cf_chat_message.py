@@ -379,6 +379,7 @@ class CFChatMessage(Document):
 				self.system_prompt = chat.system_prompt
 
 		self._update_rendered_prompt_preview()
+		self._format_tokens_and_audit_html()
 
 	def _update_rendered_prompt_preview(self):
 		"""Populate a read-only rendered prompt preview without mutating raw prompt."""
@@ -398,6 +399,339 @@ class CFChatMessage(Document):
 				)
 
 		self.rendered_prompt_preview = rendered_prompt
+
+	def _format_tokens_and_audit_html(self):
+		"""Format tokens and runtime_audit JSON data into human-readable HTML."""
+		try:
+			# Format tokens if data exists
+			if self.tokens:
+				try:
+					tokens_data = self.tokens if isinstance(self.tokens, dict) else frappe.parse_json(self.tokens)
+					self.tokens_html = self._format_tokens_html(tokens_data)
+				except Exception as e:
+					frappe.log_error(
+						title=f"Error formatting tokens HTML for {self.name}",
+						message=f"Tokens data: {self.tokens}\nError: {str(e)}"
+					)
+					self.tokens_html = f'<div class="text-danger">Error formatting token data: {frappe.utils.escape_html(str(e))}</div>'
+			
+			# Format runtime audit if data exists
+			if self.runtime_audit:
+				try:
+					audit_data = self.runtime_audit if isinstance(self.runtime_audit, dict) else frappe.parse_json(self.runtime_audit)
+					self.runtime_audit_html = self._format_runtime_audit_html(audit_data)
+				except Exception as e:
+					frappe.log_error(
+						title=f"Error formatting runtime audit HTML for {self.name}",
+						message=f"Audit data: {self.runtime_audit}\nError: {str(e)}"
+					)
+					self.runtime_audit_html = f'<div class="text-danger">Error formatting audit data: {frappe.utils.escape_html(str(e))}</div>'
+					
+		except Exception as e:
+			frappe.log_error(
+				title=f"Error in _format_tokens_and_audit_html for {self.name}",
+				message=str(e)
+			)
+
+	def _format_tokens_html(self, tokens_data):
+		"""Format tokens JSON data into HTML."""
+		if not tokens_data:
+			return '<div class="text-muted">No token data available</div>'
+		
+		html_parts = ['<div class="chat-tokens-display">']
+		
+		# Token summary
+		html_parts.append('<div class="token-summary frappe-card mb-3">')
+		html_parts.append('<h6 class="mb-2">Token Summary</h6>')
+		html_parts.append('<div class="row">')
+		
+		if tokens_data.get('prompt_tokens') is not None:
+			html_parts.append(f'''
+				<div class="col-sm-4 mb-2">
+					<div class="text-muted small">Prompt Tokens</div>
+					<div class="font-weight-bold">{self._format_number(tokens_data['prompt_tokens'])}</div>
+				</div>
+			''')
+		
+		if tokens_data.get('completion_tokens') is not None:
+			html_parts.append(f'''
+				<div class="col-sm-4 mb-2">
+					<div class="text-muted small">Completion Tokens</div>
+					<div class="font-weight-bold">{self._format_number(tokens_data['completion_tokens'])}</div>
+				</div>
+			''')
+		
+		if tokens_data.get('total_tokens') is not None:
+			html_parts.append(f'''
+				<div class="col-sm-4 mb-2">
+					<div class="text-muted small">Total Tokens</div>
+					<div class="font-weight-bold">{self._format_number(tokens_data['total_tokens'])}</div>
+				</div>
+			''')
+		
+		html_parts.append('</div></div>')
+		
+		# Model and finish reason
+		if tokens_data.get('model') or tokens_data.get('finish_reason'):
+			html_parts.append('<div class="model-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Model Information</h6>')
+			html_parts.append('<div class="row">')
+			
+			if tokens_data.get('model'):
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Model</div>
+						<div class="font-weight-bold">{frappe.utils.escape_html(tokens_data['model'])}</div>
+					</div>
+				''')
+			
+			if tokens_data.get('finish_reason'):
+				reason = tokens_data['finish_reason']
+				reason_display = {
+					'stop': 'Normal completion',
+					'length': 'Max tokens reached',
+					'content_filter': 'Content filtered',
+					'tool_calls': 'Tool calls requested',
+					'function_call': 'Function call requested'
+				}.get(reason, reason)
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Finish Reason</div>
+						<div class="font-weight-bold">{frappe.utils.escape_html(reason_display)}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		# Duration and tool calls
+		if tokens_data.get('duration_ms') is not None or tokens_data.get('tool_calls') is not None:
+			html_parts.append('<div class="performance-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Performance</h6>')
+			html_parts.append('<div class="row">')
+			
+			if tokens_data.get('duration_ms') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Duration</div>
+						<div class="font-weight-bold">{self._format_duration(tokens_data['duration_ms'])}</div>
+					</div>
+				''')
+			
+			if tokens_data.get('tool_calls') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Tool Calls</div>
+						<div class="font-weight-bold">{self._format_number(tokens_data['tool_calls'])}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		html_parts.append('</div>')
+		return ''.join(html_parts)
+
+	def _format_runtime_audit_html(self, audit_data):
+		"""Format runtime audit JSON data into HTML."""
+		if not audit_data:
+			return '<div class="text-muted">No runtime audit data available</div>'
+		
+		html_parts = ['<div class="chat-audit-display">']
+		
+		# Augmentations and context
+		if audit_data.get('augmentations') or audit_data.get('context_injection'):
+			html_parts.append('<div class="augmentations-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Context & Augmentations</h6>')
+			html_parts.append('<div class="row">')
+			
+			if audit_data.get('augmentations'):
+				aug_count = len(audit_data['augmentations']) if isinstance(audit_data['augmentations'], list) else 0
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Augmentations</div>
+						<div class="font-weight-bold">{self._format_number(aug_count)}</div>
+					</div>
+				''')
+			
+			if audit_data.get('context_injection'):
+				has_context = audit_data['context_injection'] is True or (
+					isinstance(audit_data['context_injection'], dict) and 
+					len(audit_data['context_injection']) > 0
+				)
+				status_class = 'text-success' if has_context else 'text-muted'
+				status_text = 'Yes' if has_context else 'No'
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Context Injected</div>
+						<div class="font-weight-bold {status_class}">{status_text}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		# Web search summary
+		web_search = audit_data.get('web_search')
+		if web_search:
+			html_parts.append('<div class="web-search-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Web Search</h6>')
+			html_parts.append('<div class="row">')
+			
+			if web_search.get('queries'):
+				query_count = len(web_search['queries']) if isinstance(web_search['queries'], list) else 0
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Queries</div>
+						<div class="font-weight-bold">{self._format_number(query_count)}</div>
+					</div>
+				''')
+			
+			if web_search.get('results'):
+				result_count = len(web_search['results']) if isinstance(web_search['results'], list) else 0
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Results</div>
+						<div class="font-weight-bold">{self._format_number(result_count)}</div>
+					</div>
+				''')
+			
+			if web_search.get('duration_ms') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Search Time</div>
+						<div class="font-weight-bold">{self._format_duration(web_search['duration_ms'])}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		# Tool execution
+		tool_execution = audit_data.get('tool_execution')
+		if tool_execution:
+			html_parts.append('<div class="tool-execution-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Tool Execution</h6>')
+			html_parts.append('<div class="row">')
+			
+			if tool_execution.get('rounds') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Rounds</div>
+						<div class="font-weight-bold">{self._format_number(tool_execution['rounds'])}</div>
+					</div>
+				''')
+			
+			if tool_execution.get('total_calls') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Total Calls</div>
+						<div class="font-weight-bold">{self._format_number(tool_execution['total_calls'])}</div>
+					</div>
+				''')
+			
+			if tool_execution.get('duration_ms') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Tool Time</div>
+						<div class="font-weight-bold">{self._format_duration(tool_execution['duration_ms'])}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		# Monitoring and quality
+		if audit_data.get('monitoring_alerts') is not None or audit_data.get('quality_score') is not None:
+			html_parts.append('<div class="monitoring-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Monitoring & Quality</h6>')
+			html_parts.append('<div class="row">')
+			
+			if audit_data.get('monitoring_alerts') is not None:
+				alert_count = len(audit_data['monitoring_alerts']) if isinstance(audit_data['monitoring_alerts'], list) else 0
+				status_class = 'text-warning' if alert_count > 0 else 'text-success'
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Monitoring Alerts</div>
+						<div class="font-weight-bold {status_class}">{self._format_number(alert_count)}</div>
+					</div>
+				''')
+			
+			if audit_data.get('quality_score') is not None:
+				score = audit_data['quality_score']
+				score_class = 'text-success' if score >= 0.8 else 'text-warning' if score >= 0.6 else 'text-danger'
+				html_parts.append(f'''
+					<div class="col-sm-6 mb-2">
+						<div class="text-muted small">Quality Score</div>
+						<div class="font-weight-bold {score_class}">{self._format_percent(score)}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		# Memory usage
+		memory_usage = audit_data.get('memory_usage')
+		if memory_usage:
+			html_parts.append('<div class="memory-info frappe-card mb-3">')
+			html_parts.append('<h6 class="mb-2">Memory Usage</h6>')
+			html_parts.append('<div class="row">')
+			
+			if memory_usage.get('context_tokens') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Context Tokens</div>
+						<div class="font-weight-bold">{self._format_number(memory_usage['context_tokens'])}</div>
+					</div>
+				''')
+			
+			if memory_usage.get('memory_tokens') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Memory Tokens</div>
+						<div class="font-weight-bold">{self._format_number(memory_usage['memory_tokens'])}</div>
+					</div>
+				''')
+			
+			if memory_usage.get('total_tokens') is not None:
+				html_parts.append(f'''
+					<div class="col-sm-4 mb-2">
+						<div class="text-muted small">Total Memory Tokens</div>
+						<div class="font-weight-bold">{self._format_number(memory_usage['total_tokens'])}</div>
+					</div>
+				''')
+			
+			html_parts.append('</div></div>')
+		
+		html_parts.append('</div>')
+		return ''.join(html_parts)
+
+	def _format_number(self, num):
+		"""Format number with thousands separators."""
+		if num is None:
+			return 'N/A'
+		try:
+			return f"{int(num):,}"
+		except (ValueError, TypeError):
+			return str(num)
+
+	def _format_duration(self, ms):
+		"""Format duration in milliseconds."""
+		if ms is None:
+			return 'N/A'
+		try:
+			ms = float(ms)
+			if ms < 1000:
+				return f"{ms:.0f}ms"
+			elif ms < 60000:
+				return f"{ms/1000:.2f}s"
+			else:
+				return f"{ms/60000:.2f}m"
+		except (ValueError, TypeError):
+			return str(ms)
+
+	def _format_percent(self, value):
+		"""Format percentage."""
+		if value is None:
+			return 'N/A'
+		try:
+			return f"{float(value)*100:.1f}%"
+		except (ValueError, TypeError):
+			return str(value)
 
 	@frappe.whitelist()
 	def process(self):

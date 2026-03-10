@@ -22,7 +22,9 @@
   "response_html",
   "reasoning",
   "tokens_section",
+  "tokens_html",
   "tokens",
+  "runtime_audit_html",
   "runtime_audit"
  ],
  "fields": [
@@ -64,16 +66,32 @@
    "no_copy": 1
   },
   {
+   "description": "Human-readable HTML display of token data",
+   "fieldname": "tokens_html",
+   "fieldtype": "HTML",
+   "label": "Tokens (Formatted)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
    "fieldname": "tokens",
    "fieldtype": "JSON",
-   "label": "Tokens",
+   "label": "Tokens (Raw JSON)",
+   "no_copy": 1,
+   "read_only": 1
+  },
+  {
+   "description": "Human-readable HTML display of runtime audit data",
+   "fieldname": "runtime_audit_html",
+   "fieldtype": "HTML",
+   "label": "Runtime Audit (Formatted)",
    "no_copy": 1,
    "read_only": 1
   },
   {
    "fieldname": "runtime_audit",
    "fieldtype": "JSON",
-   "label": "Runtime Audit",
+   "label": "Runtime Audit (Raw JSON)",
    "no_copy": 1,
    "read_only": 1
   },

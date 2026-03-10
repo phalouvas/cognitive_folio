@@ -5,6 +5,7 @@ frappe.ui.form.on("CF Chat Message", {
     
     refresh(frm) {
         set_model_options_from_settings(frm);
+        format_tokens_and_audit_data(frm);
 
         frm.add_custom_button(__('Send'), function() {
             frm.call({
@@ -23,6 +24,17 @@ frappe.ui.form.on("CF Chat Message", {
                 }
             });
         }).addClass('btn-primary');
+        
+        // Add button to refresh formatted display
+        if (!frm.is_new() && (frm.doc.tokens || frm.doc.runtime_audit)) {
+            frm.add_custom_button(__('Refresh Formatted Display'), function() {
+                format_tokens_and_audit_data(frm, true);
+                frappe.show_alert({
+                    message: __('Formatted display refreshed'),
+                    indicator: 'green'
+                });
+            }, __('Actions'));
+        }
     },
     
     template_prompt(frm) {
@@ -60,5 +72,46 @@ function set_model_options_from_settings(frm) {
         frm.refresh_field('model');
     }).catch(() => {
         // Keep existing static options if model fetch fails
+    });
+}
+
+/**
+ * Format tokens and runtime audit data into human-readable HTML
+ * @param {Object} frm - Form object
+ * @param {boolean} forceRefresh - Whether to force refresh even if HTML already exists
+ */
+function format_tokens_and_audit_data(frm, forceRefresh = false) {
+    // Load formatting utilities
+    frappe.require([
+        '/assets/cognitive_folio/js/chat_formatters.js',
+        '/assets/cognitive_folio/css/chat_audit.css'
+    ], function() {
+        // Format tokens if data exists
+        if (frm.doc.tokens && (forceRefresh || !frm.doc.tokens_html)) {
+            try {
+                const tokensHtml = window.formatTokensForDisplay(frm.doc.tokens);
+                frm.set_df_property('tokens_html', 'options', tokensHtml);
+            } catch (error) {
+                console.error('Error formatting tokens:', error);
+                frm.set_df_property('tokens_html', 'options', 
+                    `<div class="text-danger">Error formatting token data: ${error.message}</div>`);
+            }
+        }
+        
+        // Format runtime audit if data exists
+        if (frm.doc.runtime_audit && (forceRefresh || !frm.doc.runtime_audit_html)) {
+            try {
+                const auditHtml = window.formatRuntimeAuditForDisplay(frm.doc.runtime_audit);
+                frm.set_df_property('runtime_audit_html', 'options', auditHtml);
+            } catch (error) {
+                console.error('Error formatting runtime audit:', error);
+                frm.set_df_property('runtime_audit_html', 'options', 
+                    `<div class="text-danger">Error formatting audit data: ${error.message}</div>`);
+            }
+        }
+        
+        // Refresh fields to show formatted content
+        frm.refresh_field('tokens_html');
+        frm.refresh_field('runtime_audit_html');
     });
 }
