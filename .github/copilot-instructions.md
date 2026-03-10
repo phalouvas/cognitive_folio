@@ -32,6 +32,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`.
 - **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-reasoner` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
 - **Lifecycle cleanup**: `CF Chat Message.on_trash()` and `.on_cancel()` detach noncritical monitoring/compliance links so cancel/delete actions are not blocked by linked analytics records.
+- **Enhanced metrics display**: Tokens and runtime audit data are automatically formatted into human-readable HTML via `_format_tokens_and_audit_html()` and displayed in the UI with detailed breakdowns including token counts, tool execution traces, and performance metrics.
 
 ### Connected Context Injection
 - Controlled by `CF Chat Message.implicit_chat_context` (checkbox).
@@ -46,6 +47,10 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 
 ## Tool Call Chain & Thinking Mode
 - **`_run_tool_call_chain`**: core agentic loop. Sends completion requests, executes returned tool calls, appends results, repeats. A synthesis nudge is injected 2 rounds before `max_tool_rounds`; on the final round `tools` is omitted entirely to force a text response.
+- **Early-stop quality check**: The system detects when tools were used but the model stopped early with weak content (less than 1500 characters or lacking good structure). In such cases, synthesis is expanded to ensure comprehensive responses.
+- **Structure validation**: `_has_good_structure()` checks for markdown headings, bullet points, numbered lists, and bold text to determine if a response has adequate structure for synthesis.
+- **Weak synthesis detection**: `_is_weak_synthesis_content()` identifies shallow responses that need expansion, particularly after tool usage or synthesis nudges.
+- **Enhanced final synthesis**: For high-complexity queries, the system ensures comprehensive responses with structured sections through improved synthesis directives.
 - **DeepSeek-Reasoner DSML fallback**: if the model emits DSML markup (`<｜DSML｜…>`) in `content` instead of `tool_calls` (can happen when tools are absent on the last round), `_content_looks_like_dsml` detects it, the markup is discarded, and the post-loop forced synthesis call produces the real answer.
 - **Multi-turn thinking**: `reasoning_content` is included in assistant messages within the same tool-call chain (required by the DeepSeek API). Before a new user turn, `_clear_reasoning_content` strips it from history to save bandwidth and avoid a 400 error.
 - **Unsupported params**: `_strip_unsupported_request_params` dynamically removes parameters rejected by the endpoint (e.g. `temperature`, `top_p`, `seed`, `extra_body`) and retries automatically.
@@ -82,6 +87,13 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
 - **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-reasoner"` if not set to favor more reliable complex financial analysis.
 
+## UI Components & Display Features
+- **Chat audit display**: Enhanced HTML formatting for tokens and runtime audit data via `chat_formatters.js` and `chat_audit.css`.
+- **Tool execution trace**: Detailed breakdown of tool calls including round number, tool name, status, duration, and query/arguments.
+- **Token visualization**: Clear display of prompt tokens, completion tokens, total tokens, duration, and tool call counts.
+- **Performance metrics**: Formatted display of tokens per second and cost estimates where available.
+- **Responsive design**: CSS styling for audit displays with proper spacing, borders, and typography.
+
 ## Development Workflow
 - **Pre‑commit**: Uses ruff (import sorting, linting, formatting), prettier (JavaScript/SCSS), eslint. Run `pre‑commit install` in the app directory.
 - **Background workers**: Start with `bench worker --queue long` in a separate terminal during development.
@@ -102,6 +114,9 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - **Missing dependencies**: If `openai` import fails, log instructions to run `bench pip install openai`.
 - **SEC EDGAR integration**: Uses `edgartools`; CIK lookup via `CF Security.fetch_cik()`.
 - **Yahoo Finance**: Guard with `YFINANCE_INSTALLED` flag; fallback gracefully.
+- **Weak synthesis detection**: Monitor for early-stop scenarios where tools were used but response is brief or lacks structure. Use `_is_weak_synthesis_content()` and `_has_good_structure()` checks.
+- **High-complexity queries**: For complex queries, ensure adequate tool rounds and watch for synthesis quality. The system now has enhanced logic for max rounds and synthesis directives.
+- **Metrics display**: Ensure `_format_tokens_and_audit_html()` is called to properly format audit data for UI display.
 
 ## References
 - `cognitive_folio/utils/helper.py` – variable substitution, JSON cleaning.
@@ -110,3 +125,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - `cognitive_folio/tasks.py` – scheduled tasks.
 - `cognitive_folio/hooks.py` – app hooks, scheduler events.
 - `cognitive_folio/install.py` – dependency installation.
+- `cognitive_folio/cognitive_folio/doctype/cf_chat_message/cf_chat_message.py` – chat message processing with enhanced metrics formatting.
+- `cognitive_folio/cognitive_folio/services/tool_orchestrator.py` – tool orchestration with early-stop quality checks and enhanced synthesis.
+- `cognitive_folio/public/js/chat_formatters.js` – JavaScript utilities for formatting tokens and audit data.
+- `cognitive_folio/public/css/chat_audit.css` – CSS styling for audit displays.
