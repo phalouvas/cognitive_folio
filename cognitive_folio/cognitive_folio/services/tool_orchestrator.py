@@ -224,7 +224,15 @@ class ToolOrchestrator:
                 )
 
                 nudge_min_chars = max(800, round_index * 500) if synthesis_nudge_sent else None
-                if should_expand or (
+                
+                # Early-stop quality check: if tools were used but model stopped early with weak content
+                # Check for both length (< 1500 chars) and structure (headings, bullet points)
+                early_stop_weak = bool(tool_trace) and not synthesis_nudge_sent and (
+                    len(assistant_content or "") < 1500 or 
+                    not self._has_good_structure(assistant_content)
+                )
+                
+                if should_expand or early_stop_weak or (
                     (synthesis_nudge_sent or tool_trace) and self._is_weak_synthesis_content(
                         assistant_content, round_index, min_chars=nudge_min_chars
                     )
@@ -365,17 +373,6 @@ class ToolOrchestrator:
                 # Track used tools for diversity nudges
                 if function_name:
                     used_tools.add(function_name)
-                    
-                    # Check for diversity nudge
-                    if not diversity_nudge_sent and round_index < max_rounds - 1:
-                        recommended_tools_list = recommendation.get("recommended_tools", []) if isinstance(recommendation, dict) else []
-                        unused = set(recommended_tools_list) - used_tools
-                        if unused:
-                            messages.append({
-                                "role": "system",
-                                "content": f"Consider also using {', '.join(unused)} to gather additional perspectives."
-                            })
-                            diversity_nudge_sent = True
 
                 self.chat_message._publish_chat_realtime(
                     event_name="cf_streaming_update",
@@ -387,6 +384,17 @@ class ToolOrchestrator:
                         "status": "streaming",
                     },
                 )
+            
+            # Check for diversity nudge (AFTER all tool results are appended)
+            if not diversity_nudge_sent and round_index < max_rounds:
+                recommended_tools_list = recommendation.get("recommended_tools", []) if isinstance(recommendation, dict) else []
+                unused = set(recommended_tools_list) - used_tools
+                if unused:
+                    messages.append({
+                        "role": "system",
+                        "content": f"Consider also using {', '.join(unused)} to gather additional perspectives."
+                    })
+                    diversity_nudge_sent = True
 
         frappe.logger("cognitive_folio").warning(
             "Tool-call chain reached max rounds (%s) for message %s; forcing final synthesis.",
@@ -394,13 +402,54 @@ class ToolOrchestrator:
             self.chat_message.name,
         )
         if not synthesis_nudge_sent:
-            messages.append({
-                "role": "system",
-                "content": (
-                    "You have used the maximum number of research rounds. "
-                    "Write your final, complete answer now based on what you have gathered."
-                ),
-            })
+            # Use section-based directive if tools were used, otherwise generic fallback
+            if tool_trace:
+                plan_steps = (plan or {}).get("steps") or []
+                
+                # Get user's original question for relevance re-anchoring
+                user_question = composition_context.get("latest_user_message", "").strip()
+                question_prefix = f"The user asked: '{user_question}'. " if user_question else ""
+                
+                # Use the last 3 plan steps (the "synthesis" oriented ones) as mandatory section headers.
+                # Explicitly named sections mean the model cannot satisfy the directive with a single
+                # short paragraph — it must address each section, naturally producing comprehensive output.
+                if plan_steps:
+                    sections = "\n".join(f"## {s}" for s in plan_steps[-3:])
+                    synthesis_directive = (
+                        f"{question_prefix}Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        "no further tool calls will be processed.\n\n"
+                        "You MUST produce ALL of the following sections using the data gathered above. "
+                        "Each section must be substantive (3+ sentences with specific data/numbers from tools). "
+                        "Directly address the user's question in each section.\n\n"
+                        f"{sections}\n\n"
+                        "Do NOT skip any section. Do NOT output raw parameter values. "
+                        "Begin with the first section heading immediately."
+                    )
+                else:
+                    synthesis_directive = (
+                        f"{question_prefix}Research phase complete. FINAL SYNTHESIS REQUIRED — "
+                        "no further tool calls will be processed from this point. "
+                        "You MUST now write a thorough, comprehensive response (minimum 500 words) "
+                        "using ALL the data gathered from the tool results above. "
+                        "Structure your response with ## headings, specific numbers/data from tools, "
+                        "and bullet points for key findings. "
+                        "Address EVERY aspect of the user's question in detail. "
+                        "Do NOT output raw parameter values or tool argument lists. "
+                        "Begin writing the complete detailed analysis immediately."
+                    )
+                messages.append({
+                    "role": "system",
+                    "content": synthesis_directive,
+                })
+            else:
+                # Generic fallback for cases where no tools were used
+                messages.append({
+                    "role": "system",
+                    "content": (
+                        "You have used the maximum number of research rounds. "
+                        "Write your final, complete answer now based on what you have gathered."
+                    ),
+                })
         final_response = self.chat_message._create_non_stream_completion_with_retry(
             client=client,
             messages=messages,
@@ -490,6 +539,31 @@ class ToolOrchestrator:
             )
             if opener_is_planning and not has_structure:
                 return True
+        return False
+
+    def _has_good_structure(self, content):
+        """Check if content has good structure (headings, lists, etc.) for a synthesis response."""
+        if not content:
+            return False
+        
+        # Check for markdown headings (## or ###)
+        if "##" in content:
+            return True
+        
+        # Check for bullet points or numbered lists
+        if "\n-" in content or "\n*" in content or "\n1." in content:
+            return True
+        
+        # Check for bold text (often used for emphasis in structured responses)
+        if "**" in content:
+            return True
+        
+        # Check for reasonable paragraph structure (multiple line breaks)
+        lines = content.split('\n')
+        non_empty_lines = [line.strip() for line in lines if line.strip()]
+        if len(non_empty_lines) >= 3:
+            return True
+        
         return False
 
     def _should_expand_response(self, content, tool_trace, synthesis_nudge_sent):

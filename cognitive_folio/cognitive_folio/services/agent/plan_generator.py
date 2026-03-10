@@ -28,7 +28,7 @@ class PlanGenerator:
         plan_max_rounds = int(max_rounds)
         if complexity == "high" and len(recommended_tools) >= 3:
             # Allow enough rounds for each tool + buffer + synthesis
-            plan_max_rounds = min(int(max_rounds), len(recommended_tools) + 2)
+            plan_max_rounds = max(int(max_rounds), len(recommended_tools) + 2)
             plan_max_rounds = min(plan_max_rounds, 8)  # Cap at 8 to avoid excessive latency
 
         return {
