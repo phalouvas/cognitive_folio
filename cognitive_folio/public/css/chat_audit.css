@@ -1,0 +1,207 @@
+/* Chat audit and tokens display styling */
+
+.chat-tokens-display,
+.chat-audit-display {
+    font-size: 0.875rem;
+}
+
+.chat-tokens-display .frappe-card,
+.chat-audit-display .frappe-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 1rem;
+    margin-bottom: 1rem;
+    background: var(--fg-color);
+}
+
+.chat-tokens-display h6,
+.chat-audit-display h6 {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--text-color);
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 0.5rem;
+    margin-bottom: 1rem;
+}
+
+.chat-tokens-display .text-muted,
+.chat-audit-display .text-muted {
+    font-size: 0.75rem;
+    color: var(--text-muted) !important;
+}
+
+.chat-tokens-display .font-weight-bold,
+.chat-audit-display .font-weight-bold {
+    font-weight: 600;
+    color: var(--text-color);
+}
+
+.chat-tokens-display .row,
+.chat-audit-display .row {
+    margin-left: -0.5rem;
+    margin-right: -0.5rem;
+}
+
+.chat-tokens-display .col-sm-4,
+.chat-tokens-display .col-sm-6,
+.chat-audit-display .col-sm-4,
+.chat-audit-display .col-sm-6 {
+    padding-left: 0.5rem;
+    padding-right: 0.5rem;
+}
+
+/* Full details section */
+.full-details .details-toggle {
+    text-decoration: none;
+    color: var(--text-color);
+    display: block;
+}
+
+.full-details .details-toggle:hover {
+    color: var(--primary);
+}
+
+.full-details .details-toggle h6 {
+    border-bottom: none;
+    padding-bottom: 0;
+    margin-bottom: 0;
+}
+
+.full-details .details-toggle .icon {
+    margin-right: 0.5rem;
+    vertical-align: middle;
+}
+
+.full-details .details-content {
+    border-top: 1px solid var(--border-color);
+    padding-top: 1rem;
+}
+
+.full-details pre {
+    font-size: 0.75rem;
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 0;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+}
+
+/* Color coding for status */
+.text-success {
+    color: var(--green-600) !important;
+}
+
+.text-warning {
+    color: var(--orange-600) !important;
+}
+
+.text-danger {
+    color: var(--red-600) !important;
+}
+
+.text-info {
+    color: var(--blue-600) !important;
+}
+
+/* Tables for tool execution trace */
+.tool-execution-details table {
+    font-size: 0.75rem;
+    margin-bottom: 0;
+}
+
+.tool-execution-details th {
+    font-weight: 600;
+    background-color: var(--bg-color);
+    border-bottom: 2px solid var(--border-color);
+}
+
+.tool-execution-details td {
+    vertical-align: middle;
+}
+
+.tool-execution-details .table-responsive {
+    max-height: 300px;
+    overflow-y: auto;
+}
+
+/* Human-readable details sections */
+.human-readable-details h6 {
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--text-color);
+    border-bottom: 1px dashed var(--border-color);
+    padding-bottom: 0.25rem;
+    margin-bottom: 0.75rem;
+}
+
+.human-readable-details .pl-3 {
+    padding-left: 1rem;
+}
+
+.human-readable-details div {
+    margin-bottom: 0.25rem;
+}
+
+.human-readable-details strong {
+    font-weight: 600;
+    color: var(--text-color);
+    min-width: 160px;
+    display: inline-block;
+}
+
+.human-readable-details ol,
+.human-readable-details ul {
+    padding-left: 1.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.human-readable-details li {
+    margin-bottom: 0.25rem;
+}
+
+/* Tool metrics cards */
+.tool-metrics-summary .frappe-card {
+    border: 1px solid var(--border-color);
+    border-radius: var(--border-radius);
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--bg-color);
+}
+
+.tool-metrics-summary .row.small {
+    font-size: 0.6875rem;
+}
+
+.tool-metrics-summary .col-6 {
+    margin-bottom: 0.25rem;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .chat-tokens-display .col-sm-4,
+    .chat-tokens-display .col-sm-6,
+    .chat-audit-display .col-sm-4,
+    .chat-audit-display .col-sm-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+        margin-bottom: 0.5rem;
+    }
+    
+    .chat-tokens-display .frappe-card,
+    .chat-audit-display .frappe-card {
+        padding: 0.75rem;
+    }
+    
+    .tool-execution-details .table-responsive {
+        max-height: 200px;
+    }
+    
+    .human-readable-details strong {
+        min-width: 120px;
+    }
+    
+    .tool-metrics-summary .col-sm-6 {
+        flex: 0 0 100%;
+        max-width: 100%;
+    }
+}
