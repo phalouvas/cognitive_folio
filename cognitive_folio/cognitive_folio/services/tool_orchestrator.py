@@ -224,7 +224,15 @@ class ToolOrchestrator:
                 )
 
                 nudge_min_chars = max(800, round_index * 500) if synthesis_nudge_sent else None
-                if should_expand or (
+                
+                # Early-stop quality check: if tools were used but model stopped early with weak content
+                # Check for both length (< 1500 chars) and structure (headings, bullet points)
+                early_stop_weak = bool(tool_trace) and not synthesis_nudge_sent and (
+                    len(assistant_content or "") < 1500 or 
+                    not self._has_good_structure(assistant_content)
+                )
+                
+                if should_expand or early_stop_weak or (
                     (synthesis_nudge_sent or tool_trace) and self._is_weak_synthesis_content(
                         assistant_content, round_index, min_chars=nudge_min_chars
                     )
@@ -378,7 +386,7 @@ class ToolOrchestrator:
                 )
             
             # Check for diversity nudge (AFTER all tool results are appended)
-            if not diversity_nudge_sent and round_index < max_rounds - 1:
+            if not diversity_nudge_sent and round_index < max_rounds:
                 recommended_tools_list = recommendation.get("recommended_tools", []) if isinstance(recommendation, dict) else []
                 unused = set(recommended_tools_list) - used_tools
                 if unused:
@@ -531,6 +539,31 @@ class ToolOrchestrator:
             )
             if opener_is_planning and not has_structure:
                 return True
+        return False
+
+    def _has_good_structure(self, content):
+        """Check if content has good structure (headings, lists, etc.) for a synthesis response."""
+        if not content:
+            return False
+        
+        # Check for markdown headings (## or ###)
+        if "##" in content:
+            return True
+        
+        # Check for bullet points or numbered lists
+        if "\n-" in content or "\n*" in content or "\n1." in content:
+            return True
+        
+        # Check for bold text (often used for emphasis in structured responses)
+        if "**" in content:
+            return True
+        
+        # Check for reasonable paragraph structure (multiple line breaks)
+        lines = content.split('\n')
+        non_empty_lines = [line.strip() for line in lines if line.strip()]
+        if len(non_empty_lines) >= 3:
+            return True
+        
         return False
 
     def _should_expand_response(self, content, tool_trace, synthesis_nudge_sent):
