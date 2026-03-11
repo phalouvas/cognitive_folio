@@ -87,6 +87,13 @@ class QueryAnalyzer:
         "price to earnings",
         "dividend yield",
         "market cap",
+        "with p/e",
+        "p/e",
+        "dividend",
+        "financial criteria",
+        "screening criteria",
+        "filter by",
+        "screen by",
     )
 
     def analyze(self, messages, config=None):

@@ -11,9 +11,6 @@ try:
 except ImportError:
     YFINANCE_INSTALLED = False
 
-# We'll import modules lazily when needed to avoid import errors
-CF_SECURITY_AVAILABLE = True  # Assume available, will check in handler
-
 
 def get_tool_definitions(chat_message=None):
     """Return plugin-contributed tool definitions for securities discovery."""
@@ -72,15 +69,8 @@ def handle_discover_securities(chat_message, args, portfolio_doc=None, security_
     if not YFINANCE_INSTALLED:
         raise ValueError("yfinance is not installed. Please install it to use securities discovery.")
     
-    # Try to import required modules lazily
-    try:
-        from cognitive_folio.cognitive_folio.doctype.cf_security.cf_security import search_stock_symbols
-        from cognitive_folio.cognitive_folio.utils.helper import get_edgar_data
-        from cognitive_folio.cognitive_folio.services.performance.reliability import CircuitBreakerManager, RateLimiter
-        from cognitive_folio.cognitive_folio.services.performance.search_caching import SearchResultCache
-    except ImportError as e:
-        frappe.log_error(f"Failed to import required modules for discover_securities: {str(e)}", "Discovery Tools")
-        raise ValueError(f"Required CF Security modules are not available: {str(e)}")
+    # All imports will be done lazily within the functions that need them
+    # This avoids import errors in the Frappe execution context
     
     # Extract parameters
     sector = args.get("sector")
@@ -91,29 +81,6 @@ def handle_discover_securities(chat_message, args, portfolio_doc=None, security_
     dividend_yield_min = args.get("dividend_yield_min")
     dividend_yield_max = args.get("dividend_yield_max")
     max_results = args.get("max_results", 10)
-    
-    # Initialize rate limiter and circuit breaker
-    rate_limiter = RateLimiter()
-    circuit_breaker = CircuitBreakerManager()
-    search_cache = SearchResultCache()
-    
-    # Create cache key
-    cache_key = {
-        "operation": "discover_securities",
-        "sector": sector,
-        "market_cap_min": market_cap_min,
-        "market_cap_max": market_cap_max,
-        "pe_min": pe_min,
-        "pe_max": pe_max,
-        "dividend_yield_min": dividend_yield_min,
-        "dividend_yield_max": dividend_yield_max,
-        "max_results": max_results
-    }
-    
-    # Check cache first
-    cached = search_cache.get("discover_securities", cache_key)
-    if cached:
-        return cached
     
     try:
         # Step 1: Get initial candidate symbols
@@ -140,16 +107,12 @@ def handle_discover_securities(chat_message, args, portfolio_doc=None, security_
             dividend_yield_max=dividend_yield_max,
             market_cap_min=market_cap_min,
             market_cap_max=market_cap_max,
-            max_results=max_results,
-            rate_limiter=rate_limiter,
-            circuit_breaker=circuit_breaker
+            max_results=max_results
         )
         
         # Step 3: Enrich with additional data
         enriched_securities = _enrich_securities_data(
-            securities=filtered_securities,
-            rate_limiter=rate_limiter,
-            circuit_breaker=circuit_breaker
+            securities=filtered_securities
         )
         
         result = {
@@ -163,9 +126,6 @@ def handle_discover_securities(chat_message, args, portfolio_doc=None, security_
                 "dividend_yield_range": f"{dividend_yield_min or 'Any'}% to {dividend_yield_max or 'Any'}%"
             }
         }
-        
-        # Cache the result
-        search_cache.set("discover_securities", cache_key, result)
         
         return result
         
@@ -238,7 +198,7 @@ def _get_initial_candidates(sector=None, market_cap_min=None, market_cap_max=Non
 
 def _apply_financial_filters(candidates, pe_min=None, pe_max=None, dividend_yield_min=None,
                             dividend_yield_max=None, market_cap_min=None, market_cap_max=None,
-                            max_results=10, rate_limiter=None, circuit_breaker=None):
+                            max_results=10):
     """Apply financial filters to candidates using Yahoo Finance data."""
     filtered = []
     
@@ -251,14 +211,10 @@ def _apply_financial_filters(candidates, pe_min=None, pe_max=None, dividend_yiel
             continue
         
         try:
-            # Apply rate limiting
-            if rate_limiter:
-                rate_limiter.check_limit("yfinance", "discovery")
-            
             # Fetch ticker data
             ticker = yf.Ticker(symbol)
             
-            # Get info with timeout
+            # Get info
             info = ticker.get_info()
             
             # Apply market cap filter
@@ -309,7 +265,7 @@ def _apply_financial_filters(candidates, pe_min=None, pe_max=None, dividend_yiel
     return filtered
 
 
-def _enrich_securities_data(securities, rate_limiter=None, circuit_breaker=None):
+def _enrich_securities_data(securities):
     """Enrich securities with additional data (news, SEC filings)."""
     enriched = []
     
@@ -319,9 +275,6 @@ def _enrich_securities_data(securities, rate_limiter=None, circuit_breaker=None)
         try:
             # Get news
             try:
-                if rate_limiter:
-                    rate_limiter.check_limit("yfinance", "news")
-                
                 ticker = yf.Ticker(symbol)
                 news_items = ticker.get_news()
                 if news_items:
