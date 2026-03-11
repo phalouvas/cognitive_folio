@@ -56,6 +56,32 @@ class QueryAnalyzer:
         "2027",
     )
 
+    _DISCOVERY_MARKERS = (
+        "discover",
+        "find stocks",
+        "find me stocks",
+        "search for companies",
+        "search for stocks",
+        "investment ideas",
+        "good candidates",
+        "purchase based on financials",
+        "screen stocks",
+        "filter stocks",
+        "stocks with",
+        "companies with",
+        "high dividend",
+        "low pe",
+        "undervalued",
+        "growth stocks",
+        "value stocks",
+        "investment opportunities",
+        "investment candidates",
+        "stock screening",
+        "stock filter",
+        "financial screening",
+        "financial filter",
+    )
+
     def analyze(self, messages, config=None):
         config = config or {}
         latest_user_message = ""
@@ -69,12 +95,16 @@ class QueryAnalyzer:
         research_markers = self._resolve_markers(config.get("research_markers"), self._RESEARCH_MARKERS)
         geopolitical_markers = self._resolve_markers(config.get("geopolitical_markers"), self._GEOPOLITICAL_MARKERS)
         temporal_markers = self._resolve_markers(config.get("temporal_markers"), self._TEMPORAL_MARKERS)
+        discovery_markers = self._resolve_markers(config.get("discovery_markers"), self._DISCOVERY_MARKERS)
         financial_hits = sum(1 for marker in financial_markers if marker in lowered)
         research_hits = sum(1 for marker in research_markers if marker in lowered)
         geopolitical_hits = sum(1 for marker in geopolitical_markers if marker in lowered)
         temporal_hits = sum(1 for marker in temporal_markers if marker in lowered)
+        discovery_hits = sum(1 for marker in discovery_markers if marker in lowered)
 
-        if financial_hits >= 2:
+        if discovery_hits >= 2:
+            intent = "securities_discovery"
+        elif financial_hits >= 2:
             intent = "financial_research"
         elif "portfolio" in lowered:
             intent = "portfolio_analysis"
@@ -98,6 +128,8 @@ class QueryAnalyzer:
             complexity_score += 1
         if temporal_hits >= 2:
             complexity_score += 1
+        if discovery_hits >= 2:
+            complexity_score += 1
 
         high_threshold = int(config.get("complexity_high_threshold", 3))
         medium_threshold = int(config.get("complexity_medium_threshold", 1))
@@ -117,6 +149,7 @@ class QueryAnalyzer:
                 "research_hits": research_hits,
                 "geopolitical_hits": geopolitical_hits,
                 "temporal_hits": temporal_hits,
+                "discovery_hits": discovery_hits,
                 "complexity_score": complexity_score,
             },
         }
