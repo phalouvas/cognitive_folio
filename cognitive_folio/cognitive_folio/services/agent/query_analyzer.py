@@ -60,6 +60,7 @@ class QueryAnalyzer:
         "discover",
         "find stocks",
         "find me stocks",
+        "find me companies",
         "search for companies",
         "search for stocks",
         "investment ideas",
@@ -71,6 +72,8 @@ class QueryAnalyzer:
         "companies with",
         "high dividend",
         "low pe",
+        "pe under",
+        "pe below",
         "undervalued",
         "growth stocks",
         "value stocks",
@@ -80,6 +83,10 @@ class QueryAnalyzer:
         "stock filter",
         "financial screening",
         "financial filter",
+        "p/e ratio",
+        "price to earnings",
+        "dividend yield",
+        "market cap",
     )
 
     def analyze(self, messages, config=None):

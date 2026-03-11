@@ -4,20 +4,15 @@ import time
 from typing import Dict, List, Optional, Any
 import re
 
+# Import yfinance if available
 try:
     import yfinance as yf
     YFINANCE_INSTALLED = True
 except ImportError:
     YFINANCE_INSTALLED = False
 
-try:
-    from cognitive_folio.cognitive_folio.doctype.cf_security.cf_security import search_stock_symbols
-    from cognitive_folio.cognitive_folio.utils.helper import get_edgar_data
-    from cognitive_folio.cognitive_folio.services.performance.reliability import CircuitBreakerManager, RateLimiter
-    from cognitive_folio.cognitive_folio.services.performance.search_caching import SearchResultCache
-    CF_SECURITY_AVAILABLE = True
-except ImportError:
-    CF_SECURITY_AVAILABLE = False
+# We'll import modules lazily when needed to avoid import errors
+CF_SECURITY_AVAILABLE = True  # Assume available, will check in handler
 
 
 def get_tool_definitions(chat_message=None):
@@ -77,8 +72,15 @@ def handle_discover_securities(chat_message, args, portfolio_doc=None, security_
     if not YFINANCE_INSTALLED:
         raise ValueError("yfinance is not installed. Please install it to use securities discovery.")
     
-    if not CF_SECURITY_AVAILABLE:
-        raise ValueError("Required CF Security modules are not available.")
+    # Try to import required modules lazily
+    try:
+        from cognitive_folio.cognitive_folio.doctype.cf_security.cf_security import search_stock_symbols
+        from cognitive_folio.cognitive_folio.utils.helper import get_edgar_data
+        from cognitive_folio.cognitive_folio.services.performance.reliability import CircuitBreakerManager, RateLimiter
+        from cognitive_folio.cognitive_folio.services.performance.search_caching import SearchResultCache
+    except ImportError as e:
+        frappe.log_error(f"Failed to import required modules for discover_securities: {str(e)}", "Discovery Tools")
+        raise ValueError(f"Required CF Security modules are not available: {str(e)}")
     
     # Extract parameters
     sector = args.get("sector")
@@ -177,6 +179,9 @@ def _get_initial_candidates(sector=None, market_cap_min=None, market_cap_max=Non
     candidates = []
     
     try:
+        # Import here to avoid circular imports
+        from cognitive_folio.cognitive_folio.doctype.cf_security.cf_security import search_stock_symbols
+        
         # Try to use Yahoo Finance search with sector filter
         if sector:
             # Search for stocks in the sector
@@ -327,6 +332,9 @@ def _enrich_securities_data(securities, rate_limiter=None, circuit_breaker=None)
             
             # Try to get SEC data if CIK is available
             try:
+                # Import here to avoid circular imports
+                from cognitive_folio.cognitive_folio.utils.helper import get_edgar_data
+                
                 # Extract CIK from ticker info or lookup
                 ticker_info = yf.Ticker(symbol).get_info()
                 if "cik" in ticker_info:

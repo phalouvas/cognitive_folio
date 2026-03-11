@@ -185,12 +185,12 @@ scheduler_events = {
 # Dynamic tool registration hooks (Phase 2.2)
 cognitive_folio_tool_definitions = [
 	"cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.get_tool_definitions",
-	"cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools.get_tool_definitions",
+	"cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools_simple.get_tool_definitions",
 ]
 
 cognitive_folio_tool_handlers = {
 	"normalize_ticker": "cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.handle_normalize_ticker",
-	"discover_securities": "cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools.handle_discover_securities",
+	"discover_securities": "cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools_simple.handle_discover_securities",
 }
 
 # Overriding Methods
