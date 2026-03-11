@@ -21,7 +21,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "list",
    "indent": 0,
    "keep_closed": 0,
    "label": "Core",
@@ -80,7 +80,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "list",
    "indent": 0,
    "keep_closed": 0,
    "label": "AI & Chat",
@@ -115,18 +115,6 @@
   {
    "child": 1,
    "collapsible": 1,
-   "icon": "cpu",
-   "indent": 0,
-   "keep_closed": 0,
-   "label": "AI Models",
-   "link_to": "CF AI Model",
-   "link_type": "DocType",
-   "show_arrow": 0,
-   "type": "Link"
-  },
-  {
-   "child": 1,
-   "collapsible": 1,
    "icon": "file-text",
    "indent": 0,
    "keep_closed": 0,
@@ -139,7 +127,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "list",
    "indent": 0,
    "keep_closed": 1,
    "label": "Transactions",
@@ -174,7 +162,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "list",
    "indent": 0,
    "keep_closed": 1,
    "label": "Monitoring & Analytics",
@@ -257,7 +245,7 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "list",
    "indent": 0,
    "keep_closed": 1,
    "label": "Compliance & Security",
@@ -292,7 +280,114 @@
   {
    "child": 0,
    "collapsible": 1,
-   "icon": "",
+   "icon": "list",
+   "indent": 0,
+   "keep_closed": 1,
+   "label": "Reports",
+   "link_type": "",
+   "show_arrow": 0,
+   "type": "Section Break"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "file-text",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Portfolio Holdings",
+   "link_to": "Portfolio Holdings",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "trending-up",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Top Winners and Losers",
+   "link_to": "Top Winners and Losers",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "chart-bar",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Tool Metrics Trends",
+   "link_to": "Tool Metrics Trends",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "database",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Memory Cleanup Metrics Trends",
+   "link_to": "Memory Cleanup Metrics Trends",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "shield",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Compliance Logs Trends",
+   "link_to": "Compliance Logs Trends",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "star",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Quality Metrics Trends",
+   "link_to": "Quality Metrics Trends",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "flask-round",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Experiment Metrics Trends",
+   "link_to": "Experiment Metrics Trends",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 1,
+   "collapsible": 1,
+   "icon": "bell",
+   "indent": 0,
+   "keep_closed": 0,
+   "label": "Monitoring Alerts Trends",
+   "link_to": "Monitoring Alerts Trends",
+   "link_type": "Report",
+   "show_arrow": 0,
+   "type": "Link"
+  },
+  {
+   "child": 0,
+   "collapsible": 1,
+   "icon": "list",
    "indent": 0,
    "keep_closed": 1,
    "label": "System",
@@ -337,7 +432,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-03-11 07:35:47.440221",
+ "modified": "2026-03-11 07:44:43.115617",
  "modified_by": "info@kainotomo.com",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
