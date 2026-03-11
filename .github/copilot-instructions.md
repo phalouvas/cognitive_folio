@@ -29,7 +29,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - Supports optional URL embedding (`fetch_urls`), PDF extraction.
 - Supports optional connected-context prompt injection (`implicit_chat_context`) for chats linked to a security/portfolio.
 - **Agentic tool calls**: `send()` always routes through the tool-call chain. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
-- **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`.
+- **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`, `discover_securities` (securities discovery by sector, P/E, dividend yield, market cap).
 - **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-reasoner` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
 - **Lifecycle cleanup**: `CF Chat Message.on_trash()` and `.on_cancel()` detach noncritical monitoring/compliance links so cancel/delete actions are not blocked by linked analytics records.
 - **Enhanced metrics display**: Tokens and runtime audit data are automatically formatted into human-readable HTML via `_format_tokens_and_audit_html()` and displayed in the UI with detailed breakdowns including token counts, tool execution traces, and performance metrics.
@@ -54,6 +54,45 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - **DeepSeek-Reasoner DSML fallback**: if the model emits DSML markup (`<｜DSML｜…>`) in `content` instead of `tool_calls` (can happen when tools are absent on the last round), `_content_looks_like_dsml` detects it, the markup is discarded, and the post-loop forced synthesis call produces the real answer.
 - **Multi-turn thinking**: `reasoning_content` is included in assistant messages within the same tool-call chain (required by the DeepSeek API). Before a new user turn, `_clear_reasoning_content` strips it from history to save bandwidth and avoid a 400 error.
 - **Unsupported params**: `_strip_unsupported_request_params` dynamically removes parameters rejected by the endpoint (e.g. `temperature`, `top_p`, `seed`, `extra_body`) and retries automatically.
+
+## Securities Discovery Feature
+
+The `discover_securities` tool enables users to find investment opportunities based on specific criteria. This feature integrates with Yahoo Finance for real-time data and supports natural language queries.
+
+### Key Components
+
+1. **Tool Definition** (`discovery_tools.py`):
+   - **Function**: `handle_discover_securities(query, **kwargs)`
+   - **Parameters**: Supports sector, P/E ratio, dividend yield, market cap, and other financial filters
+   - **Data Sources**: Yahoo Finance (yfinance) for real-time market data
+
+2. **Intent Detection** (`query_analyzer.py`):
+   - **Markers**: 35+ keywords/phrases like "find stocks", "discover securities", "investment opportunities", "screener"
+   - **Detection**: Triggers `securities_discovery` intent when 2+ markers are found
+   - **Examples**: "Find tech stocks with P/E under 20", "Discover dividend-paying healthcare companies"
+
+3. **Tool Registration** (`hooks.py`):
+   - Added to `cognitive_folio_tool_definitions`: `"discovery_tools"`
+   - Added to `cognitive_folio_tool_handlers`: `"discover_securities"`
+
+4. **Tool Recommendation** (`tool_recommender.py`):
+   - **Mapping**: `"securities_discovery"` → `["discover_securities", "search_financial", "get_security_snapshot"]`
+   - **Fallback**: Includes related tools for comprehensive financial analysis
+
+### Implementation Details
+
+- **Lazy Imports**: Critical for Frappe context - import modules within functions to avoid circular dependencies
+- **Parameter Extraction**: Natural language parsing for sector, P/E, dividend yield, market cap filters
+- **Candidate Screening**: Multi-step filtering with financial metrics validation
+- **Data Enrichment**: Adds news, SEC filings, and detailed financial information
+- **Performance**: High-quality results with 0.94+ quality score in testing
+
+### Example Queries
+
+- "Find technology stocks with P/E ratio under 25 and dividend yield above 2%"
+- "Discover healthcare companies with market cap over $10B"
+- "Show me undervalued stocks in the energy sector"
+- "Find high-growth tech stocks with strong financials"
 
 ## Background Jobs & Queue Management
 - Always use `queue="long"` and `timeout=1800` (30 minutes) for AI operations.

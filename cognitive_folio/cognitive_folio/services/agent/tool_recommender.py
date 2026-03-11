@@ -2,6 +2,7 @@ class ToolRecommender:
     """Recommend tools based on query analysis and available tool definitions."""
 
     INTENT_TOOL_MAP = {
+        "securities_discovery": ["discover_securities", "search_financial", "get_security_snapshot"],
         "financial_research": ["search_financial", "web_search", "get_security_snapshot", "get_portfolio_holdings"],
         "portfolio_analysis": ["get_portfolio_holdings", "search_financial", "web_search"],
         "security_analysis": ["get_security_snapshot", "get_latest_security_news", "search_financial", "web_search"],
