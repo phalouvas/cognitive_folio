@@ -11,15 +11,15 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "cognitive_folio",
-# 		"logo": "/assets/cognitive_folio/logo.png",
-# 		"title": "Cognitive Folio",
-# 		"route": "/cognitive_folio",
+add_to_apps_screen = [
+    {
+        "name": "cognitive_folio",
+        "logo": "/assets/cognitive_folio/images/cognitive_folio_logo.svg",
+        "title": "Cognitive Folio",
+        "route": "/cognitive-folio"
 # 		"has_permission": "cognitive_folio.api.permission.has_app_permission"
-# 	}
-# ]
+    }
+]
 
 # Includes in <head>
 # ------------------
@@ -154,43 +154,43 @@ after_install = "cognitive_folio.install.after_install"
 # ---------------
 
 scheduler_events = {
-	"cron": {
-		"0 3 * * *": [
-			"cognitive_folio.tasks.auto_fetch_portfolio_prices"
-		],
-		"0 4 * * *": [
-			"cognitive_folio.tasks.auto_evaluate_holdings_news"
-		],
-		"30 4 * * *": [
-			"cognitive_folio.tasks.cleanup_vector_memory_store"
-		],
-		"0 5 * * *": [
-			"cognitive_folio.tasks.capture_search_reliability_health_snapshot"
-		],
-		"30 5 * * 0": [
-			"cognitive_folio.tasks.run_phase4_index_maintenance"
-		],
-		"0 6 * * *": [
-			"cognitive_folio.tasks.cleanup_phase56_retention_data"
-		],
-		"15 6 * * *": [
-			"cognitive_folio.tasks.capture_phase6_usage_snapshot"
-		],
-		"45 6 * * 0": [
-			"cognitive_folio.tasks.evaluate_ab_experiment_rollouts"
-		]
-	}
+    "cron": {
+        "0 3 * * *": [
+            "cognitive_folio.tasks.auto_fetch_portfolio_prices"
+        ],
+        "0 4 * * *": [
+            "cognitive_folio.tasks.auto_evaluate_holdings_news"
+        ],
+        "30 4 * * *": [
+            "cognitive_folio.tasks.cleanup_vector_memory_store"
+        ],
+        "0 5 * * *": [
+            "cognitive_folio.tasks.capture_search_reliability_health_snapshot"
+        ],
+        "30 5 * * 0": [
+            "cognitive_folio.tasks.run_phase4_index_maintenance"
+        ],
+        "0 6 * * *": [
+            "cognitive_folio.tasks.cleanup_phase56_retention_data"
+        ],
+        "15 6 * * *": [
+            "cognitive_folio.tasks.capture_phase6_usage_snapshot"
+        ],
+        "45 6 * * 0": [
+            "cognitive_folio.tasks.evaluate_ab_experiment_rollouts"
+        ]
+    }
 }
 
 # Dynamic tool registration hooks (Phase 2.2)
 cognitive_folio_tool_definitions = [
-	"cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.get_tool_definitions",
-	"cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools.get_tool_definitions",
+    "cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.get_tool_definitions",
+    "cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools.get_tool_definitions",
 ]
 
 cognitive_folio_tool_handlers = {
-	"normalize_ticker": "cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.handle_normalize_ticker",
-	"discover_securities": "cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools.handle_discover_securities",
+    "normalize_ticker": "cognitive_folio.cognitive_folio.services.tooling.plugins.basic_tools.handle_normalize_ticker",
+    "discover_securities": "cognitive_folio.cognitive_folio.services.tooling.plugins.discovery_tools.handle_discover_securities",
 }
 
 # Overriding Methods
