@@ -16,7 +16,7 @@
  "charts": [
   {
    "chart": "Portfolio Value",
-   "width": "Full"
+   "width": "Half"
   },
   {
    "chart": "Portfolio Returns by Portfolio",
@@ -25,16 +25,44 @@
   {
    "chart": "Recommendation Mix",
    "width": "Half"
+  },
+  {
+   "chart": "Tool Calls Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Memory Cleanup Rows Deleted Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Memory Cleanup Failed Runs Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Quality Score Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Estimated Cost Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Compliance Violations Trend",
+   "width": "Half"
+  },
+  {
+   "chart": "Monitoring Alerts Trend",
+   "width": "Half"
   }
  ],
- "creation": "2026-02-13 13:05:00.000000",
+ "creation": "2026-02-13 13:05:00",
  "dashboard_name": "Cognitive Folio",
  "docstatus": 0,
  "doctype": "Dashboard",
  "idx": 0,
  "is_default": 0,
  "is_standard": 1,
- "modified": "2026-02-13 13:05:00.000000",
+ "modified": "2026-03-27 07:38:42.223081",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",

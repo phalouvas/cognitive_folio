@@ -11,15 +11,15 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-add_to_apps_screen = [
-    {
-        "name": "cognitive_folio",
-        "logo": "/assets/cognitive_folio/images/cognitive_folio_logo.svg",
-        "title": "Cognitive Folio",
-        "route": "/cognitive-folio"
+#add_to_apps_screen = [
+#    {
+#        "name": "cognitive_folio",
+#        "logo": "/assets/cognitive_folio/images/cognitive_folio_logo.svg",
+#        "title": "Cognitive Folio",
+#        "route": "/cognitive-folio"
 # 		"has_permission": "cognitive_folio.api.permission.has_app_permission"
-    }
-]
+#    }
+#]
 
 # Includes in <head>
 # ------------------
