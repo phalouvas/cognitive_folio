@@ -1,48 +1,7 @@
 {
  "app": "cognitive_folio",
- "charts": [
-  {
-   "chart_name": "Portfolio Value",
-   "label": "Portfolio Value"
-  },
-  {
-   "chart_name": "Portfolio Returns by Portfolio",
-   "label": "Portfolio Returns by Portfolio"
-  },
-  {
-   "chart_name": "Recommendation Mix",
-   "label": "Recommendation Mix"
-  },
-  {
-   "chart_name": "Tool Calls Trend",
-   "label": "Tool Calls Trend"
-   },
-   {
-    "chart_name": "Memory Cleanup Rows Deleted Trend",
-    "label": "Memory Cleanup Rows Deleted Trend"
-   },
-   {
-    "chart_name": "Memory Cleanup Failed Runs Trend",
-    "label": "Memory Cleanup Failed Runs Trend"
-  },
-  {
-   "chart_name": "Quality Score Trend",
-   "label": "Quality Score Trend"
-  },
-  {
-   "chart_name": "Estimated Cost Trend",
-   "label": "Estimated Cost Trend"
-  },
-  {
-   "chart_name": "Compliance Violations Trend",
-   "label": "Compliance Violations Trend"
-  },
-  {
-   "chart_name": "Monitoring Alerts Trend",
-   "label": "Monitoring Alerts Trend"
-  }
- ],
- "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"nt1ZmN4VJp\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Portfolio Value\",\"col\":4}},{\"id\":\"B9wew-k3nR\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Cost Basis\",\"col\":4}},{\"id\":\"8VnL1l6i44\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Price Alerts\",\"col\":4}},{\"id\":\"_XWq9N7eP4\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Portfolio Value\",\"col\":6}},{\"id\":\"ihXwqQ2Gqy\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Portfolio Returns by Portfolio\",\"col\":6}},{\"id\":\"XyRo5WSyEM\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Recommendation Mix\",\"col\":12}},{\"id\":\"toolCallsTrend01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Tool Calls Trend\",\"col\":6}},{\"id\":\"toolLatencyTrend01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Tool Avg Latency Trend\",\"col\":6}},{\"id\":\"memoryCleanupRowsDeleted01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Memory Cleanup Rows Deleted Trend\",\"col\":6}},{\"id\":\"memoryCleanupFailedRuns01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Memory Cleanup Failed Runs Trend\",\"col\":6}},{\"id\":\"qualityScoreTrend01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Quality Score Trend\",\"col\":6}},{\"id\":\"estimatedCostTrend01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Estimated Cost Trend\",\"col\":6}},{\"id\":\"complianceViolationsTrend01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Compliance Violations Trend\",\"col\":6}},{\"id\":\"monitoringAlertsTrend01\",\"type\":\"chart\",\"data\":{\"chart_name\":\"Monitoring Alerts Trend\",\"col\":6}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
+ "charts": [],
+ "content": "[{\"id\":\"d0sL2QociL\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\">Cognitive Folio</span>\",\"col\":12}},{\"id\":\"nt1ZmN4VJp\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Portfolio Value\",\"col\":4}},{\"id\":\"B9wew-k3nR\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Total Cost Basis\",\"col\":4}},{\"id\":\"8VnL1l6i44\",\"type\":\"number_card\",\"data\":{\"number_card_name\":\"Active Price Alerts\",\"col\":4}},{\"id\":\"J9Hs4jLSGp\",\"type\":\"card\",\"data\":{\"card_name\":\"Masters\",\"col\":3}},{\"id\":\"Inft9p15oe\",\"type\":\"card\",\"data\":{\"card_name\":\"Details\",\"col\":3}},{\"id\":\"QZN0BM1h4V\",\"type\":\"card\",\"data\":{\"card_name\":\"Setup\",\"col\":3}},{\"id\":\"xzkdJZEfr6\",\"type\":\"card\",\"data\":{\"card_name\":\"Reports\",\"col\":3}},{\"id\":\"G7FcS15wrH\",\"type\":\"header\",\"data\":{\"text\":\"<span class=\\\"h4\\\"><b>Documention</b></span>\",\"col\":12}},{\"id\":\"vhJQP8a4fY\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Readme\",\"col\":3}},{\"id\":\"Kcgl-rlbmn\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Financial Data Sources\",\"col\":3}},{\"id\":\"GQJxplFf4S\",\"type\":\"shortcut\",\"data\":{\"shortcut_name\":\"Variable Reference\",\"col\":3}}]",
  "creation": "2025-05-14 08:12:52.289798",
  "custom_blocks": [],
  "docstatus": 0,
@@ -59,7 +18,7 @@
    "hidden": 0,
    "is_query_report": 0,
    "label": "Masters",
-  "link_count": 8,
+   "link_count": 8,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -215,106 +174,8 @@
   {
    "hidden": 0,
    "is_query_report": 0,
-   "label": "Experiments & Analytics",
-   "link_count": 6,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Experiments",
-   "link_count": 0,
-   "link_to": "CF Experiment",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Experiment Metrics",
-   "link_count": 0,
-   "link_to": "CF Experiment Metric",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Tool Metrics",
-   "link_count": 0,
-   "link_to": "CF Tool Metric",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Quality Metrics",
-   "link_count": 0,
-   "link_to": "CF Quality Metric",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Monitoring Alerts",
-   "link_count": 0,
-   "link_to": "CF Monitoring Alert",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Memory Cleanup Metrics",
-   "link_count": 0,
-   "link_to": "CF Memory Cleanup Metric",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Compliance",
-   "link_count": 2,
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Card Break"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Access Audit",
-   "link_count": 0,
-   "link_to": "CF Access Audit",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
-   "label": "Search Compliance Log",
-   "link_count": 0,
-   "link_to": "CF Search Compliance Log",
-   "link_type": "DocType",
-   "onboard": 0,
-   "type": "Link"
-  },
-  {
-   "hidden": 0,
-   "is_query_report": 0,
    "label": "Reports",
-    "link_count": 7,
+   "link_count": 7,
    "link_type": "DocType",
    "onboard": 0,
    "type": "Card Break"
@@ -348,16 +209,16 @@
    "link_type": "Report",
    "onboard": 0,
    "type": "Link"
-    },
-    {
-     "hidden": 0,
-     "is_query_report": 1,
-     "label": "Memory Cleanup Metrics Trends",
-     "link_count": 0,
-     "link_to": "Memory Cleanup Metrics Trends",
-     "link_type": "Report",
-     "onboard": 0,
-     "type": "Link"
+  },
+  {
+   "hidden": 0,
+   "is_query_report": 1,
+   "label": "Memory Cleanup Metrics Trends",
+   "link_count": 0,
+   "link_to": "Memory Cleanup Metrics Trends",
+   "link_type": "Report",
+   "onboard": 0,
+   "type": "Link"
   },
   {
    "hidden": 0,
@@ -400,7 +261,7 @@
    "type": "Link"
   }
  ],
- "modified": "2026-03-06 14:30:49.825798",
+ "modified": "2026-03-27 07:41:08.943137",
  "modified_by": "Administrator",
  "module": "Cognitive Folio",
  "name": "Cognitive Folio",
