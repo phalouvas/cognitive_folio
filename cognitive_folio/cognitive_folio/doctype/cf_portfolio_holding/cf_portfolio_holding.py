@@ -133,6 +133,7 @@ class CFPortfolioHolding(Document):
         if not self.security:
             frappe.throw("Security must be specified to fetch current price.")
             
+        security = None
         try:
             # Get the security document
             security = frappe.get_doc("CF Security", self.security)
@@ -143,7 +144,16 @@ class CFPortfolioHolding(Document):
             
             return {"success": True}
         except Exception as e:
-            frappe.log_error(f"Error fetching current price: {str(e)}", "Portfolio Holding Error")
+            frappe.log_error(
+                message=(
+                    f"Holding row: {self.name}\n"
+                    f"Portfolio: {self.portfolio or 'N/A'}\n"
+                    f"Security: {self.security or 'N/A'}\n"
+                    f"Symbol: {getattr(security, 'symbol', None) or 'unknown'}\n"
+                    f"Error fetching current price: {str(e)}"
+                ),
+                title="Portfolio Holding Error"
+            )
             frappe.throw("Error fetching current price. Please check the security.")
             
     @frappe.whitelist()
