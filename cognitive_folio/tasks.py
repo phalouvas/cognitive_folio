@@ -44,12 +44,31 @@ def auto_fetch_portfolio_prices():
 				
 				# Call the fetch_holdings_data method without fundamentals
 				result = portfolio_doc.fetch_holdings_data(with_fundamentals=False)
+				updated_count = result.get("updated", 0) if isinstance(result, dict) else result
+				total_holdings = result.get("total", 0) if isinstance(result, dict) else frappe.db.count(
+					"CF Portfolio Holding",
+					filters={"portfolio": portfolio.name, "security_type": "Stock"}
+				)
+				failed_count = result.get("failed", 0) if isinstance(result, dict) else max(total_holdings - (updated_count or 0), 0)
 				
-				if result and result > 0:
+				if updated_count and updated_count > 0:
 					updated_portfolios += 1
-					frappe.logger().info(f"Successfully updated {result} holdings for portfolio: {portfolio.portfolio_name}")
+					if failed_count > 0:
+						frappe.logger().warning(
+							f"Partially updated portfolio {portfolio.portfolio_name}: "
+							f"{updated_count} of {total_holdings} holdings succeeded. "
+							f"Check 'Portfolio Holding Price Fetch Error' and 'Fetch Current Price Error' logs for failed securities."
+						)
+					else:
+						frappe.logger().info(f"Successfully updated {updated_count} of {total_holdings} holdings for portfolio: {portfolio.portfolio_name}")
 				else:
-					frappe.logger().info(f"No holdings to update for portfolio: {portfolio.portfolio_name}")
+					if total_holdings > 0:
+						frappe.logger().warning(
+							f"Portfolio {portfolio.portfolio_name} did not update any of its {total_holdings} stock holdings. "
+							f"Check 'Portfolio Holding Price Fetch Error' and 'Fetch Current Price Error' logs for failed securities."
+						)
+					else:
+						frappe.logger().info(f"No holdings to update for portfolio: {portfolio.portfolio_name}")
 					
 			except Exception as e:
 				frappe.log_error(

@@ -109,26 +109,70 @@ class CFPortfolio(Document):
 		
 		if not holdings:
 			frappe.msgprint("No holdings found in this portfolio")
-			return 0
+			return {
+				"total": 0,
+				"updated": 0,
+				"failed": 0,
+				"all_succeeded": True,
+			}
 		
 		# Use enumerate to get a counter in the for loop
 		total_steps = len(holdings)
+		successful_updates = 0
 		for counter, holding in enumerate(holdings, 1):
 			frappe.publish_progress(
 				percent=(counter)/total_steps * 100,
 				title="Processing",
 				description=f"Processing item {counter} of {total_steps} ({holding.security})"
 			)
-			security = frappe.get_doc("CF Security", holding.security)
-			if with_fundamentals:
-				security.fetch_data(with_fundamentals=True)
-			else:
-				security.fetch_data(with_fundamentals=False)
+			security = None
+			try:
+				security = frappe.get_doc("CF Security", holding.security)
+				if with_fundamentals:
+					security.fetch_data(with_fundamentals=True)
+				else:
+					security.fetch_data(with_fundamentals=False)
+				successful_updates += 1
+			except Exception as e:
+				security_symbol = None
+				if security and getattr(security, "symbol", None):
+					security_symbol = security.symbol
+				frappe.log_error(
+					message=(
+						f"Portfolio: {self.name}\n"
+						f"Portfolio name: {self.portfolio_name or self.name}\n"
+						f"Holding row: {holding.name}\n"
+						f"Security: {holding.security}\n"
+						f"Symbol: {security_symbol or 'unknown'}\n"
+						f"Position: {counter}/{total_steps}\n"
+						f"Error: {str(e)}"
+					),
+					title="Portfolio Holding Price Fetch Error"
+				)
+				continue
 
 		# Always refresh portfolio performance after fetch completes
 		self.calculate_portfolio_performance()
 
-		return total_steps
+		failed_updates = total_steps - successful_updates
+		summary = {
+			"total": total_steps,
+			"updated": successful_updates,
+			"failed": failed_updates,
+			"all_succeeded": failed_updates == 0,
+		}
+		if failed_updates:
+			frappe.logger().warning(
+				f"Portfolio {self.portfolio_name or self.name} refresh completed with partial success: "
+				f"{successful_updates} of {total_steps} holdings updated."
+			)
+		else:
+			frappe.logger().info(
+				f"Portfolio {self.portfolio_name or self.name} refresh completed successfully: "
+				f"{successful_updates} of {total_steps} holdings updated."
+			)
+
+		return summary
 	
 	@frappe.whitelist()
 	def generate_portfolio_ai_analysis(self):

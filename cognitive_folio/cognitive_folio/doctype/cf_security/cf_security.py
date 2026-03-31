@@ -228,8 +228,24 @@ class CFSecurity(Document):
 			ticker = yf.Ticker(self.symbol)
 			ticker_info = ticker.get_info()
 			self.ticker_info = frappe.as_json(ticker_info)
-			self.currency = ticker_info['currency']
-			self.current_price = ticker_info['regularMarketPrice']
+			self.currency = ticker_info.get('currency', '')
+			price_field = None
+			for candidate_field in ('regularMarketPrice', 'currentPrice'):
+				candidate_value = ticker_info.get(candidate_field)
+				if candidate_value is not None:
+					self.current_price = candidate_value
+					price_field = candidate_field
+					break
+
+			if price_field is None:
+				available_price_fields = sorted(
+					key for key, value in ticker_info.items()
+					if value is not None and ('price' in key.lower() or key in ('bid', 'ask', 'previousClose'))
+				)
+				raise ValueError(
+					f"No supported market price field found for security {self.name} ({self.symbol}). "
+					f"Available price fields: {available_price_fields or 'none'}"
+				)
 			self.news = frappe.as_json(ticker.get_news())
 			self.news_urls = "\n".join([item['content']['clickThroughUrl']['url'] for item in json.loads(self.news) if item.get('content') and item['content'].get('clickThroughUrl') and item['content']['clickThroughUrl'].get('url')])
 			self.country = ticker_info.get('country', '')
@@ -282,7 +298,19 @@ class CFSecurity(Document):
 			self.save()
 			
 		except Exception as e:
-			frappe.log_error(f"Error fetching current price: {str(e)}", "Fetch Current Price Error")
+			ticker_keys = []
+			if 'ticker_info' in locals() and isinstance(ticker_info, dict):
+				ticker_keys = sorted(ticker_info.keys())
+			frappe.log_error(
+				message=(
+					f"Security: {self.name}\n"
+					f"Symbol: {self.symbol or 'N/A'}\n"
+					f"With fundamentals: {with_fundamentals}\n"
+					f"Error fetching current price: {str(e)}\n"
+					f"Ticker info keys: {ticker_keys or 'unavailable'}"
+				),
+				title="Fetch Current Price Error"
+			)
 			frappe.throw("Error fetching current price. Please check the symbol.")
 
 	@frappe.whitelist()
