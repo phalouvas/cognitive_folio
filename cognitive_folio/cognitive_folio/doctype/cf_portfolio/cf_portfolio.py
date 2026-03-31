@@ -109,7 +109,12 @@ class CFPortfolio(Document):
 		
 		if not holdings:
 			frappe.msgprint("No holdings found in this portfolio")
-			return 0
+			return {
+				"total": 0,
+				"updated": 0,
+				"failed": 0,
+				"all_succeeded": True,
+			}
 		
 		# Use enumerate to get a counter in the for loop
 		total_steps = len(holdings)
@@ -149,7 +154,25 @@ class CFPortfolio(Document):
 		# Always refresh portfolio performance after fetch completes
 		self.calculate_portfolio_performance()
 
-		return successful_updates
+		failed_updates = total_steps - successful_updates
+		summary = {
+			"total": total_steps,
+			"updated": successful_updates,
+			"failed": failed_updates,
+			"all_succeeded": failed_updates == 0,
+		}
+		if failed_updates:
+			frappe.logger().warning(
+				f"Portfolio {self.portfolio_name or self.name} refresh completed with partial success: "
+				f"{successful_updates} of {total_steps} holdings updated."
+			)
+		else:
+			frappe.logger().info(
+				f"Portfolio {self.portfolio_name or self.name} refresh completed successfully: "
+				f"{successful_updates} of {total_steps} holdings updated."
+			)
+
+		return summary
 	
 	@frappe.whitelist()
 	def generate_portfolio_ai_analysis(self):

@@ -16,10 +16,19 @@ frappe.ui.form.on("CF Portfolio", {
                     doc: frm.doc,
                     callback: function(r) {
                         if (r.message) {
-                            frappe.show_alert({
-                                message: __('Updated prices for ' + r.message + ' securities'),
-                                indicator: 'green'
-                            }, 5);
+                            const summary = r.message;
+                            if (summary.all_succeeded) {
+                                frappe.show_alert({
+                                    message: __('Updated {0} of {1} holdings successfully', [summary.updated, summary.total]),
+                                    indicator: 'green'
+                                }, 5);
+                            } else {
+                                frappe.msgprint({
+                                    title: __('Partial Update'),
+                                    indicator: 'orange',
+                                    message: __('Updated {0} of {1} holdings. {2} holding(s) failed. Check the Error Log for details.', [summary.updated, summary.total, summary.failed])
+                                });
+                            }
                             frm.reload_doc();
                         }
                     },
@@ -39,10 +48,19 @@ frappe.ui.form.on("CF Portfolio", {
                     },
                     callback: function(r) {
                         if (r.message) {
-                            frappe.show_alert({
-                                message: __('Updated prices for ' + r.message + ' securities'),
-                                indicator: 'green'
-                            }, 5);
+                            const summary = r.message;
+                            if (summary.all_succeeded) {
+                                frappe.show_alert({
+                                    message: __('Updated {0} of {1} holdings successfully', [summary.updated, summary.total]),
+                                    indicator: 'green'
+                                }, 5);
+                            } else {
+                                frappe.msgprint({
+                                    title: __('Partial Update'),
+                                    indicator: 'orange',
+                                    message: __('Updated {0} of {1} holdings. {2} holding(s) failed. Check the Error Log for details.', [summary.updated, summary.total, summary.failed])
+                                });
+                            }
                             frm.reload_doc();
                         }
                     },
