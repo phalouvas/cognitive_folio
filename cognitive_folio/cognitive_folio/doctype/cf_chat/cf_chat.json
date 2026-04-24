@@ -56,7 +56,7 @@
    "fieldname": "model",
    "fieldtype": "Select",
    "label": "Model",
-   "options": "deepseek-chat\ndeepseek-reasoner",
+   "options": "deepseek-v4-flash\ndeepseek-v4-pro",
    "reqd": 1
   },
   {

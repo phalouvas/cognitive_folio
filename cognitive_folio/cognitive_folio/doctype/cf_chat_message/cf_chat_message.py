@@ -1177,11 +1177,11 @@ class CFChatMessage(Document):
 			)
 		return
 
-	# Sentinel used to detect deepseek-reasoner DSML fallback markup in content.
+	# Sentinel used to detect deepseek-v4-pro DSML fallback markup in content.
 	_DSML_SEP = "\uff5c"  # ｜ U+FF5C FULLWIDTH VERTICAL LINE
 
 	def _content_looks_like_dsml(self, content):
-		"""Return True if content contains deepseek-reasoner DSML function-call markup."""
+		"""Return True if content contains deepseek-v4-pro DSML function-call markup."""
 		sep = self._DSML_SEP
 		return bool(content) and f"<{sep}DSML{sep}" in content
 
@@ -1805,11 +1805,11 @@ class CFChatMessage(Document):
 
 	def _is_reasoner_model(self, model_name, settings=None):
 		normalized_model = (model_name or "").strip().lower()
-		return normalized_model.startswith("deepseek-reasoner")
+		return normalized_model.startswith("deepseek-v4-pro")
 
 	def _is_deepseek_chat_model(self, model_name):
 		normalized_model = (model_name or "").strip().lower()
-		return normalized_model.startswith("deepseek-chat")
+		return normalized_model.startswith("deepseek-v4-flash")
 
 	def _get_max_completion_tokens(self, settings, prompt_text=None):
 		if self._is_reasoner_model(self.model, settings):

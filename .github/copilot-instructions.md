@@ -30,7 +30,7 @@ Cognitive Folio is a Frappe application for AI-optimized portfolio management, i
 - Supports optional connected-context prompt injection (`implicit_chat_context`) for chats linked to a security/portfolio.
 - **Agentic tool calls**: `send()` always routes through the tool-call chain. The chain loops up to `max_tool_rounds`, executing tool calls and feeding results back until the model produces a final text answer.
 - **Available tools**: `get_security_snapshot`, `get_portfolio_holdings`, `get_latest_security_news`, `web_search` (DuckDuckGo + Wikipedia, with `date_range`/`domain_filter`/`result_type`), `search_financial` (SEC EDGAR, Yahoo Finance, financial news), `fetch_url_content`, `discover_securities` (securities discovery by sector, P/E, dividend yield, market cap).
-- **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-reasoner` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
+- **Thinking mode / DeepSeek-Reasoner**: enabled via `model=deepseek-v4-pro` or `thinking_enabled` setting. `_get_thinking_config` injects `extra_body={"thinking": ...}`. `reasoning_content` is preserved within a tool-call chain but stripped via `_clear_reasoning_content` at the start of each new user turn. A lightweight `_content_looks_like_dsml` sentinel catches the rare case where the model emits DSML markup instead of structured `tool_calls`, discarding the markup and triggering a forced synthesis pass.
 - **Lifecycle cleanup**: `CF Chat Message.on_trash()` and `.on_cancel()` detach noncritical monitoring/compliance links so cancel/delete actions are not blocked by linked analytics records.
 - **Enhanced metrics display**: Tokens and runtime audit data are automatically formatted into human-readable HTML via `_format_tokens_and_audit_html()` and displayed in the UI with detailed breakdowns including token counts, tool execution traces, and performance metrics.
 
@@ -124,7 +124,7 @@ The `discover_securities` tool enables users to find investment opportunities ba
 - **Python packages**: `yfinance`, `openai`, `edgartools`, `duckduckgo-search`, `tiktoken`. Installed automatically via `install.after_install`.
 - **Frappe hooks**: Scheduled tasks defined in `hooks.py` (`scheduler_events`).
 - **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
-- **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-reasoner"` if not set to favor more reliable complex financial analysis.
+- **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-v4-pro"` if not set to favor more reliable complex financial analysis.
 
 ## UI Components & Display Features
 - **Chat audit display**: Enhanced HTML formatting for tokens and runtime audit data via `chat_formatters.js` and `chat_audit.css`.
