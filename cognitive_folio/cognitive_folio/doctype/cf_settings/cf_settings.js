@@ -128,8 +128,8 @@ function populate_default_ai_model_options(frm) {
     // Set options to the select field
     frm.set_df_property('default_ai_model', 'options', options);
 
-    if (!frm.doc.default_ai_model && options.some(option => option.value === 'deepseek-reasoner')) {
-        frm.set_value('default_ai_model', 'deepseek-reasoner');
+    if (!frm.doc.default_ai_model && options.some(option => option.value === 'deepseek-v4-pro')) {
+        frm.set_value('default_ai_model', 'deepseek-v4-pro');
     }
     
     // Refresh the field to show updated options

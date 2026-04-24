@@ -102,7 +102,7 @@
    "fieldname": "model",
    "fieldtype": "Select",
    "label": "Model",
-   "options": "\ndeepseek-chat\ndeepseek-reasoner"
+   "options": "\ndeepseek-v4-flash\ndeepseek-v4-pro"
   },
   {
    "fieldname": "column_break_cbjh",

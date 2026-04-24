@@ -219,7 +219,7 @@ User prompt: "{(prompt_text if prompt_text is not None else self.chat_message.pr
 Search query:"""
 
             response = client.chat.completions.create(
-                model="deepseek-chat",
+                model="deepseek-v4-flash",
                 messages=[{"role": "user", "content": extraction_prompt}],
                 max_tokens=50,
                 temperature=0.1,

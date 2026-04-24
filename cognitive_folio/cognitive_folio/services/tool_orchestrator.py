@@ -598,7 +598,7 @@ class ToolOrchestrator:
         reliable than a fresh "write more" system directive because the model is asked to
         *continue/deepen* what it already started rather than produce new content from scratch.
 
-        For deepseek-reasoner, falls back to deepseek-chat to avoid tool-arg artifact leakage.
+        For deepseek-v4-pro, falls back to deepseek-v4-flash to avoid tool-arg artifact leakage.
 
         Returns (content, reasoning_content, finish_reason) on success, or None on failure.
         """
@@ -638,12 +638,12 @@ class ToolOrchestrator:
         )
         resp = None
         if is_reasoner:
-            # deepseek-reasoner commits to tool-call plans during its thinking phase and
+            # deepseek-v4-pro commits to tool-call plans during its thinking phase and
             # leaks those argument values into content when tools are then unavailable.
-            # Use deepseek-chat for a clean synthesis pass that avoids this pattern.
+            # Use deepseek-v4-flash for a clean synthesis pass that avoids this pattern.
             try:
                 chat_max_tokens = max(int(getattr(settings, "chat_default_max_tokens", None) or 4000), 8192)
-                # Strip reasoning_content from history — deepseek-chat rejects it as an
+                # Strip reasoning_content from history — deepseek-v4-flash rejects it as an
                 # unknown field and it adds no value for the chat model synthesis pass.
                 clean_messages = [
                     {k: v for k, v in m.items() if k != "reasoning_content"}
@@ -651,15 +651,15 @@ class ToolOrchestrator:
                     for m in messages
                 ]
                 resp = client.chat.completions.create(
-                    model="deepseek-chat",
+                    model="deepseek-v4-flash",
                     messages=clean_messages,
                     stream=False,
                     max_tokens=chat_max_tokens,
                 )
-                aggregate_usage.setdefault("tool_execution", {})["synthesis_fallback_model"] = "deepseek-chat"
+                aggregate_usage.setdefault("tool_execution", {})["synthesis_fallback_model"] = "deepseek-v4-flash"
             except Exception as exc:  # noqa: BLE001
                 frappe.logger("cognitive_folio").warning(
-                    "deepseek-chat synthesis fallback failed (%s); using primary model.", exc
+                    "deepseek-v4-flash synthesis fallback failed (%s); using primary model.", exc
                 )
 
         if resp is None:

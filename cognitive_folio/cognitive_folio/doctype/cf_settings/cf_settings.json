@@ -86,14 +86,14 @@
   },
   {
    "default": "4000",
-   "description": "Default completion tokens for deepseek-chat.",
+   "description": "Default completion tokens for deepseek-v4-flash.",
    "fieldname": "chat_default_max_tokens",
    "fieldtype": "Int",
    "label": "Chat Default Max Tokens"
   },
   {
    "default": "32000",
-   "description": "Default completion tokens for deepseek-reasoner.",
+   "description": "Default completion tokens for deepseek-v4-pro.",
    "fieldname": "reasoner_default_max_tokens",
    "fieldtype": "Int",
    "label": "Reasoner Default Max Tokens"
@@ -107,7 +107,7 @@
   },
   {
    "default": "0",
-   "description": "Enable thinking mode for deepseek-chat models (deepseek-reasoner already uses thinking behavior).",
+   "description": "Enable thinking mode for deepseek-v4-flash models (deepseek-v4-pro already uses thinking behavior).",
    "fieldname": "thinking_enabled",
    "fieldtype": "Check",
    "label": "Thinking Enabled"
@@ -125,14 +125,14 @@
   },
   {
    "default": "8000",
-   "description": "Maximum allowed completion tokens for deepseek-chat.",
+   "description": "Maximum allowed completion tokens for deepseek-v4-flash.",
    "fieldname": "chat_max_tokens_cap",
    "fieldtype": "Int",
    "label": "Chat Max Tokens Cap"
   },
   {
    "default": "64000",
-   "description": "Maximum allowed completion tokens for deepseek-reasoner.",
+   "description": "Maximum allowed completion tokens for deepseek-v4-pro.",
    "fieldname": "reasoner_max_tokens_cap",
    "fieldtype": "Int",
    "label": "Reasoner Max Tokens Cap"
@@ -284,8 +284,8 @@
    "label": "AI Models"
   },
   {
-    "default": "deepseek-reasoner",
-    "description": "Select the default AI model to use for operations. deepseek-reasoner is recommended for complex financial analysis.",
+    "default": "deepseek-v4-pro",
+    "description": "Select the default AI model to use for operations. deepseek-v4-pro is recommended for complex financial analysis.",
    "fieldname": "default_ai_model",
    "fieldtype": "Select",
    "label": "Default AI Model"

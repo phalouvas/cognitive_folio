@@ -42,7 +42,7 @@ class CFSettings(Document):
 			self.web_search_providers = "ddgs"
 
 		if not (self.default_ai_model or "").strip():
-			self.default_ai_model = "deepseek-reasoner"
+			self.default_ai_model = "deepseek-v4-pro"
 
 		self.thinking_budget_tokens = self._coerce_int(self.thinking_budget_tokens, 2048, 128, 64000)
 		self.top_p = self._coerce_float(self.top_p, 0.8, 0.0, 1.0, allow_zero=True)
