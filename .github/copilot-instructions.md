@@ -109,7 +109,7 @@ The `discover_securities` tool enables users to find investment opportunities ba
 
 ## Real‑time Notifications
 - Use `frappe.publish_realtime(event='cf_job_completed', ...)` to inform the frontend that a job finished.
-- Include `user=frappe.session.user` to target the specific user.
+- **Always use `doctype`/`docname` instead of `user`** to target the relevant document room (e.g., `doctype="CF Portfolio", docname=portfolio_name`). This ensures events reach the browser in all environments, including Docker/Traefik production where the Cookie header may be dropped during HTTP→HTTPS redirect, causing `user=` targeting to fail.
 - Payload must contain at least `status` ('success'/'error'), a human‑readable `message`, and the relevant ID (security_id, portfolio_id, chat_id).
 - For tool-loop progress updates (when emitted), use `cf_streaming_update` with partial `message` and `reasoning` fields.
 

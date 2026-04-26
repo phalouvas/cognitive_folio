@@ -22,6 +22,23 @@ $(document).ready(function() {
                         streamingReloadTimer = null;
                     }
 
+                    // Ensure socket is subscribed to the relevant doc room
+                    // (defensive: standard Frappe forms auto-subscribe, but custom pages may not)
+                    if (frappe.realtime.socket) {
+                        if (data.portfolio_id) {
+                            frappe.realtime.socket.emit('doc_subscribe', 'CF Portfolio', data.portfolio_id);
+                        }
+                        if (data.security_id) {
+                            frappe.realtime.socket.emit('doc_subscribe', 'CF Security', data.security_id);
+                        }
+                        if (data.chat_id) {
+                            frappe.realtime.socket.emit('doc_subscribe', 'CF Chat', data.chat_id);
+                        }
+                        if (data.message_id) {
+                            frappe.realtime.socket.emit('doc_subscribe', 'CF Chat Message', data.message_id);
+                        }
+                    }
+
                     if (cur_frm) {
                         cur_frm.reload_doc();
                     }
