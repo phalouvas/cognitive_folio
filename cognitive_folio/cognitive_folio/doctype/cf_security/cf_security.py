@@ -770,7 +770,8 @@ def process_security_ai_suggestion(security_name, user):
 					'error': 'OpenAI package is not installed',
 					'message': 'Please run "bench pip install openai" to install the required package.'
 				},
-				user=user
+				doctype="CF Security",
+				docname=security_name
 			)
 			return False
 		
@@ -828,7 +829,8 @@ def process_security_ai_suggestion(security_name, user):
 					'error': error_message,
 					'message': error_message
 				},
-				user=user
+				doctype="CF Security",
+				docname=security_name
 			)
 			
 			return False
@@ -885,7 +887,8 @@ def process_security_ai_suggestion(security_name, user):
 						'error': 'AI response format issue - raw response saved',
 						'message': 'AI response had formatting issues but content was saved'
 					},
-					user=user
+					doctype="CF Security",
+					docname=security_name
 				)
 				
 				return True  # Still consider it a success since we got some response
@@ -910,7 +913,8 @@ def process_security_ai_suggestion(security_name, user):
 					'error': error_message,
 					'message': error_message
 				},
-				user=user
+				doctype="CF Security",
+				docname=security_name
 			)
 			
 			return False
@@ -1005,7 +1009,8 @@ def process_security_ai_suggestion(security_name, user):
 				'chat_id': chat_doc.name,
 				'message': f"AI analysis completed for {security.security_name or security.symbol}.",
 			},
-			user=user
+			doctype="CF Security",
+			docname=security_name
 		)
 		
 		return True
@@ -1023,7 +1028,8 @@ def process_security_ai_suggestion(security_name, user):
 				'error': error_message,
 				'message': error_message
 			},
-			user=user
+			doctype="CF Security",
+			docname=security_name
 		)
 		
 		return False
@@ -1048,7 +1054,8 @@ def process_security_ai_suggestion(security_name, user):
 				'error': error_message[:200],  # Truncate for realtime message too
 				'message': error_message[:200]
 			},
-			user=user
+			doctype="CF Security",
+			docname=security_name
 		)
 		
 		return False

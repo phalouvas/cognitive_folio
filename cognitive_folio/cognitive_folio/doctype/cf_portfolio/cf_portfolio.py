@@ -624,7 +624,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'status': 'error',
 					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			return False
 		
@@ -796,7 +797,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'chat_id': chat_doc.name,
 					'message': _(f"Portfolio '{portfolio_name}' AI analysis has been successfully generated and saved.")
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			
 			return True
@@ -814,7 +816,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'error': error_message,
 					'message': error_message
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			
 			return False
@@ -832,7 +835,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'error': error_message,
 					'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_message}")
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			
 			return False
@@ -853,7 +857,8 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				'error': error_msg,
 				'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_msg}")
 			},
-			user=user
+			doctype="CF Portfolio",
+			docname=portfolio_name
 		)
 		
 		return False
@@ -875,7 +880,8 @@ def process_evaluate_holdings_news(portfolio_name, user):
 					'status': 'error',
 					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			return False
 		
@@ -1009,7 +1015,8 @@ def process_evaluate_holdings_news(portfolio_name, user):
 						'status': 'success',
 						'message': _(f"No securities in portfolio '{portfolio_name}' require news evaluation.")
 					},
-					user=user
+					doctype="CF Portfolio",
+					docname=portfolio_name
 				)
 				return True
 			
@@ -1209,7 +1216,8 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					'cleared_count': cleared_count,
 					'failed_saves': failed_saves
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			
 			return True
@@ -1226,7 +1234,8 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					'error': error_msg,
 					'message': error_msg
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			
 			return False
@@ -1243,7 +1252,8 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					'error': error_msg,
 					'message': error_msg
 				},
-				user=user
+				doctype="CF Portfolio",
+				docname=portfolio_name
 			)
 			
 			return False
@@ -1264,7 +1274,8 @@ Flag for re-evaluation **ONLY** if any of these occur:
 				'error': error_msg,
 				'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_msg}")
 			},
-			user=user
+			doctype="CF Portfolio",
+			docname=portfolio_name
 		)
 		
 		return False
