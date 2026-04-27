@@ -28,6 +28,9 @@ class CFChat(Document):
         # Delete all cf_monitoring_alert records linked to this chat
         frappe.db.delete("CF Monitoring Alert", {"chat": self.name})
 
+        # Delete all cf_search_compliance_log records linked to this chat
+        frappe.db.delete("CF Search Compliance Log", {"chat": self.name})
+
         # Commit the deletion of child records
         frappe.db.commit()
 

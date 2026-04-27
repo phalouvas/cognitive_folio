@@ -97,6 +97,10 @@
   {
    "link_doctype": "CF Monitoring Alert",
    "link_fieldname": "chat"
+  },
+  {
+   "link_doctype": "CF Search Compliance Log",
+   "link_fieldname": "chat"
   }
  ],
  "modified": "2025-12-18 06:43:55.652034",
