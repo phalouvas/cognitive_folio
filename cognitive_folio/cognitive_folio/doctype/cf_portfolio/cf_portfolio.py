@@ -624,8 +624,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'status': 'error',
 					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			return False
 		
@@ -797,8 +796,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'chat_id': chat_doc.name,
 					'message': _(f"Portfolio '{portfolio_name}' AI analysis has been successfully generated and saved.")
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			
 			return True
@@ -816,8 +814,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'error': error_message,
 					'message': error_message
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			
 			return False
@@ -835,8 +832,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 					'error': error_message,
 					'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_message}")
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			
 			return False
@@ -857,8 +853,7 @@ def process_portfolio_ai_analysis(portfolio_name, user):
 				'error': error_msg,
 				'message': _(f"Error generating AI analysis for portfolio '{portfolio_name}': {error_msg}")
 			},
-			doctype="CF Portfolio",
-			docname=portfolio_name
+			room='website'
 		)
 		
 		return False
@@ -880,8 +875,7 @@ def process_evaluate_holdings_news(portfolio_name, user):
 					'status': 'error',
 					'message': _('OpenAI package is not installed. Please run "bench pip install openai"')
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			return False
 		
@@ -1015,19 +1009,18 @@ def process_evaluate_holdings_news(portfolio_name, user):
 						'status': 'success',
 						'message': _(f"No securities in portfolio '{portfolio_name}' require news evaluation.")
 					},
-					doctype="CF Portfolio",
-					docname=portfolio_name
+					room='website'
 				)
 				return True
-			
+
 			# Build the prompt with actual security data
 			prompt = """I own the following stocks that I previously evaluated based on fundamentals.  
 Analyze their recent **NEWS HEADLINES** (not full articles) for material changes that could alter valuation.
 
-⚠️ **Important**: You're analyzing headlines only, which may lack context. Be conservative - 
+**Important**: You're analyzing headlines only, which may lack context. Be conservative - 
 when headlines are vague or could be routine, default to "No" unless clearly material.
 
-📅 **Headline Tags Explained**:
+**Headline Tags Explained**:
 - **[RECENT EARNINGS - Xd ago]** = Earnings/results announced within last 90 days (HIGH PRIORITY)
 - **[EARNINGS - Xd ago]** = Older earnings-related news (>90 days)
 - **[Xd ago]** = Recent non-earnings news (within 7 days)
@@ -1111,9 +1104,8 @@ Flag for re-evaluation **ONLY** if any of these occur:
 		"Reasoning": "Analyst price target increase is routine, no fundamental change"
 	}
 ]
-
 """
-			
+
 			# Add each security's information to the prompt
 			for item in securities_to_evaluate:
 				security_doc = item['security_doc']
@@ -1216,8 +1208,7 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					'cleared_count': cleared_count,
 					'failed_saves': failed_saves
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			
 			return True
@@ -1234,8 +1225,7 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					'error': error_msg,
 					'message': error_msg
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			
 			return False
@@ -1252,8 +1242,7 @@ Flag for re-evaluation **ONLY** if any of these occur:
 					'error': error_msg,
 					'message': error_msg
 				},
-				doctype="CF Portfolio",
-				docname=portfolio_name
+				room='website'
 			)
 			
 			return False
@@ -1274,8 +1263,7 @@ Flag for re-evaluation **ONLY** if any of these occur:
 				'error': error_msg,
 				'message': _(f"Error generating AI news evaluation for portfolio '{portfolio_name}': {error_msg}")
 			},
-			doctype="CF Portfolio",
-			docname=portfolio_name
+			room='website'
 		)
 		
 		return False

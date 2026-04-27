@@ -22,22 +22,11 @@ $(document).ready(function() {
                         streamingReloadTimer = null;
                     }
 
-                    // Ensure socket is subscribed to the relevant doc room
-                    // (defensive: standard Frappe forms auto-subscribe, but custom pages may not)
-                    if (frappe.realtime.socket) {
-                        if (data.portfolio_id) {
-                            frappe.realtime.socket.emit('doc_subscribe', 'CF Portfolio', data.portfolio_id);
-                        }
-                        if (data.security_id) {
-                            frappe.realtime.socket.emit('doc_subscribe', 'CF Security', data.security_id);
-                        }
-                        if (data.chat_id) {
-                            frappe.realtime.socket.emit('doc_subscribe', 'CF Chat', data.chat_id);
-                        }
-                        if (data.message_id) {
-                            frappe.realtime.socket.emit('doc_subscribe', 'CF Chat Message', data.message_id);
-                        }
-                    }
+                    // Filter: only react if viewing the relevant document
+                    if (data.portfolio_id && cur_frm && cur_frm.docname !== data.portfolio_id) return;
+                    if (data.security_id && cur_frm && cur_frm.docname !== data.security_id) return;
+                    if (data.chat_id && cur_frm && cur_frm.docname !== data.chat_id) return;
+                    if (data.message_id && cur_frm && cur_frm.docname !== data.message_id) return;
 
                     if (cur_frm) {
                         cur_frm.reload_doc();

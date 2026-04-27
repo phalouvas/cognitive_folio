@@ -210,25 +210,13 @@ class CFChatMessage(Document):
 		return self._realtime_metrics
 
 	def _publish_chat_realtime(self, event_name, payload):
-		"""Publish realtime updates to related doc rooms."""
+		"""Publish realtime updates to the website room (works in Docker/Traefik)."""
 
-		chat_id = payload.get("chat_id")
-		if chat_id:
-			frappe.publish_realtime(
-				event=event_name,
-				message=payload,
-				doctype="CF Chat",
-				docname=chat_id,
-			)
-
-		message_id = payload.get("message_id")
-		if message_id:
-			frappe.publish_realtime(
-				event=event_name,
-				message=payload,
-				doctype="CF Chat Message",
-				docname=message_id,
-			)
+		frappe.publish_realtime(
+			event=event_name,
+			message=payload,
+			room='website',
+		)
 
 	def _is_time_sensitive_prompt(self, prompt_text):
 		lowered = str(prompt_text or "").lower()

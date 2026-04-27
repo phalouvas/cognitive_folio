@@ -770,8 +770,7 @@ def process_security_ai_suggestion(security_name, user):
 					'error': 'OpenAI package is not installed',
 					'message': 'Please run "bench pip install openai" to install the required package.'
 				},
-				doctype="CF Security",
-				docname=security_name
+				room='website'
 			)
 			return False
 		
@@ -829,8 +828,7 @@ def process_security_ai_suggestion(security_name, user):
 					'error': error_message,
 					'message': error_message
 				},
-				doctype="CF Security",
-				docname=security_name
+				room='website'
 			)
 			
 			return False
@@ -887,8 +885,7 @@ def process_security_ai_suggestion(security_name, user):
 						'error': 'AI response format issue - raw response saved',
 						'message': 'AI response had formatting issues but content was saved'
 					},
-					doctype="CF Security",
-					docname=security_name
+					room='website'
 				)
 				
 				return True  # Still consider it a success since we got some response
@@ -913,8 +910,7 @@ def process_security_ai_suggestion(security_name, user):
 					'error': error_message,
 					'message': error_message
 				},
-				doctype="CF Security",
-				docname=security_name
+				room='website'
 			)
 			
 			return False
@@ -1009,8 +1005,7 @@ def process_security_ai_suggestion(security_name, user):
 				'chat_id': chat_doc.name,
 				'message': f"AI analysis completed for {security.security_name or security.symbol}.",
 			},
-			doctype="CF Security",
-			docname=security_name
+			room='website'
 		)
 		
 		return True
@@ -1028,8 +1023,7 @@ def process_security_ai_suggestion(security_name, user):
 				'error': error_message,
 				'message': error_message
 			},
-			doctype="CF Security",
-			docname=security_name
+			room='website'
 		)
 		
 		return False
@@ -1054,8 +1048,7 @@ def process_security_ai_suggestion(security_name, user):
 				'error': error_message[:200],  # Truncate for realtime message too
 				'message': error_message[:200]
 			},
-			doctype="CF Security",
-			docname=security_name
+			room='website'
 		)
 		
 		return False
