@@ -1990,7 +1990,7 @@ class CFChatMessage(Document):
 
 	def prepare_prompt(self, portfolio, security):
 		"""Prepare the prompt with variable replacements"""
-		prompt = self.prompt
+		prompt = self.prompt or ""
 		
 		# Replace ((variable)) with portfolio fields
 		if portfolio:
@@ -2124,7 +2124,7 @@ class CFChatMessage(Document):
 			frappe.log_error("pdfplumber not installed", "PDF Extraction Error")
 			return self.prompt
 		
-		prompt = self.prompt
+		prompt = self.prompt or ""
 		
 		# First, decode any HTML entities
 		prompt = html.unescape(prompt)

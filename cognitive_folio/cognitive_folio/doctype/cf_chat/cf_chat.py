@@ -7,7 +7,7 @@ from frappe.model.document import Document
 
 class CFChat(Document):
     def on_trash(self):
-        """Detach analytics pointers and delete related chat messages."""
+        """Detach analytics pointers and delete related child records."""
         frappe.db.set_value(
             "CF Tool Metric",
             {"last_chat": self.name},
@@ -18,7 +18,16 @@ class CFChat(Document):
 
         # Delete all cf_chat_messages linked to this chat
         frappe.db.delete("CF Chat Message", {"chat": self.name})
-        
+
+        # Delete all cf_access_audit records linked to this chat
+        frappe.db.delete("CF Access Audit", {"chat": self.name})
+
+        # Delete all cf_quality_metric records linked to this chat
+        frappe.db.delete("CF Quality Metric", {"last_chat": self.name})
+
+        # Delete all cf_monitoring_alert records linked to this chat
+        frappe.db.delete("CF Monitoring Alert", {"chat": self.name})
+
         # Commit the deletion of child records
         frappe.db.commit()
 
