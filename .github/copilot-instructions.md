@@ -121,7 +121,7 @@ The `discover_securities` tool enables users to find investment opportunities ba
 - See `cognitive_folio.utils.helper` for implementation details.
 
 ## Dependencies & Configuration
-- **Python packages**: `yfinance`, `openai`, `edgartools`, `duckduckgo-search`, `tiktoken`. Installed automatically via `install.after_install`.
+- **Python packages**: `yfinance`, `openai`, `edgartools`, `ddgs`, `tiktoken`. Installed automatically via `install.after_install`.
 - **Frappe hooks**: Scheduled tasks defined in `hooks.py` (`scheduler_events`).
 - **CF Settings**: Single‑doctype configuration for OpenAI/OpenWebUI endpoint, API key, system prompt, and model list. Use `settings.get_password('open_ai_api_key')` to retrieve the encrypted key. Also configures tool-call behaviour (`max_tool_rounds`, `max_tool_calls_per_round`, `tool_result_max_chars`) and web search (`web_search_providers`, `web_search_max_results`, `web_search_financial_domains`) and thinking mode (`thinking_enabled`, `thinking_type`, `thinking_budget_tokens`).
 - **Model selection**: `default_ai_model` from settings; fallback to `"deepseek-v4-pro"` if not set to favor more reliable complex financial analysis.

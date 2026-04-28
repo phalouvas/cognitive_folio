@@ -457,7 +457,7 @@ Search query:"""
 
     def search_ddgs(self, query, max_results=5, date_range=None, domain_filter=None):
         try:
-            from duckduckgo_search import DDGS
+            from ddgs import DDGS
         except ImportError:
             frappe.log_error("ddgs package not installed", "Web Search Error")
             return []
