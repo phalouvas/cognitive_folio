@@ -11,9 +11,10 @@ Registered in ph_agent's Tool Registry as an "Existing Function" script.
 from __future__ import annotations
 
 import json
-from typing import Any
+from typing import Annotated, Any, Optional
 
 import frappe
+from pydantic import Field
 
 # ---------------------------------------------------------------------------
 # Allowlisted doctypes and their readable fields
@@ -87,38 +88,52 @@ _MAX_FIELD_LENGTH = 500
 
 
 def cognitive_folio_query(
-    action: str,
-    doctype: str,
-    name: str | None = None,
-    filters: dict | None = None,
-    fields: list | None = None,
-    data: dict | None = None,
-    limit: int = 50,
+    action: Annotated[
+        str,
+        Field(description="Operation: 'get' (single doc), 'list' (filtered list), 'search' (keyword search), 'create', 'update', 'delete'"),
+    ],
+    doctype: Annotated[
+        str,
+        Field(description="DocType name, e.g. 'CF Portfolio', 'CF Security', 'CF Portfolio Holding', 'CF Transaction', 'CF Dividend'"),
+    ],
+    name: Annotated[
+        Optional[str],
+        Field(description="Document name (required for get/update/delete actions)"),
+    ] = None,
+    filters: Annotated[
+        Optional[str],
+        Field(description="JSON string of filters, e.g. '{\"portfolio\": \"BOC\"}' or '{\"name\": \"BOC\"}'"),
+    ] = None,
+    fields: Annotated[
+        Optional[str],
+        Field(description="Comma-separated field names to return, e.g. 'name,portfolio_name,currency'. Omit for default field set."),
+    ] = None,
+    data: Annotated[
+        Optional[str],
+        Field(description="JSON string of field values for create/update actions, e.g. '{\"quantity\": 50}'"),
+    ] = None,
+    limit: Annotated[
+        int,
+        Field(description="Maximum number of records to return (max 100)"),
+    ] = 50,
 ) -> dict:
-    """Query Cognitive Folio data.
+    """Query Cognitive Folio financial data.
 
-    Unified interface for accessing CF documents.  The agent calls this
-    with an action and doctype to perform CRUD operations.
+    Unified interface for accessing CF documents. Use 'list' action to find
+    documents matching filters, 'get' to fetch a single document by name or
+    filters, and 'search' for keyword-based lookup.
 
-    Args:
-        action: Operation to perform.
-            - ``"get"``: Fetch a single document by name.
-            - ``"list"``: List documents matching filters.
-            - ``"search"``: Search documents by keyword (name or title).
-            - ``"create"``: Create a new document.
-            - ``"update"``: Update an existing document.
-            - ``"delete"``: Delete a document by name.
-        doctype: The Cognitive Folio DocType to operate on.
-        name: Document name (required for get, update, delete).
-        filters: Filter conditions (for list/search).
-        fields: Specific fields to return (for list). If omitted, uses
-            the allowlist for the doctype.
-        data: Field values (for create/update).
-        limit: Maximum results (default 50, max 100).
-
-    Returns:
-        A dict with ``"success"`` and either ``"data"`` or ``"error"``.
+    Examples:
+      - List portfolios: action='list', doctype='CF Portfolio'
+      - Get portfolio: action='get', doctype='CF Portfolio', filters='{"name":"BOC"}'
+      - List holdings: action='list', doctype='CF Portfolio Holding', filters='{"portfolio":"BOC"}'
+      - List transactions: action='list', doctype='CF Transaction', filters='{"security":"MSFT"}'
     """
+    # Parse JSON string parameters
+    parsed_filters = _parse_json_arg(filters, "filters")
+    parsed_fields = _parse_csv_fields(fields)
+    parsed_data = _parse_json_arg(data, "data")
+
     # Validate doctype
     if doctype not in ALLOWED_DOCTYPES:
         return {
@@ -129,15 +144,15 @@ def cognitive_folio_query(
     # Route to handler
     try:
         if action == "get":
-            return _handle_get(doctype, name, filters, fields)
+            return _handle_get(doctype, name, parsed_filters, parsed_fields)
         elif action == "list":
-            return _handle_list(doctype, filters, fields, limit)
+            return _handle_list(doctype, parsed_filters, parsed_fields, limit)
         elif action == "search":
-            return _handle_search(doctype, filters, fields, limit)
+            return _handle_search(doctype, parsed_filters, parsed_fields, limit)
         elif action == "create":
-            return _handle_create(doctype, data)
+            return _handle_create(doctype, parsed_data)
         elif action == "update":
-            return _handle_update(doctype, name, data)
+            return _handle_update(doctype, name, parsed_data)
         elif action == "delete":
             return _handle_delete(doctype, name)
         else:
@@ -269,6 +284,52 @@ def _handle_delete(doctype: str, name: str | None) -> dict:
     frappe.delete_doc(doctype, name, ignore_permissions=False)
     frappe.db.commit()
     return {"success": True, "message": f"Deleted {doctype} {name}"}
+
+
+# ---------------------------------------------------------------------------
+# JSON / CSV parsing helpers
+# ---------------------------------------------------------------------------
+
+
+def _parse_json_arg(value: str | None, arg_name: str) -> dict | list | None:
+    """Parse a JSON string argument into a Python object.
+
+    The LLM sends filters/data as JSON strings.  This helper safely
+    parses them, returning None on failure (with a logged warning).
+    """
+    if value is None:
+        return None
+    if isinstance(value, (dict, list)):
+        return value  # Already parsed (e.g. from direct Python call)
+    try:
+        return json.loads(value)
+    except (json.JSONDecodeError, TypeError) as e:
+        frappe.log_error(
+            title=f"cognitive_folio_query: invalid {arg_name}",
+            message=f"Value: {value!r}, Error: {e}",
+        )
+        return None
+
+
+def _parse_csv_fields(fields: str | None) -> list | None:
+    """Parse a comma-separated field list or return None.
+
+    The LLM may send fields as a CSV string or a JSON array.
+    """
+    if fields is None:
+        return None
+    if isinstance(fields, list):
+        return fields  # Already a list (e.g. from direct Python call)
+    if isinstance(fields, str):
+        # Could be JSON array or CSV
+        fields = fields.strip()
+        if fields.startswith("["):
+            try:
+                return json.loads(fields)
+            except json.JSONDecodeError:
+                pass
+        return [f.strip() for f in fields.split(",") if f.strip()]
+    return None
 
 
 # ---------------------------------------------------------------------------
