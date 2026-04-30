@@ -230,6 +230,33 @@ frappe.ui.form.on('CF Security', {
             fieldsWithCopyButtons.forEach(fieldName => {
                 addCopyButtonToField(frm, fieldName);
             });
+
+            // Add "Ask AI" button — opens ph_agent chat with security context
+            frm.page.add_inner_button(__('Ask AI'), function() {
+                // First find the Financial Advisor persona and its default LLM provider
+                frappe.db.get_value('Persona', {persona_name: 'Financial Advisor'}, ['name', 'default_llm_provider'])
+                    .then(pr => {
+                        let persona = pr.message && pr.message.name;
+                        let llm_provider = pr.message && pr.message.default_llm_provider;
+                        if (!persona) {
+                            frappe.msgprint(__('Financial Advisor persona not found. Please ensure ph_agent is installed.'));
+                            return;
+                        }
+                        // If persona has no default provider, find the first enabled one
+                        if (!llm_provider) {
+                            frappe.db.get_value('LLM Provider', {is_enabled: 1}, 'name')
+                                .then(lr => {
+                                    llm_provider = lr.message && lr.message.name;
+                                    _create_or_reopen_chat_session(frm, 'CF Security', persona, llm_provider);
+                                });
+                        } else {
+                            _create_or_reopen_chat_session(frm, 'CF Security', persona, llm_provider);
+                        }
+                    });
+            });
+
+            // Render chat sessions section
+            _render_chat_sessions_section(frm, 'CF Security', frm.doc.name);
             
         }
     },
@@ -1381,6 +1408,121 @@ function formatDataCoverageDialog(data, securityName) {
         title: __('Financial Data Coverage - {0}', [securityName]),
         message: html,
         wide: true
+    });
+}
+
+/**
+ * Create or reopen a ph_agent Chat Session linked to a document.
+ * Navigates to the chat page in the same tab.
+ */
+function _create_or_reopen_chat_session(frm, ref_doctype, persona, llm_provider) {
+    if (!llm_provider) {
+        frappe.msgprint(__('No LLM Provider found. Please configure one in PH Agent > LLM Provider.'));
+        return;
+    }
+    
+    // Use a generic title — ph_agent's _reference_enrich_title will prepend
+    // the document name automatically (e.g. "BOC — Chat")
+    var session_title = 'Chat';
+    
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'Chat Session',
+            filters: {
+                reference_doctype: ref_doctype,
+                reference_name: frm.doc.name,
+                user: frappe.session.user,
+                status: 'Open'
+            },
+            fieldname: ['name']
+        },
+        callback: function(r) {
+            if (r.message && r.message.name) {
+                // Reopen existing session — navigate to chat page in same tab
+                frappe.set_route('chat');
+            } else {
+                // Create new session
+                frappe.call({
+                    method: 'frappe.client.insert',
+                    args: {
+                        doc: {
+                            doctype: 'Chat Session',
+                            title: session_title,
+                            persona: persona,
+                            llm_provider: llm_provider,
+                            reference_doctype: ref_doctype,
+                            reference_name: frm.doc.name,
+                            user: frappe.session.user,
+                            status: 'Open',
+                            is_temporary: 0
+                        }
+                    },
+                    callback: function(create_r) {
+                        if (create_r.message && create_r.message.name) {
+                            frappe.set_route('chat');
+                        }
+                    }
+                });
+            }
+        }
+    });
+}
+
+/**
+ * Render a "Chat Sessions" section on the form showing past ph_agent sessions
+ * linked to this document.
+ */
+function _render_chat_sessions_section(frm, ref_doctype, ref_name) {
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Chat Session',
+            filters: {
+                reference_doctype: ref_doctype,
+                reference_name: ref_name,
+                user: frappe.session.user
+            },
+            fields: ['name', 'title', 'modified', 'persona', 'status'],
+            order_by: 'modified desc',
+            limit_page_length: 10
+        },
+        callback: function(r) {
+            if (!r.message || r.message.length === 0) return;
+            
+            let rows = r.message.map(s => {
+                let status_badge = s.status === 'Open' 
+                    ? '<span class="indicator green">Open</span>'
+                    : '<span class="indicator grey">' + s.status + '</span>';
+                let modified = frappe.datetime.comment_when(s.modified);
+                return `<tr>
+                    <td><a href="/app/chat?session=${s.name}" target="_blank">${s.title || s.name}</a></td>
+                    <td>${s.persona || '-'}</td>
+                    <td>${status_badge}</td>
+                    <td>${modified}</td>
+                </tr>`;
+            }).join('');
+            
+            let html = `<div class="frappe-control" style="margin-top: 15px;">
+                <label class="control-label" style="margin-bottom: 5px;">${__('Chat Sessions')}</label>
+                <div class="control-value">
+                    <table class="table table-bordered table-hover" style="margin-bottom: 0;">
+                        <thead><tr>
+                            <th>${__('Session')}</th>
+                            <th>${__('Persona')}</th>
+                            <th>${__('Status')}</th>
+                            <th>${__('Last Activity')}</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+            
+            // Add the HTML after the main form actions
+            if (frm.fields_dict.chat_sessions_html) {
+                frm.set_df_property('chat_sessions_html', 'options', html);
+            }
+        }
     });
 }
 

@@ -47,7 +47,9 @@
   "sector_allocations",
   "region_allocations",
   "country_allocations",
-  "currency_exposure"
+  "currency_exposure",
+  "chat_tab",
+  "chat_sessions_html"
  ],
  "fields": [
   {
@@ -304,6 +306,16 @@
    "fieldname": "analytics_tab",
    "fieldtype": "Tab Break",
    "label": "Analytics"
+  },
+  {
+   "fieldname": "chat_tab",
+   "fieldtype": "Tab Break",
+   "label": "Chat"
+  },
+  {
+   "fieldname": "chat_sessions_html",
+   "fieldtype": "HTML",
+   "label": "Chat Sessions"
   }
  ],
  "index_web_pages_for_search": 1,

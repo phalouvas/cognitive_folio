@@ -45,3 +45,18 @@ def install_dependencies():
             )
     
     print("Cognitive Folio dependency installation completed", "Cognitive Folio Setup")
+
+
+def _add_tool_group_to_persona(persona: str, tool_group: str):
+    """Add a tool group child record to a Persona."""
+    try:
+        child = frappe.get_doc({
+            "doctype": "Persona Tool Group",
+            "parent": persona,
+            "parentfield": "tool_groups",
+            "parenttype": "Persona",
+            "tool_group": tool_group,
+        })
+        child.insert(ignore_if_duplicate=True)
+    except Exception:
+        pass  # Child record may already exist
