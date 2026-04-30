@@ -105,6 +105,25 @@ READ_FIELDS = {
 # Maximum number of results to return for list/search operations
 _MAX_RESULTS = 100
 
+# Whitelist of executable server methods per doctype for the "execute" action.
+# Only methods listed here can be invoked via the cf_query tool.
+EXECUTABLE_METHODS = {
+    "CF Portfolio": [
+        "fetch_holdings_data",
+        "generate_holdings_ai_suggestions",
+        "update_purchase_prices_from_market",
+        "generate_portfolio_ai_analysis",
+        "calculate_portfolio_performance",
+        "evaluate_holdings_news",
+    ],
+    "CF Security": [
+        "fetch_data",
+        "fetch_cik",
+        "generate_ai_suggestion",
+        "get_financial_data_coverage",
+    ],
+}
+
 # Maximum length of a single text field value (truncated to avoid token overflow)
 _MAX_FIELD_LENGTH = 500
 
@@ -112,7 +131,7 @@ _MAX_FIELD_LENGTH = 500
 def cognitive_folio_query(
     action: Annotated[
         str,
-        Field(description="Operation: 'get' (single doc), 'list' (filtered list), 'search' (keyword search), 'create', 'update', 'delete'"),
+        Field(description="Operation: 'get' (single doc), 'list' (filtered list), 'search' (keyword search), 'create', 'update', 'delete', 'execute' (run server method)"),
     ],
     doctype: Annotated[
         str,
@@ -120,7 +139,11 @@ def cognitive_folio_query(
     ],
     name: Annotated[
         Optional[str],
-        Field(description="Document name (required for get/update/delete actions)"),
+        Field(description="Document name (required for get/update/delete/execute actions)"),
+    ] = None,
+    method: Annotated[
+        Optional[str],
+        Field(description="Server method name (required for 'execute' action). E.g. 'calculate_portfolio_performance', 'fetch_holdings_data'"),
     ] = None,
     filters: Annotated[
         Optional[str],
@@ -132,7 +155,7 @@ def cognitive_folio_query(
     ] = None,
     data: Annotated[
         Optional[str],
-        Field(description="JSON string of field values for create/update actions, e.g. '{\"quantity\": 50}'"),
+        Field(description="JSON string of field values for create/update actions, or keyword arguments for 'execute' action, e.g. '{\"with_fundamentals\": true}'"),
     ] = None,
     limit: Annotated[
         int,
@@ -154,7 +177,7 @@ def cognitive_folio_query(
     # Parse JSON string parameters
     parsed_filters = _parse_json_arg(filters, "filters")
     parsed_fields = _parse_csv_fields(fields)
-    parsed_data = _parse_json_arg(data, "data")
+    parsed_data = _parse_json_arg(data, "data") or {}
 
     # Resolve doctype aliases (e.g. "Portfolio" -> "CF Portfolio")
     resolved_doctype = _resolve_doctype(doctype)
@@ -180,10 +203,12 @@ def cognitive_folio_query(
             return _handle_update(doctype, name, parsed_data)
         elif action == "delete":
             return _handle_delete(doctype, name)
+        elif action == "execute":
+            return _handle_execute(resolved_doctype, name, method, parsed_data)
         else:
             return {
                 "success": False,
-                "error": f"Unknown action '{action}'. Supported: get, list, search, create, update, delete",
+                "error": f"Unknown action '{action}'. Supported: get, list, search, create, update, delete, execute",
             }
     except frappe.PermissionError as e:
         return {"success": False, "error": f"Permission denied: {e}"}
@@ -338,6 +363,43 @@ def _handle_delete(doctype: str, name: str | None) -> dict:
     frappe.delete_doc(doctype, name, ignore_permissions=False)
     frappe.db.commit()
     return {"success": True, "message": f"Deleted {doctype} {name}"}
+
+
+def _handle_execute(doctype: str, name: str | None, method: str | None, kwargs: dict) -> dict:
+    """Execute a whitelisted server method on a document.
+
+    Loads the document by ``name`` and calls ``doc.run_method(method, **kwargs)``.
+    Only methods listed in ``EXECUTABLE_METHODS`` for the given doctype may
+    be invoked.
+    """
+    if not name:
+        return {"success": False, "error": "`name` is required for execute action"}
+    if not method:
+        return {"success": False, "error": "`method` is required for execute action"}
+
+    allowed = EXECUTABLE_METHODS.get(doctype, [])
+    if method not in allowed:
+        return {
+            "success": False,
+            "error": f"Method '{method}' not allowed for {doctype}. "
+                     f"Allowed methods: {', '.join(allowed) if allowed else 'none'}",
+        }
+
+    try:
+        doc = frappe.get_doc(doctype, name)
+        result = doc.run_method(method, **kwargs)
+        frappe.db.commit()
+        return {"success": True, "data": result}
+    except frappe.PermissionError as e:
+        return {"success": False, "error": f"Permission denied: {e}"}
+    except frappe.DoesNotExistError as e:
+        return {"success": False, "error": f"Not found: {e}"}
+    except Exception as e:
+        frappe.log_error(
+            title=f"cognitive_folio_query: execute error",
+            message=f"doctype={doctype}, name={name}, method={method}, kwargs={kwargs}: {e}",
+        )
+        return {"success": False, "error": f"Error executing {method}: {str(e)}"}
 
 
 # ---------------------------------------------------------------------------

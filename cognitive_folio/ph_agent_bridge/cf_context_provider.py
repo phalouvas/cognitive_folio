@@ -10,7 +10,6 @@ Registered via the ``ph_agent_context_providers`` hook in hooks.py.
 
 from __future__ import annotations
 
-import json
 import logging
 from typing import Any
 
@@ -130,7 +129,12 @@ class CFChatContextProvider(ContextProvider):
     # ------------------------------------------------------------------
 
     def _build_portfolio_context(self, portfolio_name: str) -> str | None:
-        """Build enriched context for a CF Portfolio."""
+        """Build static identity context for a CF Portfolio.
+
+        Only injects static/identity data that doesn't change.
+        Dynamic data (holdings, prices, performance, etc.) must be
+        fetched on-demand via the ``cf_query`` tool.
+        """
         try:
             doc = frappe.get_doc("CF Portfolio", portfolio_name)
         except frappe.DoesNotExistError:
@@ -139,59 +143,16 @@ class CFChatContextProvider(ContextProvider):
 
         lines = [
             "## Current Portfolio Context",
+            f"- **Name**: {doc.name}",
             f"- **Portfolio**: {doc.portfolio_name}",
             f"- **Currency**: {doc.currency or 'N/A'}",
             f"- **Risk Profile**: {doc.risk_profile or 'N/A'}",
-            f"- **Current Value**: {self._fmt_currency(doc.current_value, doc.currency)}",
-            f"- **Cost Basis**: {self._fmt_currency(doc.cost, doc.currency)}",
         ]
 
-        # Performance
-        if doc.returns_percentage_total is not None:
-            lines.append(
-                f"- **Total Return**: {self._fmt_currency(doc.returns_total, doc.currency)} "
-                f"({doc.returns_percentage_total:+.2f}%)"
-            )
-
-        # Holdings summary
-        holdings = frappe.get_all(
-            "CF Portfolio Holding",
-            filters={"portfolio": portfolio_name},
-            fields=[
-                "security", "quantity", "current_value", "allocation_percentage",
-                "profit_loss_percentage", "sector", "suggestion_action",
-                "suggestion_rating",
-            ],
-            order_by="allocation_percentage desc",
-            limit_page_length=20,
-        )
-
-        if holdings:
-            lines.append("")
-            lines.append("### Holdings")
-            lines.append("| Security | Qty | Value | Allocation | P/L % | Action | Rating |")
-            lines.append("|----------|-----|-------|------------|-------|--------|--------|")
-            for h in holdings:
-                alloc = f"{h.allocation_percentage:.1f}%" if h.allocation_percentage is not None else "N/A"
-                pl = f"{h.profit_loss_percentage:+.2f}%" if h.profit_loss_percentage is not None else "N/A"
-                val = self._fmt_currency(h.current_value, doc.currency)
-                action = h.suggestion_action or "-"
-                rating = f"{'★' * int(h.suggestion_rating or 0)}" if h.suggestion_rating else "-"
-                lines.append(
-                    f"| {h.security} | {h.quantity or 0:.2f} | {val} | {alloc} | {pl} | {action} | {rating} |"
-                )
-
-        # Sector allocations
-        if doc.sector_allocations:
-            try:
-                sectors = json.loads(doc.sector_allocations) if isinstance(doc.sector_allocations, str) else doc.sector_allocations
-                if sectors:
-                    lines.append("")
-                    lines.append("### Sector Allocation")
-                    for s in sorted(sectors.items(), key=lambda x: x[1], reverse=True)[:10]:
-                        lines.append(f"- **{s[0]}**: {s[1]:.1f}%")
-            except (json.JSONDecodeError, TypeError, AttributeError):
-                pass
+        if doc.start_date:
+            lines.append(f"- **Start Date**: {doc.start_date}")
+        if doc.description:
+            lines.append(f"- **Description**: {doc.description}")
 
         context_text = "\n".join(lines)
 
@@ -205,10 +166,12 @@ class CFChatContextProvider(ContextProvider):
     # ------------------------------------------------------------------
 
     def _build_security_context(self, security_name: str) -> str | None:
-        """Build enriched context for a CF Security.
+        """Build static identity context for a CF Security.
 
-        Also loads the parent portfolio context if the security is held
-        in any portfolio.
+        Only injects static/identity data that doesn't change.
+        Dynamic data (current price, suggestions, ratings, EPS,
+        parent portfolios, etc.) must be fetched on-demand via
+        the ``cf_query`` tool.
         """
         try:
             doc = frappe.get_doc("CF Security", security_name)
@@ -218,54 +181,21 @@ class CFChatContextProvider(ContextProvider):
 
         lines = [
             "## Current Security Context",
-            f"- **Name**: {doc.security_name}",
+            f"- **Name**: {doc.name}",
+            f"- **Security Name**: {doc.security_name}",
             f"- **Symbol**: {doc.symbol or 'N/A'}",
-            f"- **Type**: {doc.security_type or 'N/A'}",
-            f"- **Currency**: {doc.currency or 'N/A'}",
-            f"- **Current Price**: {self._fmt_currency(doc.current_price, doc.currency)}",
         ]
 
-        # Suggestion / rating
-        if doc.suggestion_action:
-            lines.append(f"- **Suggestion**: {doc.suggestion_action}")
-        if doc.suggestion_rating:
-            lines.append(f"- **Rating**: {'★' * int(doc.suggestion_rating)}/{5}")
-        if doc.suggestion_buy_price:
-            lines.append(f"- **Buy Price Target**: {self._fmt_currency(doc.suggestion_buy_price, doc.currency)}")
-        if doc.suggestion_sell_price:
-            lines.append(f"- **Sell Price Target**: {self._fmt_currency(doc.suggestion_sell_price, doc.currency)}")
-        if doc.suggestion_fair_value:
-            lines.append(f"- **Fair Value**: {self._fmt_currency(doc.suggestion_fair_value, doc.currency)}")
-        if doc.evaluation_stop_loss:
-            lines.append(f"- **Stop Loss**: {self._fmt_currency(doc.evaluation_stop_loss, doc.currency)}")
-
-        # Sector / industry
+        if doc.isin:
+            lines.append(f"- **ISIN**: {doc.isin}")
+        if doc.security_type:
+            lines.append(f"- **Type**: {doc.security_type}")
+        if doc.country:
+            lines.append(f"- **Country**: {doc.country}")
         if doc.sector:
             lines.append(f"- **Sector**: {doc.sector}")
         if doc.industry:
             lines.append(f"- **Industry**: {doc.industry}")
-
-        # Earnings
-        if doc.trailing_eps:
-            lines.append(f"- **Trailing EPS**: {self._fmt_currency(doc.trailing_eps, doc.currency)}")
-        if doc.forward_eps:
-            lines.append(f"- **Forward EPS**: {self._fmt_currency(doc.forward_eps, doc.currency)}")
-
-        # Find parent portfolios
-        portfolios = frappe.get_all(
-            "CF Portfolio Holding",
-            filters={"security": security_name},
-            fields=["portfolio", "allocation_percentage", "current_value", "quantity"],
-            limit_page_length=10,
-        )
-
-        if portfolios:
-            lines.append("")
-            lines.append("### Held In Portfolios")
-            for p in portfolios:
-                alloc = f"{p.allocation_percentage:.1f}%" if p.allocation_percentage is not None else "N/A"
-                val = self._fmt_currency(p.current_value, doc.currency)
-                lines.append(f"- **{p.portfolio}**: {p.quantity or 0:.2f} shares, {val} ({alloc})")
 
         context_text = "\n".join(lines)
 
