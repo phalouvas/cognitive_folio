@@ -220,6 +220,54 @@ frappe.ui.form.on("CF Portfolio", {
                     }
                 });
             }, __('Actions'));
+
+            // Add "Ask AI" button — opens ph_agent chat with portfolio context
+            frm.add_custom_button(__('Ask AI'), function() {
+                frappe.call({
+                    method: 'frappe.client.get_value',
+                    args: {
+                        doctype: 'Chat Session',
+                        filters: {
+                            reference_doctype: 'CF Portfolio',
+                            reference_name: frm.doc.name,
+                            user: frappe.session.user,
+                            status: 'Open'
+                        },
+                        fieldname: ['name', 'title']
+                    },
+                    callback: function(r) {
+                        if (r.message && r.message.name) {
+                            // Reopen existing session
+                            window.open('/app/chat?session=' + r.message.name, '_blank');
+                        } else {
+                            // Create new session
+                            frappe.call({
+                                method: 'frappe.client.insert',
+                                args: {
+                                    doc: {
+                                        doctype: 'Chat Session',
+                                        title: frm.doc.portfolio_name,
+                                        reference_doctype: 'CF Portfolio',
+                                        reference_name: frm.doc.name,
+                                        user: frappe.session.user,
+                                        status: 'Open',
+                                        is_temporary: 0
+                                    }
+                                },
+                                callback: function(create_r) {
+                                    if (create_r.message && create_r.message.name) {
+                                        window.open('/app/chat?session=' + create_r.message.name, '_blank');
+                                        frm.reload_doc();
+                                    }
+                                }
+                            });
+                        }
+                    }
+                });
+            }, __('AI'));
+
+            // Add "Chat Sessions" section — list past sessions for this portfolio
+            _render_chat_sessions_section(frm, 'CF Portfolio', frm.doc.name);
         }
     },
 
@@ -238,3 +286,60 @@ frappe.ui.form.on("CF Portfolio", {
         }
     }
 });
+
+/**
+ * Render a "Chat Sessions" section on the form showing past ph_agent sessions
+ * linked to this document.
+ */
+function _render_chat_sessions_section(frm, ref_doctype, ref_name) {
+    frappe.call({
+        method: 'frappe.client.get_list',
+        args: {
+            doctype: 'Chat Session',
+            filters: {
+                reference_doctype: ref_doctype,
+                reference_name: ref_name,
+                user: frappe.session.user
+            },
+            fields: ['name', 'title', 'modified', 'persona', 'status'],
+            order_by: 'modified desc',
+            limit_page_length: 10
+        },
+        callback: function(r) {
+            if (!r.message || r.message.length === 0) return;
+            
+            let rows = r.message.map(s => {
+                let status_badge = s.status === 'Open' 
+                    ? '<span class="indicator green">Open</span>'
+                    : '<span class="indicator grey">' + s.status + '</span>';
+                let modified = frappe.datetime.comment_when(s.modified);
+                return `<tr>
+                    <td><a href="/app/chat?session=${s.name}" target="_blank">${s.title || s.name}</a></td>
+                    <td>${s.persona || '-'}</td>
+                    <td>${status_badge}</td>
+                    <td>${modified}</td>
+                </tr>`;
+            }).join('');
+            
+            let html = `<div class="frappe-control" style="margin-top: 15px;">
+                <label class="control-label" style="margin-bottom: 5px;">${__('Chat Sessions')}</label>
+                <div class="control-value">
+                    <table class="table table-bordered table-hover" style="margin-bottom: 0;">
+                        <thead><tr>
+                            <th>${__('Session')}</th>
+                            <th>${__('Persona')}</th>
+                            <th>${__('Status')}</th>
+                            <th>${__('Last Activity')}</th>
+                        </tr></thead>
+                        <tbody>${rows}</tbody>
+                    </table>
+                </div>
+            </div>`;
+            
+            // Add the HTML after the main form actions
+            if (frm.fields_dict.chat_sessions_html) {
+                frm.set_df_property('chat_sessions_html', 'options', html);
+            }
+        }
+    });
+}

@@ -8,7 +8,7 @@ app_license = "mit"
 # Apps
 # ------------------
 
-# required_apps = []
+required_apps = ["ph_agent"]
 
 # Each item in the list will be shown as an app in the apps page
 #add_to_apps_screen = [
@@ -111,6 +111,14 @@ after_install = "cognitive_folio.install.after_install"
 
 # before_app_uninstall = "cognitive_folio.utils.before_app_uninstall"
 # after_app_uninstall = "cognitive_folio.utils.after_app_uninstall"
+
+# ph_agent Integration
+# --------------------
+# Context providers inject domain-specific context into ph_agent chat sessions.
+# Each entry is a dotted path to a ContextProvider subclass.
+ph_agent_context_providers = [
+    "cognitive_folio.ph_agent_bridge.cf_context_provider.CFChatContextProvider",
+]
 
 # Desk Notifications
 # ------------------
