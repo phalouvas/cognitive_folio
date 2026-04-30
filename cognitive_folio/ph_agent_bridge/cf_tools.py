@@ -55,9 +55,16 @@ DOCTYPE_ALIASES = {
     "cf dividend": "CF Dividend",
 }
 
-# Per-doctype field allowlists for read operations.
-# If a doctype is not listed here, all fields are returned (subject to
-# the general allowlist above).
+# Per-doctype fallback fields used when a direct ``name`` lookup fails.
+# The ``_handle_get`` function tries each field in order to locate
+# the document by alternative identifiers.
+_NAME_FALLBACK_FIELDS = {
+    "CF Portfolio": ["portfolio_name"],
+    "CF Security": ["security_name", "symbol"],
+    "CF Portfolio Holding": ["security"],
+    "CF Transaction": ["security"],
+    "CF Dividend": ["security"],
+}
 READ_FIELDS = {
     "CF Portfolio": [
         "name", "portfolio_name", "currency", "risk_profile", "current_value",
@@ -161,6 +168,7 @@ def cognitive_folio_query(
         int,
         Field(description="Maximum number of records to return (max 100)"),
     ] = 50,
+    **extra_kwargs: Any,
 ) -> dict:
     """Query Cognitive Folio financial data.
 
@@ -228,16 +236,55 @@ def cognitive_folio_query(
 
 
 def _handle_get(doctype: str, name: str | None, filters: dict | None = None, fields: list | None = None) -> dict:
-    """Fetch a single document by name or filters."""
+    """Fetch a single document by name or filters.
+
+    Tries the ``name`` parameter as a primary-key lookup first.  If that
+    fails, falls back to searching by title fields (``portfolio_name``,
+    ``security_name``, ``symbol``, etc.) defined in ``_NAME_FALLBACK_FIELDS``.
+    As a last resort, uses the provided ``filters`` dict directly.
+    """
+    doc = None
+
+    # 1. Try primary-key lookup
     if name:
-        doc = frappe.get_doc(doctype, name)
-    elif filters:
-        names = frappe.get_all(doctype, filters=filters, limit_page_length=1, pluck="name")
-        if not names:
-            return {"success": False, "error": f"No {doctype} found matching filters"}
-        doc = frappe.get_doc(doctype, names[0])
-    else:
-        return {"success": False, "error": "`name` or `filters` is required for get action"}
+        try:
+            doc = frappe.get_doc(doctype, name)
+        except frappe.DoesNotExistError:
+            pass  # fall through to title-field search
+
+    # 2. Try common title/alternate fields
+    if doc is None and name:
+        fallback_fields = _NAME_FALLBACK_FIELDS.get(doctype, [])
+        for fieldname in fallback_fields:
+            try:
+                existing = frappe.get_all(
+                    doctype,
+                    filters={fieldname: name},
+                    limit_page_length=1,
+                    pluck="name",
+                )
+                if existing:
+                    doc = frappe.get_doc(doctype, existing[0])
+                    break
+            except Exception:
+                continue
+
+    # 3. Try explicit filters if provided
+    if doc is None and filters:
+        try:
+            names = frappe.get_all(
+                doctype,
+                filters=filters,
+                limit_page_length=1,
+                pluck="name",
+            )
+            if names:
+                doc = frappe.get_doc(doctype, names[0])
+        except Exception:
+            pass
+
+    if doc is None:
+        return {"success": False, "error": f"No {doctype} found matching the given criteria"}
 
     # For CF Portfolio, compute current_value and cost from holdings if stored values are 0
     if doctype == "CF Portfolio":
