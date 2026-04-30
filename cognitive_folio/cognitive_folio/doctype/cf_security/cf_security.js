@@ -253,7 +253,7 @@ frappe.ui.form.on('CF Security', {
                             _create_or_reopen_chat_session(frm, 'CF Security', frm.doc.security_name || frm.doc.symbol, persona, llm_provider);
                         }
                     });
-            }, __('AI'));
+            });
 
             // Render chat sessions section
             _render_chat_sessions_section(frm, 'CF Security', frm.doc.name);

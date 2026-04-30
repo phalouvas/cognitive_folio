@@ -129,7 +129,7 @@ def cognitive_folio_query(
     # Route to handler
     try:
         if action == "get":
-            return _handle_get(doctype, name)
+            return _handle_get(doctype, name, filters, fields)
         elif action == "list":
             return _handle_list(doctype, filters, fields, limit)
         elif action == "search":
@@ -162,13 +162,19 @@ def cognitive_folio_query(
 # ---------------------------------------------------------------------------
 
 
-def _handle_get(doctype: str, name: str | None) -> dict:
-    """Fetch a single document by name."""
-    if not name:
-        return {"success": False, "error": "`name` is required for get action"}
+def _handle_get(doctype: str, name: str | None, filters: dict | None = None, fields: list | None = None) -> dict:
+    """Fetch a single document by name or filters."""
+    if name:
+        doc = frappe.get_doc(doctype, name)
+    elif filters:
+        names = frappe.get_all(doctype, filters=filters, limit_page_length=1, pluck="name")
+        if not names:
+            return {"success": False, "error": f"No {doctype} found matching filters"}
+        doc = frappe.get_doc(doctype, names[0])
+    else:
+        return {"success": False, "error": "`name` or `filters` is required for get action"}
 
-    doc = frappe.get_doc(doctype, name)
-    allowed_fields = READ_FIELDS.get(doctype)
+    allowed_fields = fields if fields and fields != ["*"] else READ_FIELDS.get(doctype)
     data = _serialize_doc(doc, allowed_fields)
     return {"success": True, "data": data}
 

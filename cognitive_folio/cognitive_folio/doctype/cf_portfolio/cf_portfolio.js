@@ -243,7 +243,7 @@ frappe.ui.form.on("CF Portfolio", {
                             _create_or_reopen_chat_session(frm, 'CF Portfolio', frm.doc.portfolio_name, persona, llm_provider);
                         }
                     });
-            }, __('AI'));
+            });
 
             // Add "Chat Sessions" section — list past sessions for this portfolio
             _render_chat_sessions_section(frm, 'CF Portfolio', frm.doc.name);
