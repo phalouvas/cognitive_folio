@@ -237,10 +237,10 @@ frappe.ui.form.on("CF Portfolio", {
                             frappe.db.get_value('LLM Provider', {is_enabled: 1}, 'name')
                                 .then(lr => {
                                     llm_provider = lr.message && lr.message.name;
-                                    _create_or_reopen_chat_session(frm, 'CF Portfolio', frm.doc.portfolio_name, persona, llm_provider);
+                                    _create_or_reopen_chat_session(frm, 'CF Portfolio', persona, llm_provider);
                                 });
                         } else {
-                            _create_or_reopen_chat_session(frm, 'CF Portfolio', frm.doc.portfolio_name, persona, llm_provider);
+                            _create_or_reopen_chat_session(frm, 'CF Portfolio', persona, llm_provider);
                         }
                     });
             });
@@ -268,12 +268,17 @@ frappe.ui.form.on("CF Portfolio", {
 
 /**
  * Create or reopen a ph_agent Chat Session linked to a document.
+ * Navigates to the chat page in the same tab.
  */
-function _create_or_reopen_chat_session(frm, ref_doctype, title, persona, llm_provider) {
+function _create_or_reopen_chat_session(frm, ref_doctype, persona, llm_provider) {
     if (!llm_provider) {
         frappe.msgprint(__('No LLM Provider found. Please configure one in PH Agent > LLM Provider.'));
         return;
     }
+    
+    // Use a generic title — ph_agent's _reference_enrich_title will prepend
+    // the document name automatically (e.g. "BOC — Chat")
+    var session_title = 'Chat';
     
     frappe.call({
         method: 'frappe.client.get_value',
@@ -285,12 +290,12 @@ function _create_or_reopen_chat_session(frm, ref_doctype, title, persona, llm_pr
                 user: frappe.session.user,
                 status: 'Open'
             },
-            fieldname: ['name', 'title']
+            fieldname: ['name']
         },
         callback: function(r) {
             if (r.message && r.message.name) {
-                // Reopen existing session
-                window.open('/app/chat?session=' + r.message.name, '_blank');
+                // Reopen existing session — navigate to chat page in same tab
+                frappe.set_route('chat');
             } else {
                 // Create new session
                 frappe.call({
@@ -298,7 +303,7 @@ function _create_or_reopen_chat_session(frm, ref_doctype, title, persona, llm_pr
                     args: {
                         doc: {
                             doctype: 'Chat Session',
-                            title: title,
+                            title: session_title,
                             persona: persona,
                             llm_provider: llm_provider,
                             reference_doctype: ref_doctype,
@@ -310,8 +315,7 @@ function _create_or_reopen_chat_session(frm, ref_doctype, title, persona, llm_pr
                     },
                     callback: function(create_r) {
                         if (create_r.message && create_r.message.name) {
-                            window.open('/app/chat?session=' + create_r.message.name, '_blank');
-                            frm.reload_doc();
+                            frappe.set_route('chat');
                         }
                     }
                 });
