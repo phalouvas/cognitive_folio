@@ -92,7 +92,9 @@
   "quarterly_cash_flow",
   "cash_flow",
   "dividends_section",
-  "dividends"
+  "dividends",
+  "chat_tab",
+  "chat_sessions_html"
  ],
  "fields": [
   {
@@ -591,6 +593,16 @@
    "fieldname": "earnings_release",
    "fieldtype": "Date",
    "label": "Earnings Release"
+  },
+  {
+   "fieldname": "chat_tab",
+   "fieldtype": "Tab Break",
+   "label": "Chat"
+  },
+  {
+   "fieldname": "chat_sessions_html",
+   "fieldtype": "HTML",
+   "label": "Chat Sessions"
   }
  ],
  "index_web_pages_for_search": 1,

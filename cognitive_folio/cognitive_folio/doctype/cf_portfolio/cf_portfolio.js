@@ -222,7 +222,7 @@ frappe.ui.form.on("CF Portfolio", {
             }, __('Actions'));
 
             // Add "Ask AI" button — opens ph_agent chat with portfolio context
-            frm.add_custom_button(__('Ask AI'), function() {
+            frm.page.add_inner_button(__('Ask AI'), function() {
                 // First find the Financial Advisor persona and its default LLM provider
                 frappe.db.get_value('Persona', {persona_name: 'Financial Advisor'}, ['name', 'default_llm_provider'])
                     .then(pr => {
