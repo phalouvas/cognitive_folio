@@ -33,6 +33,27 @@ ALLOWED_DOCTYPES = {
     "CF Settings",
 }
 
+# Common name aliases that the LLM might use instead of the exact doctype name.
+# Maps alias -> canonical doctype name.
+DOCTYPE_ALIASES = {
+    "portfolio": "CF Portfolio",
+    "portfolios": "CF Portfolio",
+    "cf portfolio": "CF Portfolio",
+    "security": "CF Security",
+    "securities": "CF Security",
+    "cf security": "CF Security",
+    "holding": "CF Portfolio Holding",
+    "holdings": "CF Portfolio Holding",
+    "cf holding": "CF Portfolio Holding",
+    "cf portfolio holding": "CF Portfolio Holding",
+    "transaction": "CF Transaction",
+    "transactions": "CF Transaction",
+    "cf transaction": "CF Transaction",
+    "dividend": "CF Dividend",
+    "dividends": "CF Dividend",
+    "cf dividend": "CF Dividend",
+}
+
 # Per-doctype field allowlists for read operations.
 # If a doctype is not listed here, all fields are returned (subject to
 # the general allowlist above).
@@ -134,8 +155,11 @@ def cognitive_folio_query(
     parsed_fields = _parse_csv_fields(fields)
     parsed_data = _parse_json_arg(data, "data")
 
+    # Resolve doctype aliases (e.g. "Portfolio" -> "CF Portfolio")
+    resolved_doctype = _resolve_doctype(doctype)
+
     # Validate doctype
-    if doctype not in ALLOWED_DOCTYPES:
+    if resolved_doctype not in ALLOWED_DOCTYPES:
         return {
             "success": False,
             "error": f"Unknown doctype '{doctype}'. Allowed: {', '.join(sorted(ALLOWED_DOCTYPES))}",
@@ -144,13 +168,13 @@ def cognitive_folio_query(
     # Route to handler
     try:
         if action == "get":
-            return _handle_get(doctype, name, parsed_filters, parsed_fields)
+            return _handle_get(resolved_doctype, name, parsed_filters, parsed_fields)
         elif action == "list":
-            return _handle_list(doctype, parsed_filters, parsed_fields, limit)
+            return _handle_list(resolved_doctype, parsed_filters, parsed_fields, limit)
         elif action == "search":
-            return _handle_search(doctype, parsed_filters, parsed_fields, limit)
+            return _handle_search(resolved_doctype, parsed_filters, parsed_fields, limit)
         elif action == "create":
-            return _handle_create(doctype, parsed_data)
+            return _handle_create(resolved_doctype, parsed_data)
         elif action == "update":
             return _handle_update(doctype, name, parsed_data)
         elif action == "delete":
@@ -330,6 +354,16 @@ def _parse_csv_fields(fields: str | None) -> list | None:
                 pass
         return [f.strip() for f in fields.split(",") if f.strip()]
     return None
+
+
+def _resolve_doctype(doctype: str) -> str:
+    """Resolve a doctype alias to its canonical name.
+
+    The LLM may pass common names like 'Portfolio' instead of 'CF Portfolio'.
+    This function maps aliases to the correct doctype name.
+    """
+    key = doctype.strip().lower()
+    return DOCTYPE_ALIASES.get(key, doctype)
 
 
 # ---------------------------------------------------------------------------
