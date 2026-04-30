@@ -16,13 +16,30 @@ def execute():
 
 
 def _seed_tool_registry():
-    """Create the cognitive_folio_query tool in ph_agent's Tool Registry."""
+    """Create or update the cognitive_folio_query tool in ph_agent's Tool Registry."""
     if not frappe.db.exists("DocType", "Tool Registry"):
         print("⚠ ph_agent not installed — skipping Tool Registry seeding")
         return
 
+    description = (
+        "Query Cognitive Folio financial data. "
+        "Actions: 'get' (fetch one by name or filters), "
+        "'list' (filtered list of documents), "
+        "'search' (keyword search), "
+        "'create' / 'update' / 'delete' (modify documents), "
+        "'execute' (run a server method like calculate_portfolio_performance, "
+        "fetch_holdings_data, fetch_data, generate_ai_suggestion, etc.). "
+        "Doctypes: CF Portfolio, CF Security, CF Portfolio Holding, "
+        "CF Transaction, CF Dividend."
+    )
+
     if frappe.db.exists("Tool Registry", "cf_query"):
-        print("✓ Tool 'cf_query' already exists")
+        # Update existing record with latest description
+        doc = frappe.get_doc("Tool Registry", "cf_query")
+        doc.description = description
+        doc.tool_group = "Financial"
+        doc.save(ignore_permissions=True)
+        print("✓ Tool 'cf_query' updated with latest description")
         return
 
     try:
@@ -33,12 +50,7 @@ def _seed_tool_registry():
             "script_type": "Existing Function",
             "python_function": "cognitive_folio.ph_agent_bridge.cf_tools.cognitive_folio_query",
             "tool_group": "Financial",
-            "description": (
-                "Query Cognitive Folio financial data. Use list to find documents, "
-                "get to fetch one by name or filters. Pass filters as JSON string. "
-                "Doctypes: CF Portfolio, CF Security, CF Portfolio Holding, "
-                "CF Transaction, CF Dividend."
-            ),
+            "description": description,
             "requires_approval": 0,
         })
         doc.insert(ignore_if_duplicate=True)
