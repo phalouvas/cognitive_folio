@@ -14,6 +14,7 @@ import json
 from typing import Annotated, Any, Optional
 
 import frappe
+from frappe.utils import flt
 from pydantic import Field
 
 # ---------------------------------------------------------------------------
@@ -213,6 +214,10 @@ def _handle_get(doctype: str, name: str | None, filters: dict | None = None, fie
     else:
         return {"success": False, "error": "`name` or `filters` is required for get action"}
 
+    # For CF Portfolio, compute current_value and cost from holdings if stored values are 0
+    if doctype == "CF Portfolio":
+        _enrich_portfolio_totals(doc)
+
     allowed_fields = fields if fields and fields != ["*"] else READ_FIELDS.get(doctype)
     data = _serialize_doc(doc, allowed_fields)
     return {"success": True, "data": data}
@@ -240,6 +245,31 @@ def _handle_list(
         _truncate_fields(record)
 
     return {"success": True, "data": records, "count": len(records)}
+
+
+def _enrich_portfolio_totals(doc):
+    """Compute portfolio current_value and cost from holdings if stored values are 0.
+
+    The portfolio's current_value and cost are computed fields that may be 0
+    if the 'Calculate Performance' action hasn't been run. This function
+    calculates them on-the-fly from the holdings so the agent sees real data.
+    """
+    if doc.current_value != 0 and doc.cost != 0:
+        return  # Already has values
+
+    holdings = frappe.get_all(
+        "CF Portfolio Holding",
+        filters={"portfolio": doc.name},
+        fields=["current_value", "base_cost"],
+    )
+
+    total_value = sum(flt(h.current_value or 0) for h in holdings)
+    total_cost = sum(flt(h.base_cost or 0) for h in holdings)
+
+    if doc.current_value == 0 and total_value:
+        doc.current_value = total_value
+    if doc.cost == 0 and total_cost:
+        doc.cost = total_cost
 
 
 def _handle_search(
