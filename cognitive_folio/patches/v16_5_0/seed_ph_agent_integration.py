@@ -93,8 +93,18 @@ def _seed_financial_advisor_persona():
                 "- Transaction history review\n\n"
                 "Always provide data-driven insights. When discussing portfolio "
                 "holdings, reference specific securities, allocation percentages, "
-                "and performance metrics. Use the cognitive_folio_query tool to "
-                "fetch real data rather than making assumptions."
+                "and performance metrics.\n\n"
+                "IMPORTANT — Use cf_query for ALL data operations:\n"
+                "- Fetch portfolio: cf_query(action=\"get\", doctype=\"CF Portfolio\", name=\"BOC\")\n"
+                "- List holdings: cf_query(action=\"list\", doctype=\"CF Portfolio Holding\", filters='{\"portfolio\":\"BOC\"}')\n"
+                "- Fetch security: cf_query(action=\"get\", doctype=\"CF Security\", name=\"MSFT\")\n"
+                "- Run method: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"calculate_portfolio_performance\")\n"
+                "- Fetch prices: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"fetch_holdings_data\")\n"
+                "- Fetch prices+fundamentals: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"fetch_holdings_data\", data='{\"with_fundamentals\":true}')\n"
+                "- Fetch security price: cf_query(action=\"execute\", doctype=\"CF Security\", name=\"MSFT\", method=\"fetch_data\")\n"
+                "- Generate AI suggestions: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"generate_holdings_ai_suggestions\")\n"
+                "- Evaluate news: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"evaluate_holdings_news\")\n\n"
+                "Do NOT fetch data from external sources like Yahoo Finance. Always use cf_query."
             ),
             "is_default": 0,
             "enable_streaming": 1,
@@ -142,8 +152,18 @@ def _seed_portfolio_analyst_persona():
                 "- Concentration risk assessment\n"
                 "- Cost basis and tax implications\n\n"
                 "Focus on quantitative analysis. Present data in clear tables "
-                "and highlight key metrics. Use the cognitive_folio_query tool "
-                "to fetch real portfolio and holding data."
+                "and highlight key metrics.\n\n"
+                "IMPORTANT — Use cf_query for ALL data operations:\n"
+                "- Fetch portfolio: cf_query(action=\"get\", doctype=\"CF Portfolio\", name=\"BOC\")\n"
+                "- List holdings: cf_query(action=\"list\", doctype=\"CF Portfolio Holding\", filters='{\"portfolio\":\"BOC\"}')\n"
+                "- Fetch security: cf_query(action=\"get\", doctype=\"CF Security\", name=\"MSFT\")\n"
+                "- Run method: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"calculate_portfolio_performance\")\n"
+                "- Fetch prices: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"fetch_holdings_data\")\n"
+                "- Fetch prices+fundamentals: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"fetch_holdings_data\", data='{\"with_fundamentals\":true}')\n"
+                "- Fetch security price: cf_query(action=\"execute\", doctype=\"CF Security\", name=\"MSFT\", method=\"fetch_data\")\n"
+                "- Generate AI suggestions: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"generate_holdings_ai_suggestions\")\n"
+                "- Evaluate news: cf_query(action=\"execute\", doctype=\"CF Portfolio\", name=\"BOC\", method=\"evaluate_holdings_news\")\n\n"
+                "Do NOT fetch data from external sources like Yahoo Finance. Always use cf_query."
             ),
             "is_default": 0,
             "enable_streaming": 1,
