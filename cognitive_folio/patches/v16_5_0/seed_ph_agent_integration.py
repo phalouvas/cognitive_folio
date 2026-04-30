@@ -21,24 +21,23 @@ def _seed_tool_registry():
         print("⚠ ph_agent not installed — skipping Tool Registry seeding")
         return
 
-    if frappe.db.exists("Tool Registry", "cognitive_folio_query"):
-        print("✓ Tool 'cognitive_folio_query' already exists")
+    if frappe.db.exists("Tool Registry", "cf_query"):
+        print("✓ Tool 'cf_query' already exists")
         return
 
     try:
         doc = frappe.get_doc({
             "doctype": "Tool Registry",
-            "tool_name": "cognitive_folio_query",
+            "tool_name": "cf_query",
             "is_enabled": 1,
             "script_type": "Existing Function",
             "python_function": "cognitive_folio.ph_agent_bridge.cf_tools.cognitive_folio_query",
             "tool_group": "Financial",
             "description": (
-                "Query Cognitive Folio financial data. Supports actions: "
-                "get, list, search, create, update, delete. "
-                "Accessible doctypes: CF Portfolio, CF Security, "
-                "CF Portfolio Holding, CF Transaction, CF Dividend, "
-                "CF AI Model, CF Asset Allocation, CF Settings."
+                "Query Cognitive Folio financial data. Use list to find documents, "
+                "get to fetch one by name or filters. Pass filters as JSON string. "
+                "Doctypes: CF Portfolio, CF Security, CF Portfolio Holding, "
+                "CF Transaction, CF Dividend."
             ),
             "requires_approval": 0,
         })
