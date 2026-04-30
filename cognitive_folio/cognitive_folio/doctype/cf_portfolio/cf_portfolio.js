@@ -223,47 +223,26 @@ frappe.ui.form.on("CF Portfolio", {
 
             // Add "Ask AI" button — opens ph_agent chat with portfolio context
             frm.add_custom_button(__('Ask AI'), function() {
-                frappe.call({
-                    method: 'frappe.client.get_value',
-                    args: {
-                        doctype: 'Chat Session',
-                        filters: {
-                            reference_doctype: 'CF Portfolio',
-                            reference_name: frm.doc.name,
-                            user: frappe.session.user,
-                            status: 'Open'
-                        },
-                        fieldname: ['name', 'title']
-                    },
-                    callback: function(r) {
-                        if (r.message && r.message.name) {
-                            // Reopen existing session
-                            window.open('/app/chat?session=' + r.message.name, '_blank');
-                        } else {
-                            // Create new session
-                            frappe.call({
-                                method: 'frappe.client.insert',
-                                args: {
-                                    doc: {
-                                        doctype: 'Chat Session',
-                                        title: frm.doc.portfolio_name,
-                                        reference_doctype: 'CF Portfolio',
-                                        reference_name: frm.doc.name,
-                                        user: frappe.session.user,
-                                        status: 'Open',
-                                        is_temporary: 0
-                                    }
-                                },
-                                callback: function(create_r) {
-                                    if (create_r.message && create_r.message.name) {
-                                        window.open('/app/chat?session=' + create_r.message.name, '_blank');
-                                        frm.reload_doc();
-                                    }
-                                }
-                            });
+                // First find the Financial Advisor persona and its default LLM provider
+                frappe.db.get_value('Persona', {persona_name: 'Financial Advisor'}, ['name', 'default_llm_provider'])
+                    .then(pr => {
+                        let persona = pr.message && pr.message.name;
+                        let llm_provider = pr.message && pr.message.default_llm_provider;
+                        if (!persona) {
+                            frappe.msgprint(__('Financial Advisor persona not found. Please ensure ph_agent is installed.'));
+                            return;
                         }
-                    }
-                });
+                        // If persona has no default provider, find the first enabled one
+                        if (!llm_provider) {
+                            frappe.db.get_value('LLM Provider', {is_enabled: 1}, 'name')
+                                .then(lr => {
+                                    llm_provider = lr.message && lr.message.name;
+                                    _create_or_reopen_chat_session(frm, 'CF Portfolio', frm.doc.portfolio_name, persona, llm_provider);
+                                });
+                        } else {
+                            _create_or_reopen_chat_session(frm, 'CF Portfolio', frm.doc.portfolio_name, persona, llm_provider);
+                        }
+                    });
             }, __('AI'));
 
             // Add "Chat Sessions" section — list past sessions for this portfolio
@@ -286,6 +265,60 @@ frappe.ui.form.on("CF Portfolio", {
         }
     }
 });
+
+/**
+ * Create or reopen a ph_agent Chat Session linked to a document.
+ */
+function _create_or_reopen_chat_session(frm, ref_doctype, title, persona, llm_provider) {
+    if (!llm_provider) {
+        frappe.msgprint(__('No LLM Provider found. Please configure one in PH Agent > LLM Provider.'));
+        return;
+    }
+    
+    frappe.call({
+        method: 'frappe.client.get_value',
+        args: {
+            doctype: 'Chat Session',
+            filters: {
+                reference_doctype: ref_doctype,
+                reference_name: frm.doc.name,
+                user: frappe.session.user,
+                status: 'Open'
+            },
+            fieldname: ['name', 'title']
+        },
+        callback: function(r) {
+            if (r.message && r.message.name) {
+                // Reopen existing session
+                window.open('/app/chat?session=' + r.message.name, '_blank');
+            } else {
+                // Create new session
+                frappe.call({
+                    method: 'frappe.client.insert',
+                    args: {
+                        doc: {
+                            doctype: 'Chat Session',
+                            title: title,
+                            persona: persona,
+                            llm_provider: llm_provider,
+                            reference_doctype: ref_doctype,
+                            reference_name: frm.doc.name,
+                            user: frappe.session.user,
+                            status: 'Open',
+                            is_temporary: 0
+                        }
+                    },
+                    callback: function(create_r) {
+                        if (create_r.message && create_r.message.name) {
+                            window.open('/app/chat?session=' + create_r.message.name, '_blank');
+                            frm.reload_doc();
+                        }
+                    }
+                });
+            }
+        }
+    });
+}
 
 /**
  * Render a "Chat Sessions" section on the form showing past ph_agent sessions
